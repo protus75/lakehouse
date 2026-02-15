@@ -1,0 +1,55 @@
+# .wslconfig — WSL2 global configuration
+# Location: C:\Users\<YourUsername>\.wslconfig
+#
+# Hardware: i9-13900K (24 cores) | 64 GB DDR5 @ 6000 MT/s | RTX 4090 24 GB | 2x 1 TB NVMe
+# Purpose:  Lakehouse MVP — Docker + DuckDB + Ollama (local LLMs)
+#
+# Apply changes: run  wsl --shutdown  then reopen WSL2 / Docker Desktop
+
+[wsl2]
+
+# ── Memory ───────────────────────────────────────────────────────────────────
+# Leave ~8 GB for Windows + background apps.
+# Docker Desktop will further cap its own WSL2 distro to 48 GB via Settings > Resources.
+memory=56GB
+
+# ── CPU ──────────────────────────────────────────────────────────────────────
+# Leave 4 logical cores for Windows (i9-13900K has 24 threads: 8P x2 + 16E x1).
+# Docker Desktop setting (20 CPUs) will further limit the Docker-specific distro.
+processors=20
+
+# ── Swap ─────────────────────────────────────────────────────────────────────
+# Useful when DuckDB spills large sorts/joins to disk.
+# Place on the primary NVMe (C:) for best sequential write speed.
+# Change to D:\\Temp\\wsl-swap.vhdx if your data drive is faster.
+swap=16GB
+swapFile=C:\\Temp\\wsl-swap.vhdx
+
+# ── Networking ───────────────────────────────────────────────────────────────
+# Allow accessing WSL2 services from Windows via localhost (e.g., Jupyter on :8889).
+localhostForwarding=true
+
+[experimental]
+
+# ── Memory reclaim ───────────────────────────────────────────────────────────
+# After DuckDB finishes a large in-memory query, WSL2 can hoard that RAM.
+# 'gradual' releases it back to Windows slowly and safely.
+# Use 'dropcache' if you need faster memory recovery (more aggressive).
+autoMemoryReclaim=gradual
+
+# ── Sparse VHD ───────────────────────────────────────────────────────────────
+# Automatically shrinks the WSL2 virtual disk (.vhdx) when files are deleted.
+# Without this the .vhdx only ever grows, eating NVMe space.
+sparseVhd=true
+
+# ── Mirrored networking (Windows 11 22H2+) ───────────────────────────────────
+# WSL2 shares the same network interfaces as Windows.
+# Benefits:
+#   - WSL2 services visible on the LAN without extra port-forwarding rules
+#   - VPNs configured on Windows automatically work inside WSL2
+#   - Ollama running on Windows is reachable from WSL2/Docker at 127.0.0.1:11434
+networkingMode=mirrored
+
+# Required companions for mirrored mode
+dnsTunneling=true
+firewall=true

@@ -505,6 +505,7 @@ Answer returned to user
 **LLM Options**:
 - **Cloud-based**: OpenAI GPT-4, Anthropic Claude (API costs)
 - **Local**: Llama 2, Mistral, CodeLlama (zero API costs, runs on CPU)
+- **Local GPU**: Llama 3 70B, Mixtral 8×7B via Ollama (RTX 4090 24 GB VRAM can run 70B models at Q4 quantization with no API costs — strongly preferred for this machine)
 - **Specialized**: SQLCoder (fine-tuned for text-to-SQL)
 
 **Use Cases**:
@@ -729,9 +730,10 @@ Response returned
 - ChromaDB (embedded or standalone)
 
 **Single Machine Requirements**:
-- 32-64GB RAM (for DuckDB in-memory processing)
-- 500GB-2TB SSD (for local data caching)
-- 4-8 CPU cores
+- 32-64 GB RAM (for DuckDB in-memory processing) — *this machine: 64 GB DDR5 @ 6000 MT/s*
+- 500 GB–2 TB SSD (for local data caching) — *this machine: 2× 1 TB Samsung 990 PRO PCIe 4.0 NVMe*
+- 4-8 CPU cores — *this machine: i9-13900K 24-core (8P + 16E)*
+- GPU optional for local LLMs — *this machine: RTX 4090 24 GB VRAM (can run 70B parameter models locally)*
 
 ### Kubernetes (Larger Scale)
 
@@ -925,10 +927,31 @@ This section provides explicit, step-by-step instructions — including all comm
 - Streamlit dashboard with charts and filters
 - Smoke tests verifying every layer
 
+---
+
+### Development Machine Specifications
+
+| Component | Specification |
+|-----------|--------------|
+| **GPU** | MSI GeForce RTX 4090 Gaming X Trio 24G — 24 GB GDDR6X, 384-bit, 2595 MHz boost (Ada Lovelace) |
+| **Motherboard** | ASUS PRIME Z790-P WIFI — Intel Z790 chipset |
+| **CPU** | Intel Core i9-13900K — 24 cores (8 P-cores + 16 E-cores), 36 MB L3 cache |
+| **Storage** | 2× Samsung 990 PRO 1 TB PCIe 4.0 M.2 NVMe (2 TB total) |
+| **RAM** | G.SKILL Trident Z5 RGB 64 GB DDR5 (2×32 GB) @ 6000 MT/s CL32 (XMP 3.0) |
+| **OS** | Windows 11 Pro |
+
+**Implications for this stack**:
+- DuckDB can use up to **48 GB RAM** comfortably (leaving 16 GB for OS + Docker overhead)
+- **24 CPU threads** available for DuckDB parallel query execution
+- **2 TB NVMe** storage supports datasets well beyond the MVP sample data
+- **RTX 4090 (24 GB VRAM)** enables fully local LLM inference (Llama 3 70B, Mistral, etc.) for the RAG layer — no API costs
+
+---
+
 **Prerequisites**:
-- Windows 10/11 (Pro, Enterprise, or Education)
-- 16 GB RAM minimum (32 GB recommended)
-- 50 GB free disk space
+- Windows 11 Pro (installed)
+- 64 GB RAM — well above minimum; allocate up to 48 GB to Docker
+- 2 TB NVMe SSD — allocate at least 200 GB for Docker and lakehouse data
 - Admin rights to install software
 
 ---
@@ -971,7 +994,80 @@ wsl --set-version Ubuntu 2
 
 ---
 
-#### Step 1.2: Install Docker Desktop
+#### Step 1.2: Configure WSL2 Resources (.wslconfig)
+
+Before installing Docker, set WSL2's memory, CPU, and networking limits so the VM is properly sized for this machine from the start.
+
+**Copy the pre-configured file** from the repo into your Windows user profile:
+
+```powershell
+# In PowerShell — replace <YourUsername> with your actual Windows username
+Copy-Item "D:\source\lakehouse\lakehouse\wsl\.wslconfig" `
+          "C:\Users\<YourUsername>\.wslconfig"
+```
+
+Or create `C:\Users\<YourUsername>\.wslconfig` manually with this content:
+
+```ini
+# .wslconfig — WSL2 global configuration
+# Hardware: i9-13900K (24 cores) | 64 GB DDR5 @ 6000 MT/s | RTX 4090 24 GB | 2x 1 TB NVMe
+
+[wsl2]
+
+# Leave ~8 GB for Windows + background apps
+# Docker Desktop will further cap its distro to 48 GB via Settings > Resources
+memory=56GB
+
+# Leave 4 logical cores for Windows (i9-13900K has 24 threads)
+processors=20
+
+# Swap file — useful when DuckDB spills large sorts to disk
+swap=16GB
+swapFile=C:\\Temp\\wsl-swap.vhdx
+
+# Allow accessing WSL2 services from Windows via localhost
+localhostForwarding=true
+
+[experimental]
+
+# Release WSL2 RAM back to Windows after heavy DuckDB workloads
+autoMemoryReclaim=gradual
+
+# Shrink the WSL2 .vhdx automatically when files are deleted (saves NVMe space)
+sparseVhd=true
+
+# Mirror Windows network interfaces in WSL2 (Windows 11 22H2+)
+# Ollama on Windows becomes reachable at 127.0.0.1:11434 from inside Docker containers
+networkingMode=mirrored
+dnsTunneling=true
+firewall=true
+```
+
+**Apply the config** (WSL2 must be fully shut down to pick up changes):
+
+```powershell
+wsl --shutdown
+# Wait 5 seconds, then reopen Ubuntu or Docker Desktop
+```
+
+**Verify the settings took effect** in WSL2:
+
+```bash
+free -h
+# Should show ~55 GB total memory
+
+nproc
+# Should show 20
+```
+
+> **Swap file prerequisite:** Create the `C:\Temp` directory before WSL2 starts, otherwise the swap file creation silently fails:
+> ```powershell
+> New-Item -ItemType Directory -Force -Path C:\Temp
+> ```
+
+---
+
+#### Step 1.3: Install Docker Desktop
 
 1. Download Docker Desktop from `https://www.docker.com/products/docker-desktop/`
 2. Run the installer. Ensure **"Use WSL 2 based engine"** is checked during setup.
@@ -980,11 +1076,13 @@ wsl --set-version Ubuntu 2
 
 **Set resource limits** — Docker Desktop → Settings → Resources:
 
-| Setting | Minimum | Recommended |
-|---------|---------|-------------|
-| Memory  | 8 GB    | 12 GB       |
-| CPUs    | 4       | 6           |
-| Disk    | 50 GB   | 80 GB       |
+| Setting | Minimum | Recommended | This Machine |
+|---------|---------|-------------|--------------|
+| Memory  | 8 GB    | 12 GB       | 48 GB        |
+| CPUs    | 4       | 6           | 20           |
+| Disk    | 50 GB   | 80 GB       | 200 GB       |
+
+> **Note (i9-13900K):** Assign 20 of the 24 logical cores to Docker (leave 4 for Windows/OS tasks). With 64 GB RAM, allocating 48 GB gives Docker plenty of headroom for DuckDB's in-memory processing while keeping the host stable.
 
 **Verify Docker is working:**
 
@@ -996,7 +1094,94 @@ Expected: `Hello from Docker!` in the output.
 
 ---
 
-#### Step 1.3: Create Project Directory Structure
+#### Step 1.4: Verify NVIDIA Driver (Windows)
+
+The RTX 4090 GPU becomes available inside WSL2 and Docker automatically once the Windows host driver is installed — no Linux GPU driver needed inside WSL2.
+
+Check your driver version in PowerShell:
+
+```powershell
+nvidia-smi
+```
+
+Expected output includes your driver version and GPU name:
+```
++-----------------------------------------------------------------------------+
+| NVIDIA-SMI 561.xx    Driver Version: 561.xx    CUDA Version: 12.x          |
+|-------------------------------+----------------------+----------------------+
+| GPU 0: NVIDIA GeForce RTX 4090 ...
+```
+
+**Minimum driver version required:** 527.41 (supports CUDA 12.x in WSL2).
+
+If not installed or out of date, download the latest from the [NVIDIA driver page](https://www.nvidia.com/Download/index.aspx) and install on Windows, then reboot.
+
+> **Important:** Do NOT install a Linux NVIDIA GPU driver inside WSL2. The Windows driver is passed through automatically.
+
+---
+
+#### Step 1.5: Install CUDA Toolkit in WSL2
+
+The CUDA Toolkit provides compiler and runtime libraries needed for PyTorch GPU acceleration and sentence-transformers. Install it inside WSL2, **not** on Windows.
+
+Open the WSL2 Ubuntu terminal and run:
+
+```bash
+# Download NVIDIA package keyring
+wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.0-1_all.deb
+sudo dpkg -i cuda-keyring_1.0-1_all.deb
+sudo apt-get update
+
+# Install the toolkit ONLY — do NOT use the 'cuda' or 'cuda-drivers' meta-package
+# Those would attempt to install a Linux GPU driver, breaking WSL2 passthrough
+sudo apt-get install -y cuda-toolkit-12-6
+```
+
+Verify the toolkit is visible:
+
+```bash
+nvcc --version
+# Expected: Cuda compilation tools, release 12.6, ...
+
+nvidia-smi
+# Expected: RTX 4090 listed with Driver Version from Windows
+```
+
+---
+
+#### Step 1.6: Install NVIDIA Container Toolkit (GPU access for Docker)
+
+This allows Docker containers to use the RTX 4090. Run inside WSL2:
+
+```bash
+# Add NVIDIA Container Toolkit repo
+distribution=$(. /etc/os-release; echo $ID$VERSION_ID)
+curl -s -L https://nvidia.github.io/nvidia-docker/gpgkey | sudo apt-key add -
+curl -s -L https://nvidia.github.io/nvidia-docker/$distribution/nvidia-docker.list | \
+  sudo tee /etc/apt/sources.list.d/nvidia-docker.list
+
+sudo apt-get update && sudo apt-get install -y nvidia-container-toolkit
+
+# Configure Docker to use the NVIDIA runtime
+sudo nvidia-ctk runtime configure --runtime=docker
+sudo systemctl restart docker
+```
+
+**Test GPU access inside a container:**
+
+```bash
+docker run --rm --gpus all nvidia/cuda:12.6.0-runtime-ubuntu22.04 nvidia-smi
+```
+
+Expected: RTX 4090 shown inside the container output. If this passes, all Docker-based AI workloads will see the GPU.
+
+**Troubleshooting:**
+- `Failed to initialize NVML` → Ensure Docker Desktop is ≥ v4.31.1 (update via Docker Desktop Settings → Software Updates)
+- GPU not listed → Confirm `nvidia-smi` works in WSL2 outside Docker first (Step 1.4)
+
+---
+
+#### Step 1.7: Create Project Directory Structure
 
 Open PowerShell and run:
 
@@ -1960,6 +2145,80 @@ Create `.github/workflows/dbt_test.yml` to run `dbt test` on every pull request,
 
 Create `docker-compose.staging.yml` with different port mappings, volume names, and `POLARIS_NAMESPACE=staging_analytics`, so staging and production run independently on the same machine.
 
+#### Enhancement 6: Local LLM via Ollama (RTX 4090 — no API costs)
+
+Install Ollama natively on Windows so it uses the RTX 4090 directly, then call it from Docker containers over the host network.
+
+**Install Ollama on Windows** (PowerShell):
+
+```powershell
+# Download and install from ollama.com
+winget install Ollama.Ollama
+```
+
+**Start Ollama and expose it to Docker containers:**
+
+```powershell
+# Bind to all interfaces so Docker containers can reach it
+$env:OLLAMA_HOST = "0.0.0.0:11434"
+ollama serve
+```
+
+**Pull models** (open a second PowerShell tab):
+
+```powershell
+# Llama 3 70B at Q4 quantization — fits in 24 GB VRAM
+ollama pull llama3:70b
+
+# SQLCoder (fine-tuned text-to-SQL) — fits in 8 GB VRAM
+ollama pull defog/sqlcoder-70b-alpha
+
+# Verify GPU is being used
+ollama run llama3:70b "Say hello"
+# Check GPU utilization: nvidia-smi  (should show GPU memory in use)
+```
+
+**Call Ollama from Python inside Docker containers:**
+
+```python
+import requests
+
+response = requests.post(
+    "http://host.docker.internal:11434/api/generate",
+    json={
+        "model": "llama3:70b",
+        "prompt": "Generate SQL to find total sales by region from the sales table",
+        "stream": False,
+    }
+)
+print(response.json()["response"])
+```
+
+**Or use the `ollama` Python library:**
+
+```python
+# Add to requirements.txt: ollama==0.2.0
+import ollama
+
+response = ollama.chat(
+    model="llama3:70b",
+    messages=[{"role": "user", "content": "Write SQL for total sales by region"}]
+)
+print(response["message"]["content"])
+```
+
+**Update `requirements.txt`** to add GPU-accelerated sentence-transformers:
+
+```
+# GPU-accelerated PyTorch (CUDA 12.x) — replaces plain torch
+--extra-index-url https://download.pytorch.org/whl/cu121
+torch
+sentence-transformers==3.0.0
+ollama==0.2.0
+```
+
+> **RTX 4090 performance:** Llama 3 70B at Q4 runs at ~50–80 tokens/second on the RTX 4090 — fast enough for interactive SQL generation and RAG queries with no per-call API costs.
+
 ---
 
 ### Phase 9: Performance Optimization
@@ -1970,8 +2229,9 @@ Create `docker-compose.staging.yml` with different port mappings, volume names, 
 import duckdb
 
 conn = duckdb.connect("/workspace/db/lakehouse.duckdb")
-conn.execute("SET memory_limit='8GB'")
-conn.execute("SET threads=4")
+# Tuned for i9-13900K + 64 GB DDR5 machine (Docker allocated 48 GB)
+conn.execute("SET memory_limit='40GB'")   # leave ~8 GB for other containers
+conn.execute("SET threads=20")            # match Docker CPU allocation
 conn.execute("SET temp_directory='/workspace/tmp'")
 # Changes persist for the session; add to a config file for permanence
 ```
@@ -2025,6 +2285,14 @@ This makes dbt only reprocess new dates instead of rebuilding the entire table o
 ---
 
 ### Phase 10: MVP Success Checklist
+
+**GPU Setup**:
+- [ ] `nvidia-smi` in PowerShell shows RTX 4090 with driver ≥ 527.41
+- [ ] `nvcc --version` in WSL2 shows CUDA 12.6
+- [ ] `nvidia-smi` in WSL2 shows RTX 4090 (GPU passthrough working)
+- [ ] `docker run --rm --gpus all nvidia/cuda:12.6.0-runtime-ubuntu22.04 nvidia-smi` shows RTX 4090
+- [ ] Ollama running on Windows with `OLLAMA_HOST=0.0.0.0:11434`
+- [ ] `ollama pull llama3:70b` completed and model responds
 
 **Infrastructure**:
 - [ ] All 7 containers show `running` in `docker compose ps`
