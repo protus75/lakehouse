@@ -1,0 +1,17 @@
+name: lakehouse_mvp
+version: '1.0.0'
+config-version: 2
+
+profile: lakehouse_mvp
+
+model-paths: ["models"]
+test-paths:  ["tests"]
+
+models:
+  lakehouse_mvp:
+    staging:
+      +materialized: table
+      +schema: staging
+    marts:
+      +materialized: table
+      +schema: marts

@@ -1,0 +1,8 @@
+lakehouse_mvp:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: /workspace/db/lakehouse.duckdb
+      schema: staging
+      threads: 4
