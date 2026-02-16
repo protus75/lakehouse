@@ -1513,37 +1513,37 @@ Create `C:\lakehouse-mvp\docker\requirements.txt`:
 
 ```
 # Jupyter
-jupyterlab==4.2.0
-ipykernel==6.29.0
+jupyterlab==4.5.4
+ipykernel==7.2.0
 
 # Data ingestion
-dlt[duckdb]==0.5.0
+dlt[duckdb]==1.21.0
 
 # Query engine
-duckdb==1.0.0
+duckdb==1.4.4
 
 # Table format
-pyiceberg[s3fs]==0.7.0
+pyiceberg[s3fs]==0.11.0
 
 # Transformation
-dbt-core==1.8.0
-dbt-duckdb==1.8.0
+dbt-core==1.11.5
+dbt-duckdb==1.10.0
 
 # Visualization
-streamlit==1.36.0
-plotly==5.22.0
+streamlit==1.54.0
+plotly==6.5.2
 
 # Data processing
-pandas==2.2.0
-pyarrow==16.0.0
+pandas==3.0.0
+pyarrow==23.0.1
 
 # S3 client
-boto3==1.34.0
-s3fs==2024.6.0
+boto3==1.42.49
+s3fs==2026.1.0
 
 # Utilities
-requests==2.32.0
-python-dotenv==1.0.0
+requests==2.32.5
+python-dotenv==1.2.1
 ```
 
 ---
