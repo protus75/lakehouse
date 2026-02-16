@@ -1213,7 +1213,16 @@ sudo apt-get update
 
 # Install the toolkit ONLY — do NOT use the 'cuda' or 'cuda-drivers' meta-package
 # Those would attempt to install a Linux GPU driver, breaking WSL2 passthrough
+# Do NOT use: sudo apt install nvidia-cuda-toolkit  (that's an older Ubuntu repo version)
 sudo apt-get install -y cuda-toolkit-12-6
+```
+
+**Add CUDA to your PATH** (the installer does not do this automatically):
+
+```bash
+echo 'export PATH=/usr/local/cuda/bin:$PATH' >> ~/.bashrc
+echo 'export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH' >> ~/.bashrc
+source ~/.bashrc
 ```
 
 Verify the toolkit is visible:
@@ -1226,6 +1235,16 @@ nvidia-smi
 # Expected: RTX 4090 listed with Driver Version from Windows
 ```
 
+**Troubleshooting — `nvcc: command not found` after install:**
+```bash
+# Confirm the binary exists
+ls /usr/local/cuda/bin/nvcc
+
+# If it exists but nvcc still not found, the PATH line above wasn't applied yet
+source ~/.bashrc
+nvcc --version
+```
+
 ---
 
 #### Step 1.6: Install NVIDIA Container Toolkit (GPU access for Docker)
@@ -1233,18 +1252,25 @@ nvidia-smi
 This allows Docker containers to use the RTX 4090. Run inside WSL2:
 
 ```bash
-# Add NVIDIA Container Toolkit repo
-distribution=$(. /etc/os-release; echo $ID$VERSION_ID)
-curl -s -L https://nvidia.github.io/nvidia-docker/gpgkey | sudo apt-key add -
-curl -s -L https://nvidia.github.io/nvidia-docker/$distribution/nvidia-docker.list | \
-  sudo tee /etc/apt/sources.list.d/nvidia-docker.list
+# Modern keyring approach (replaces deprecated apt-key, works on Ubuntu 24.04)
+curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | \
+  sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+
+curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
+  sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
+  sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
 
 sudo apt-get update && sudo apt-get install -y nvidia-container-toolkit
 
-# Configure Docker to use the NVIDIA runtime
+# Write the NVIDIA runtime config to /etc/docker/daemon.json
 sudo nvidia-ctk runtime configure --runtime=docker
-sudo systemctl restart docker
 ```
+
+> **Do NOT run `sudo systemctl restart docker` in WSL2.** Docker Desktop is not a systemd service — it runs on Windows. Restarting it via systemctl will always fail with `Unit docker.service not found`. Restart Docker Desktop from Windows instead (next step).
+
+**Restart Docker Desktop from Windows:**
+
+Right-click the Docker whale icon in the system tray → **Restart Docker Desktop**. Wait for the icon to become steady (not animated).
 
 **Test GPU access inside a container:**
 
@@ -1258,6 +1284,7 @@ Expected: RTX 4090 shown inside the container output. If this passes, all Docker
 
 **Troubleshooting:**
 - `Failed to initialize NVML` → Ensure Docker Desktop is ≥ v4.31.1 (update via Docker Desktop Settings → Software Updates)
+- `Unsupported distribution` warning during install → Harmless on Ubuntu 24.04; the toolkit installs correctly from the ubuntu2204 fallback repo
 - GPU not listed → Confirm `nvidia-smi` works in WSL2 outside Docker first (Step 1.4)
 
 ---
