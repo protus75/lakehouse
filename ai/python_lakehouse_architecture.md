@@ -966,7 +966,7 @@ Open **PowerShell as Administrator** and run:
 wsl --install
 ```
 
-This installs WSL2 and Ubuntu 22.04 by default. **Restart your computer** when prompted.
+This installs WSL2 and **Ubuntu 24.04** by default on current Windows 11 builds (older builds may install 22.04 — run `wsl --list --verbose` after reboot to confirm). **Restart your computer** when prompted.
 
 After restart, Ubuntu opens automatically. Create a Unix username and password when asked.
 
@@ -1183,9 +1183,32 @@ The CUDA Toolkit provides compiler and runtime libraries needed for PyTorch GPU 
 Open the WSL2 Ubuntu terminal and run:
 
 ```bash
-# Download NVIDIA package keyring
+# Check your Ubuntu version first — the repo URL differs between 22.04 and 24.04
+lsb_release -rs
+```
+
+**For Ubuntu 24.04** (default from `wsl --install` on recent Windows builds):
+
+```bash
+wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb
+sudo dpkg -i cuda-keyring_1.1-1_all.deb
+```
+
+**For Ubuntu 22.04:**
+
+```bash
 wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.0-1_all.deb
 sudo dpkg -i cuda-keyring_1.0-1_all.deb
+```
+
+> **Expected warning after `dpkg -i`:** If you see *"A deprecated public CUDA GPG key appears to be installed"*, an old key from a previous CUDA install is present. Remove it before continuing — this is normal on systems that have had any prior CUDA or NVIDIA packages:
+> ```bash
+> sudo apt-key del 7fa2af80
+> ```
+
+Continue with the install:
+
+```bash
 sudo apt-get update
 
 # Install the toolkit ONLY — do NOT use the 'cuda' or 'cuda-drivers' meta-package
@@ -1228,6 +1251,8 @@ sudo systemctl restart docker
 ```bash
 docker run --rm --gpus all nvidia/cuda:12.6.0-runtime-ubuntu22.04 nvidia-smi
 ```
+
+> **Note:** The `ubuntu22.04` in the image tag refers to the container's OS, not the host. This image runs correctly on Ubuntu 24.04 WSL2 hosts — Docker containers are isolated from the host OS version.
 
 Expected: RTX 4090 shown inside the container output. If this passes, all Docker-based AI workloads will see the GPU.
 
