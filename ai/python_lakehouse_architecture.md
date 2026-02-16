@@ -1538,8 +1538,8 @@ pandas==3.0.0
 pyarrow==23.0.1
 
 # S3 client
-boto3==1.42.49
-s3fs==2026.1.0
+boto3==1.42.50
+s3fs==2026.2.0
 
 # Utilities
 requests==2.32.5
@@ -2230,7 +2230,7 @@ Add to `requirements.txt`:
 ```
 langchain==0.2.0
 chromadb==0.5.0
-sentence-transformers==3.0.0
+sentence-transformers==5.2.2
 ```
 
 Index DuckDB table schemas into ChromaDB, then use an LLM to convert natural language to SQL and execute it via DuckDB.
@@ -2305,7 +2305,7 @@ print(response.json()["response"])
 **Or use the `ollama` Python library:**
 
 ```python
-# Add to requirements.txt: ollama==0.2.0
+# Add to requirements.txt: ollama==0.6.1
 import ollama
 
 response = ollama.chat(
@@ -2321,8 +2321,8 @@ print(response["message"]["content"])
 # GPU-accelerated PyTorch (CUDA 12.x) — replaces plain torch
 --extra-index-url https://download.pytorch.org/whl/cu121
 torch
-sentence-transformers==3.0.0
-ollama==0.2.0
+sentence-transformers==5.2.2
+ollama==0.6.1
 ```
 
 > **RTX 4090 performance:** Llama 3 70B at Q4 runs at ~50–80 tokens/second on the RTX 4090 — fast enough for interactive SQL generation and RAG queries with no per-call API costs.
