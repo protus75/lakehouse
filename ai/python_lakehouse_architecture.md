@@ -5,73 +5,117 @@
 
 ## Table of Contents
 
-- [Overview](#overview)
-- [Architecture Diagram](#architecture-diagram)
-- [Component Breakdown](#component-breakdown)
-  - [1. Storage Layer: SeaweedFS](#1-storage-layer-seaweedfs)
-  - [2. Table Format: Apache Iceberg](#2-table-format-apache-iceberg)
-  - [3. Catalog Layer: Apache Polaris](#3-catalog-layer-apache-polaris)
-  - [4. Query Engine: DuckDB](#4-query-engine-duckdb)
-  - [5. Ingestion Layer: dlt + Airflow](#5-ingestion-layer-dlt--airflow)
-  - [6. Transformation Layer: dbt + dbt-duckdb](#6-transformation-layer-dbt--dbt-duckdb)
-  - [7. Visualization Layer: Streamlit + Plotly Dash](#7-visualization-layer-streamlit--plotly-dash)
-  - [8. AI/RAG Integration Layer](#8-airag-integration-layer)
-  - [9. Orchestration Layer: Apache Airflow](#9-orchestration-layer-apache-airflow)
-- [Simplified Governance Strategy](#simplified-governance-strategy)
-  - [Layer 1: Catalog (Polaris RBAC)](#layer-1-catalog-polaris-rbac)
-  - [Layer 2: Query (DuckDB Users)](#layer-2-query-duckdb-users)
-  - [Layer 3: Application (Python Code)](#layer-3-application-python-code)
-  - [Layer 4: Data Quality (dbt Tests)](#layer-4-data-quality-dbt-tests)
-  - [Layer 5: Lineage (dbt + Airflow)](#layer-5-lineage-dbt--airflow)
-  - [What We're NOT Using](#what-were-not-using)
-  - [OpenMetadata (Optional Discovery Tool)](#openmetadata-optional-discovery-tool)
-- [Data Flow](#data-flow)
-  - [Ingestion Flow](#ingestion-flow)
-  - [Transformation Flow](#transformation-flow)
-  - [Query Flow](#query-flow)
-  - [RAG Flow](#rag-flow)
-- [Development Workflow](#development-workflow)
-  - [Environment Isolation (Polaris Namespaces)](#environment-isolation-polaris-namespaces)
-  - [Local Development](#local-development)
-  - [Staging Deployment](#staging-deployment)
-  - [Production Deployment](#production-deployment)
-  - [Schema Changes](#schema-changes)
-- [Deployment Patterns](#deployment-patterns)
-  - [Docker Compose (Development & Small Production)](#docker-compose-development--small-production)
-  - [Kubernetes (Larger Scale)](#kubernetes-larger-scale)
-- [Technology Summary](#technology-summary)
-  - [Pure Python Components (90% of stack)](#pure-python-components-90-of-stack)
-  - [Non-Python (with justification)](#non-python-with-justification)
-  - [Why This Works](#why-this-works)
-- [Scaling Considerations](#scaling-considerations)
-  - [When This Stack Works](#when-this-stack-works)
-  - [When to Evolve](#when-to-evolve)
-  - [Migration Path](#migration-path)
-- [Why Python-First Matters](#why-python-first-matters)
-  - [Operational Benefits](#operational-benefits)
-  - [Developer Productivity](#developer-productivity)
-  - [Cost Efficiency](#cost-efficiency)
-  - [Trade-offs Accepted](#trade-offs-accepted)
-- [Best Practices](#best-practices)
-  - [Data Modeling](#data-modeling)
-  - [Performance](#performance)
-  - [Security](#security)
-  - [Monitoring](#monitoring)
-  - [Cost Management](#cost-management)
-- [Conclusion](#conclusion)
-- [MVP Implementation Guide: Docker on Windows](#mvp-implementation-guide-docker-on-windows)
-  - [MVP Goals](#mvp-goals)
-  - [Phase 1: Windows Docker Setup](#phase-1-windows-docker-setup)
-  - [Phase 2: Docker Compose Configuration](#phase-2-docker-compose-configuration)
-  - [Phase 3: Sample Data and Initial Setup](#phase-3-sample-data-and-initial-setup)
-  - [Phase 4: Data Pipeline Implementation](#phase-4-data-pipeline-implementation)
-  - [Phase 5: Visualization Layer](#phase-5-visualization-layer)
-  - [Phase 6: Smoke Tests](#phase-6-smoke-tests)
-  - [Phase 7: Troubleshooting Guide](#phase-7-troubleshooting-guide)
-  - [Phase 8: Next Steps After MVP](#phase-8-next-steps-after-mvp)
-  - [Phase 9: Performance Optimization](#phase-9-performance-optimization)
-  - [Phase 10: MVP Success Checklist](#phase-10-mvp-success-checklist)
-- [Conclusion: MVP to Production Path](#conclusion-mvp-to-production-path)
+- [Python-First Lakehouse Architecture](#python-first-lakehouse-architecture)
+  - [High-Level Design for Small Data Teams](#high-level-design-for-small-data-teams)
+  - [Table of Contents](#table-of-contents)
+  - [Overview](#overview)
+  - [Architecture Diagram](#architecture-diagram)
+  - [Component Breakdown](#component-breakdown)
+    - [1. Storage Layer: SeaweedFS](#1-storage-layer-seaweedfs)
+    - [2. Table Format: Apache Iceberg](#2-table-format-apache-iceberg)
+    - [3. Catalog Layer: Apache Polaris](#3-catalog-layer-apache-polaris)
+    - [4. Query Engine: DuckDB](#4-query-engine-duckdb)
+    - [5. Ingestion Layer: dlt + Airflow](#5-ingestion-layer-dlt--airflow)
+    - [6. Transformation Layer: dbt + dbt-duckdb](#6-transformation-layer-dbt--dbt-duckdb)
+    - [7. Visualization Layer: Streamlit + Plotly Dash](#7-visualization-layer-streamlit--plotly-dash)
+      - [**Streamlit** (Rapid Prototyping \& Internal Tools)](#streamlit-rapid-prototyping--internal-tools)
+      - [**Plotly Dash** (Production Dashboards)](#plotly-dash-production-dashboards)
+    - [8. AI/RAG Integration Layer](#8-airag-integration-layer)
+    - [9. Orchestration Layer: Apache Airflow](#9-orchestration-layer-apache-airflow)
+  - [Simplified Governance Strategy](#simplified-governance-strategy)
+    - [Layer 1: Catalog (Polaris RBAC)](#layer-1-catalog-polaris-rbac)
+    - [Layer 2: Query (DuckDB Users)](#layer-2-query-duckdb-users)
+    - [Layer 3: Application (Python Code)](#layer-3-application-python-code)
+    - [Layer 4: Data Quality (dbt Tests)](#layer-4-data-quality-dbt-tests)
+    - [Layer 5: Lineage (dbt + Airflow)](#layer-5-lineage-dbt--airflow)
+    - [What We're NOT Using:](#what-were-not-using)
+    - [OpenMetadata (Optional Discovery Tool)](#openmetadata-optional-discovery-tool)
+  - [Data Flow](#data-flow)
+    - [Ingestion Flow](#ingestion-flow)
+    - [Transformation Flow](#transformation-flow)
+    - [Query Flow](#query-flow)
+    - [RAG Flow](#rag-flow)
+  - [Development Workflow](#development-workflow)
+    - [Environment Isolation (Polaris Namespaces)](#environment-isolation-polaris-namespaces)
+    - [Local Development](#local-development)
+    - [Staging Deployment](#staging-deployment)
+    - [Production Deployment](#production-deployment)
+    - [Schema Changes](#schema-changes)
+  - [Deployment Patterns](#deployment-patterns)
+    - [Docker Compose (Development \& Small Production)](#docker-compose-development--small-production)
+    - [Kubernetes (Larger Scale)](#kubernetes-larger-scale)
+  - [Technology Summary](#technology-summary)
+    - [Pure Python Components (90% of stack)](#pure-python-components-90-of-stack)
+    - [Non-Python (with justification)](#non-python-with-justification)
+    - [Why This Works](#why-this-works)
+  - [Scaling Considerations](#scaling-considerations)
+    - [When This Stack Works](#when-this-stack-works)
+    - [When to Evolve](#when-to-evolve)
+    - [Migration Path](#migration-path)
+  - [Why Python-First Matters](#why-python-first-matters)
+    - [Operational Benefits](#operational-benefits)
+    - [Developer Productivity](#developer-productivity)
+    - [Cost Efficiency](#cost-efficiency)
+    - [Trade-offs Accepted](#trade-offs-accepted)
+  - [Best Practices](#best-practices)
+    - [Data Modeling](#data-modeling)
+    - [Performance](#performance)
+    - [Security](#security)
+    - [Monitoring](#monitoring)
+    - [Cost Management](#cost-management)
+  - [Conclusion](#conclusion)
+  - [MVP Implementation Guide: Docker on Windows](#mvp-implementation-guide-docker-on-windows)
+    - [MVP Goals](#mvp-goals)
+    - [Development Machine Specifications](#development-machine-specifications)
+    - [Phase 1: Windows Docker Setup](#phase-1-windows-docker-setup)
+      - [Step 1.1: Install WSL2](#step-11-install-wsl2)
+      - [Step 1.2: Configure WSL2 Resources (.wslconfig)](#step-12-configure-wsl2-resources-wslconfig)
+      - [Step 1.3: Install Docker Desktop](#step-13-install-docker-desktop)
+      - [Step 1.4: Verify NVIDIA Driver (Windows)](#step-14-verify-nvidia-driver-windows)
+      - [Step 1.5: Install CUDA Toolkit in WSL2](#step-15-install-cuda-toolkit-in-wsl2)
+      - [Step 1.6: Install NVIDIA Container Toolkit (GPU access for Docker)](#step-16-install-nvidia-container-toolkit-gpu-access-for-docker)
+      - [Step 1.7: Create Project Directory Structure](#step-17-create-project-directory-structure)
+    - [Phase 2: Docker Compose Configuration](#phase-2-docker-compose-configuration)
+      - [Step 2.1: Create docker-compose.yml](#step-21-create-docker-composeyml)
+      - [Step 2.2: Create SeaweedFS S3 Auth Config](#step-22-create-seaweedfs-s3-auth-config)
+      - [Step 2.3: Create Dockerfile](#step-23-create-dockerfile)
+      - [Step 2.4: Create requirements.txt](#step-24-create-requirementstxt)
+    - [Phase 3: Sample Data and Initial Setup](#phase-3-sample-data-and-initial-setup)
+      - [Step 3.1: Start All Docker Services](#step-31-start-all-docker-services)
+      - [Step 3.2: Create the S3 Bucket](#step-32-create-the-s3-bucket)
+      - [Step 3.3: Generate Sample Data](#step-33-generate-sample-data)
+      - [Step 3.4: Initialize Polaris Namespaces](#step-34-initialize-polaris-namespaces)
+    - [Phase 4: Data Pipeline Implementation](#phase-4-data-pipeline-implementation)
+      - [Step 4.1: dlt Ingestion Pipeline](#step-41-dlt-ingestion-pipeline)
+      - [Step 4.2: dbt Transformation Project](#step-42-dbt-transformation-project)
+    - [Phase 5: Visualization Layer](#phase-5-visualization-layer)
+      - [Step 5.1: Streamlit Dashboard](#step-51-streamlit-dashboard)
+    - [Phase 6: Smoke Tests](#phase-6-smoke-tests)
+      - [Test 1: SeaweedFS Storage](#test-1-seaweedfs-storage)
+      - [Test 2: Polaris Catalog](#test-2-polaris-catalog)
+      - [Test 3: DuckDB Raw Data](#test-3-duckdb-raw-data)
+      - [Test 4: dbt Transformations](#test-4-dbt-transformations)
+      - [Test 5: Revenue Aggregation](#test-5-revenue-aggregation)
+      - [Test 6: End-to-End Incremental Update](#test-6-end-to-end-incremental-update)
+    - [Phase 7: Troubleshooting Guide](#phase-7-troubleshooting-guide)
+      - [Issue 1: A container keeps restarting](#issue-1-a-container-keeps-restarting)
+      - [Issue 2: Polaris returns 500 errors](#issue-2-polaris-returns-500-errors)
+      - [Issue 3: DuckDB tables not found](#issue-3-duckdb-tables-not-found)
+      - [Issue 4: dbt models fail to build](#issue-4-dbt-models-fail-to-build)
+      - [Issue 5: Streamlit shows empty charts](#issue-5-streamlit-shows-empty-charts)
+    - [Phase 8: Next Steps After MVP](#phase-8-next-steps-after-mvp)
+      - [Enhancement 1: Add Airflow Orchestration](#enhancement-1-add-airflow-orchestration)
+      - [Enhancement 2: Implement RAG Layer](#enhancement-2-implement-rag-layer)
+      - [Enhancement 3: Add Production Dash Dashboard](#enhancement-3-add-production-dash-dashboard)
+      - [Enhancement 4: Implement CI/CD](#enhancement-4-implement-cicd)
+      - [Enhancement 5: Multi-Environment Setup](#enhancement-5-multi-environment-setup)
+      - [Enhancement 6: Local LLM via Ollama (RTX 4090 — no API costs)](#enhancement-6-local-llm-via-ollama-rtx-4090--no-api-costs)
+    - [Phase 9: Performance Optimization](#phase-9-performance-optimization)
+      - [Optimization 1: DuckDB Configuration](#optimization-1-duckdb-configuration)
+      - [Optimization 2: Iceberg Table Maintenance](#optimization-2-iceberg-table-maintenance)
+      - [Optimization 3: dbt Incremental Models](#optimization-3-dbt-incremental-models)
+    - [Phase 10: MVP Success Checklist](#phase-10-mvp-success-checklist)
+  - [Conclusion: MVP to Production Path](#conclusion-mvp-to-production-path)
 
 ---
 
@@ -1294,14 +1338,14 @@ Expected: RTX 4090 shown inside the container output. If this passes, all Docker
 Open PowerShell and run:
 
 ```powershell
-New-Item -ItemType Directory -Force -Path C:\lakehouse-mvp
-cd C:\lakehouse-mvp
+New-Item -ItemType Directory -Force -Path D:\source\lakehouse\lakehouse
+cd D:\source\lakehouse\lakehouse
 mkdir docker, data, dlt, dbt, streamlit, storage, chroma_db
 ```
 
 Expected structure:
 ```
-C:\lakehouse-mvp\
+D:\source\lakehouse\lakehouse\
 ├── docker\        ← Docker configs, Dockerfile, requirements.txt
 ├── data\          ← Sample CSV files
 ├── dlt\           ← dlt pipeline scripts
@@ -1315,11 +1359,11 @@ C:\lakehouse-mvp\
 
 ### Phase 2: Docker Compose Configuration
 
-All files in this phase go in `C:\lakehouse-mvp\docker\`.
+All files in this phase go in `D:\source\lakehouse\lakehouse\docker\`.
 
 #### Step 2.1: Create docker-compose.yml
 
-Create `C:\lakehouse-mvp\docker\docker-compose.yml`:
+Create `D:\source\lakehouse\lakehouse\docker\docker-compose.yml`:
 
 ```yaml
 version: '3.8'
@@ -1463,7 +1507,7 @@ networks:
 
 #### Step 2.2: Create SeaweedFS S3 Auth Config
 
-Create `C:\lakehouse-mvp\docker\s3.json`:
+Create `D:\source\lakehouse\lakehouse\docker\s3.json`:
 
 ```json
 {
@@ -1486,7 +1530,7 @@ Create `C:\lakehouse-mvp\docker\s3.json`:
 
 #### Step 2.3: Create Dockerfile
 
-Create `C:\lakehouse-mvp\docker\Dockerfile`:
+Create `D:\source\lakehouse\lakehouse\docker\Dockerfile`:
 
 ```dockerfile
 FROM python:3.11-slim
@@ -1509,7 +1553,7 @@ EXPOSE 8889 8501
 
 #### Step 2.4: Create requirements.txt
 
-Create `C:\lakehouse-mvp\docker\requirements.txt`:
+Create `D:\source\lakehouse\lakehouse\docker\requirements.txt`:
 
 ```
 # Jupyter
@@ -1517,13 +1561,13 @@ jupyterlab==4.5.4
 ipykernel==7.2.0
 
 # Data ingestion
-dlt[duckdb]==1.21.0
+dlt[duckdb,filesystem]==1.21.0
 
 # Query engine
 duckdb==1.4.4
 
 # Table format
-pyiceberg[s3fs]==0.11.0
+pyiceberg[s3fs,duckdb]==0.11.0
 
 # Transformation
 dbt-core==1.11.5
@@ -1552,10 +1596,10 @@ python-dotenv==1.2.1
 
 #### Step 3.1: Start All Docker Services
 
-Open PowerShell in `C:\lakehouse-mvp\docker\` and run:
+Open PowerShell in `D:\source\lakehouse\lakehouse\docker\` and run:
 
 ```powershell
-cd C:\lakehouse-mvp\docker
+cd D:\source\lakehouse\lakehouse\docker
 
 # Build the workspace image and start all services
 docker compose up -d --build
@@ -1682,7 +1726,7 @@ print("All namespaces:", catalog.list_namespaces())
 
 #### Step 4.1: dlt Ingestion Pipeline
 
-Create `C:\lakehouse-mvp\dlt\load_sales.py`:
+Create `D:\source\lakehouse\lakehouse\dlt\load_sales.py`:
 
 ```python
 """
@@ -1757,7 +1801,7 @@ cd /workspace/dbt
 dbt init lakehouse_mvp --skip-profile-setup
 ```
 
-**Create `C:\lakehouse-mvp\dbt\lakehouse_mvp\profiles.yml`:**
+**Create `D:\source\lakehouse\lakehouse\dbt\lakehouse_mvp\profiles.yml`:**
 
 ```yaml
 lakehouse_mvp:
@@ -1770,7 +1814,7 @@ lakehouse_mvp:
       threads: 4
 ```
 
-**Replace the entire contents of `C:\lakehouse-mvp\dbt\lakehouse_mvp\dbt_project.yml`:**
+**Replace the entire contents of `D:\source\lakehouse\lakehouse\dbt\lakehouse_mvp\dbt_project.yml`:**
 
 ```yaml
 name: lakehouse_mvp
@@ -1910,7 +1954,7 @@ Finished running 2 table models.
 
 #### Step 5.1: Streamlit Dashboard
 
-Create `C:\lakehouse-mvp\streamlit\dashboard.py`:
+Create `D:\source\lakehouse\lakehouse\streamlit\dashboard.py`:
 
 ```python
 import streamlit as st
@@ -2222,15 +2266,26 @@ airflow:
       condition: service_healthy
 ```
 
+Add to `requirements.txt`:
+```
+astronomer-cosmos==1.13.0
+duckdb-engine==0.17.0
+```
+
+`astronomer-cosmos` auto-generates Airflow DAG tasks from dbt models. `duckdb-engine` provides the SQLAlchemy dialect Airflow needs to create DuckDB connections.
+
 Create a DAG file that calls `load_sales.run()` then shells out to `dbt run`, scheduled with `schedule_interval="0 6 * * *"` (daily at 6 AM).
 
 #### Enhancement 2: Implement RAG Layer
 
 Add to `requirements.txt`:
 ```
-langchain==0.2.0
-chromadb==0.5.0
+langchain==1.2.10
+langchain-community==0.4.1
+chromadb==1.0.0
 sentence-transformers==5.2.2
+fastapi==0.129.0
+uvicorn==0.34.0
 ```
 
 Index DuckDB table schemas into ChromaDB, then use an LLM to convert natural language to SQL and execute it via DuckDB.
@@ -2239,8 +2294,8 @@ Index DuckDB table schemas into ChromaDB, then use an LLM to convert natural lan
 
 Add to `requirements.txt`:
 ```
-dash==2.17.0
-dash-bootstrap-components==1.6.0
+dash==4.0.0
+dash-bootstrap-components==2.0.4
 ```
 
 Build a multi-page Dash app with more customization than Streamlit, suited for external/customer-facing dashboards.
