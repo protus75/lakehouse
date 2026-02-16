@@ -1,0 +1,14 @@
+{
+  "identities": [
+    {
+      "name": "lakehouse-admin",
+      "credentials": [
+        {
+          "accessKey": "lakehouse_key",
+          "secretKey": "lakehouse_secret"
+        }
+      ],
+      "actions": ["Read", "Write", "List", "Tagging", "Admin"]
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+# Jupyter
+jupyterlab==4.5.4
+ipykernel==7.2.0
+
+# Data ingestion
+dlt[duckdb,filesystem]==1.21.0
+
+# Query engine
+duckdb==1.4.4
+
+# Table format
+pyiceberg[s3fs,duckdb]==0.11.0
+
+# Transformation
+dbt-core==1.11.5
+dbt-duckdb==1.10.0
+
+# Visualization
+streamlit==1.54.0
+plotly==6.5.2
+
+# Data processing
+pandas==3.0.0
+pyarrow==23.0.1
+
+# S3 client
+boto3==1.42.50
+s3fs==2026.2.0
+
+# Utilities
+requests==2.32.5
+python-dotenv==1.2.1
