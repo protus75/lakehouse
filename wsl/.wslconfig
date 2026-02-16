@@ -44,14 +44,12 @@ autoMemoryReclaim=gradual
 # Without this the .vhdx only ever grows, eating NVMe space.
 sparseVhd=true
 
-# ── Mirrored networking (Windows 11 22H2+) ───────────────────────────────────
-# WSL2 shares the same network interfaces as Windows.
-# Benefits:
-#   - WSL2 services visible on the LAN without extra port-forwarding rules
-#   - VPNs configured on Windows automatically work inside WSL2
-#   - Ollama running on Windows is reachable from WSL2/Docker at 127.0.0.1:11434
-networkingMode=mirrored
-
-# Required companions for mirrored mode
-dnsTunneling=true
-firewall=true
+# ── Networking ───────────────────────────────────────────────────────────────
+# networkingMode=mirrored is intentionally NOT set here.
+# It causes Docker Desktop WSL integration to fail with Wsl/Service/0x8007274c
+# (connection refused) when Docker tries to set up the docker user group in
+# Ubuntu distros. The default NAT mode works correctly with Docker Desktop.
+#
+# Ollama (running on Windows) is reachable from Docker containers at:
+#   http://host.docker.internal:11434
+# which works fine under NAT mode.

@@ -1038,11 +1038,10 @@ autoMemoryReclaim=gradual
 # Shrink the WSL2 .vhdx automatically when files are deleted (saves NVMe space)
 sparseVhd=true
 
-# Mirror Windows network interfaces in WSL2 (Windows 11 22H2+)
-# Ollama on Windows becomes reachable at 127.0.0.1:11434 from inside Docker containers
-networkingMode=mirrored
-dnsTunneling=true
-firewall=true
+# NOTE: networkingMode=mirrored is intentionally omitted.
+# It breaks Docker Desktop WSL integration (Wsl/Service/0x8007274c error).
+# Default NAT mode works correctly. Reach Ollama from containers via:
+#   http://host.docker.internal:11434
 ```
 
 **Apply the config — full restart sequence:**
@@ -1119,6 +1118,8 @@ docker run hello-world
 ```
 
 > **Tip:** If `wsl --list --verbose` shows `docker-desktop` distro never reaches `Running` after restart, open Docker Desktop → Settings → General → uncheck then re-check **"Use the WSL 2 based engine"**, then Apply & Restart.
+>
+> **Known issue:** If you see `Wsl/Service/0x8007274c` or "WSL integration unexpectedly stopped", `networkingMode=mirrored` is the cause. Remove it from `.wslconfig`, run `wsl --shutdown`, then restart Docker Desktop.
 
 ---
 
