@@ -20,10 +20,12 @@ processors=20
 
 # ── Swap ─────────────────────────────────────────────────────────────────────
 # Useful when DuckDB spills large sorts/joins to disk.
-# Place on the primary NVMe (C:) for best sequential write speed.
-# Change to D:\\Temp\\wsl-swap.vhdx if your data drive is faster.
+# D: is preferred over C: — C: already has the Windows page file, WSL2 .vhdx,
+# and Docker Desktop .vhdx competing for I/O. D: is idle during normal OS
+# operation, so large sequential swap writes get the full NVMe bandwidth.
+# Both drives are identical Samsung 990 Pro PCIe 4.0, so no speed trade-off.
 swap=16GB
-swapFile=C:\\Temp\\wsl-swap.vhdx
+swapFile=D:\\Temp\\wsl-swap.vhdx
 
 # ── Networking ───────────────────────────────────────────────────────────────
 # Allow accessing WSL2 services from Windows via localhost (e.g., Jupyter on :8889).

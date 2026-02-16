@@ -1022,8 +1022,10 @@ memory=56GB
 processors=20
 
 # Swap file — useful when DuckDB spills large sorts to disk
+# D: preferred: C: already has the Windows page file + WSL2/Docker .vhdx files
+# competing for I/O. D: is idle during normal OS operation.
 swap=16GB
-swapFile=C:\\Temp\\wsl-swap.vhdx
+swapFile=D:\\Temp\\wsl-swap.vhdx
 
 # Allow accessing WSL2 services from Windows via localhost
 localhostForwarding=true
@@ -1043,27 +1045,80 @@ dnsTunneling=true
 firewall=true
 ```
 
-**Apply the config** (WSL2 must be fully shut down to pick up changes):
+**Apply the config — full restart sequence:**
+
+`.wslconfig` is only read when the WSL2 virtual machine first boots. Any running WSL2 or Docker Desktop processes must be stopped first.
+
+**1. Create the swap directory on D:** (do this before shutdown, so it exists on next boot):
+
+```powershell
+New-Item -ItemType Directory -Force -Path D:\Temp
+```
+
+> **Why D: not C:?** C: already carries the Windows page file, the Ubuntu WSL2 `.vhdx`, and Docker Desktop's `.vhdx`. Putting the swap file on D: keeps large sequential DuckDB spill writes off the busy OS drive. Both Samsung 990 Pro drives are identical, so there's no speed trade-off — only less I/O contention.
+
+**Optional but recommended — move Docker Desktop's disk image to D: as well:**
+
+In Docker Desktop → Settings → Resources → Advanced → **Disk image location**, set it to `D:\Docker` then click **Apply & Restart**. This moves Docker's `.vhdx` (which can grow to 100 GB+) off C:, keeping the OS drive free.
+
+**2. Quit Docker Desktop** if it is running:
+
+Right-click the Docker whale icon in the system tray → **Quit Docker Desktop**. Wait for the icon to disappear.
+
+**3. Shut down all WSL2 instances:**
 
 ```powershell
 wsl --shutdown
-# Wait 5 seconds, then reopen Ubuntu or Docker Desktop
 ```
 
-**Verify the settings took effect** in WSL2:
+Verify everything is stopped:
+
+```powershell
+wsl --list --verbose
+```
+
+Expected — all distros show `Stopped`:
+
+```
+  NAME              STATE           VERSION
+* Ubuntu            Stopped         2
+  docker-desktop    Stopped         2
+```
+
+**4. Wait 8 seconds** for the WSL2 kernel process (`vmmem`) to fully exit. You can confirm in Task Manager — `vmmem` should disappear from the process list.
+
+**5. Start WSL2 again:**
+
+```powershell
+wsl
+```
+
+This opens an Ubuntu shell. The new `.wslconfig` limits are applied at this boot. The shell prompt will appear when the distro is ready (usually 5–10 seconds).
+
+**6. Verify the settings took effect** (run inside the Ubuntu shell):
 
 ```bash
 free -h
-# Should show ~55 GB total memory
+# Expected: total memory ~55 GB (may show slightly less due to kernel overhead)
+#   Mem:    55G    ...
 
 nproc
-# Should show 20
+# Expected: 20
 ```
 
-> **Swap file prerequisite:** Create the `C:\Temp` directory before WSL2 starts, otherwise the swap file creation silently fails:
-> ```powershell
-> New-Item -ItemType Directory -Force -Path C:\Temp
-> ```
+If `free -h` still shows the old value (e.g., 32 GB), the old `.wslconfig` is still in place. Double-check the file is saved at `C:\Users\<YourUsername>\.wslconfig` (not `.wslconfig.txt` or inside a subfolder).
+
+**7. Restart Docker Desktop:**
+
+Launch Docker Desktop from the Start Menu. It will start its own WSL2 distro (`docker-desktop`) using the new limits.
+
+Confirm Docker is running:
+
+```powershell
+docker run hello-world
+```
+
+> **Tip:** If `wsl --list --verbose` shows `docker-desktop` distro never reaches `Running` after restart, open Docker Desktop → Settings → General → uncheck then re-check **"Use the WSL 2 based engine"**, then Apply & Restart.
 
 ---
 
