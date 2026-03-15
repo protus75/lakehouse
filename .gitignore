@@ -19,3 +19,6 @@ dbt/lakehouse_mvp/logs/
 
 # Environment
 .env
+
+# data files
+documents/**/raw/*.pdf
