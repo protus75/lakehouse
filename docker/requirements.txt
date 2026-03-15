@@ -9,7 +9,7 @@ dlt[duckdb,filesystem]==1.21.0
 duckdb==1.4.4
 
 # Table format
-pyiceberg[s3fs,duckdb]==0.11.0
+pyiceberg[s3fs,duckdb]==0.11.1
 
 # Transformation
 dbt-core==1.11.5
@@ -20,7 +20,7 @@ streamlit==1.54.0
 plotly==6.5.2
 
 # Data processing
-pandas==3.0.0
+polars==1.30.0
 pyarrow==23.0.1
 
 # S3 client
@@ -29,6 +29,15 @@ s3fs==2026.2.0
 
 # PDF parsing
 docling==2.31.0
+
+# RAG layer
+langchain==1.2.10
+langchain-community==0.4.1
+chromadb==1.0.0
+sentence-transformers==5.2.2
+fastapi==0.115.9
+uvicorn==0.34.0
+ollama==0.6.1
 
 # Utilities
 requests==2.32.5

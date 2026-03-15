@@ -1,6 +1,6 @@
 import streamlit as st
 import duckdb
-import pandas as pd
+import polars as pl
 import plotly.express as px
 
 st.set_page_config(page_title="Lakehouse Sales Dashboard", layout="wide")
@@ -10,11 +10,11 @@ DB_PATH = "/workspace/db/lakehouse.duckdb"
 
 
 @st.cache_data(ttl=60)
-def load_data() -> pd.DataFrame:
+def load_data() -> pl.DataFrame:
     conn = duckdb.connect(DB_PATH, read_only=True)
-    df = conn.execute("SELECT * FROM marts.daily_revenue").df()
+    df = conn.execute("SELECT * FROM marts.daily_revenue").pl()
     conn.close()
-    df["order_date"] = pd.to_datetime(df["order_date"])
+    df = df.with_columns(pl.col("order_date").cast(pl.Date))
     return df
 
 
@@ -23,21 +23,22 @@ df = load_data()
 # ── Sidebar Filters ───────────────────────────────────────────
 st.sidebar.header("Filters")
 
-regions = ["All"] + sorted(df["region"].unique().tolist())
+regions = ["All"] + sorted(df["region"].unique().to_list())
 selected_region = st.sidebar.selectbox("Region", regions)
 
-date_min = df["order_date"].min().date()
-date_max = df["order_date"].max().date()
+date_min = df["order_date"].min()
+date_max = df["order_date"].max()
 date_range = st.sidebar.date_input("Date Range", [date_min, date_max])
 
 # Apply filters
-filtered = df.copy()
+filtered = df
 if selected_region != "All":
-    filtered = filtered[filtered["region"] == selected_region]
+    filtered = filtered.filter(pl.col("region") == selected_region)
 if len(date_range) == 2:
-    start = pd.Timestamp(date_range[0])
-    end   = pd.Timestamp(date_range[1])
-    filtered = filtered[(filtered["order_date"] >= start) & (filtered["order_date"] <= end)]
+    start, end = date_range
+    filtered = filtered.filter(
+        (pl.col("order_date") >= start) & (pl.col("order_date") <= end)
+    )
 
 # ── KPI Metrics ───────────────────────────────────────────────
 c1, c2, c3, c4 = st.columns(4)
@@ -52,23 +53,23 @@ st.divider()
 col_left, col_right = st.columns(2)
 
 with col_left:
-    daily = filtered.groupby("order_date")["revenue"].sum().reset_index()
+    daily = filtered.group_by("order_date").agg(pl.col("revenue").sum()).sort("order_date")
     st.plotly_chart(
         px.line(daily, x="order_date", y="revenue", title="Daily Revenue Trend"),
         use_container_width=True,
     )
 
 with col_right:
-    by_region = filtered.groupby("region")["revenue"].sum().reset_index()
+    by_region = filtered.group_by("region").agg(pl.col("revenue").sum()).sort("region")
     st.plotly_chart(
         px.bar(by_region, x="region", y="revenue", title="Revenue by Region", color="region"),
         use_container_width=True,
     )
 
 by_product = (
-    filtered.groupby("product")["revenue"].sum()
-    .sort_values(ascending=False)
-    .reset_index()
+    filtered.group_by("product")
+    .agg(pl.col("revenue").sum())
+    .sort("revenue", descending=True)
 )
 st.plotly_chart(
     px.bar(by_product, x="product", y="revenue", title="Revenue by Product", color="product"),
@@ -76,4 +77,4 @@ st.plotly_chart(
 )
 
 st.subheader("Detailed Data")
-st.dataframe(filtered.sort_values("order_date", ascending=False), use_container_width=True)
+st.dataframe(filtered.sort("order_date", descending=True), use_container_width=True)

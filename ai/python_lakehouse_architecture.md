@@ -1408,7 +1408,7 @@ Open PowerShell and run:
 ```powershell
 New-Item -ItemType Directory -Force -Path D:\source\lakehouse\lakehouse
 cd D:\source\lakehouse\lakehouse
-mkdir docker, data, dlt, dbt, streamlit, storage, documents, chroma_db
+mkdir docker, data, dlt, dbt, streamlit, rag, storage, documents, chroma_db
 ```
 
 Expected structure:
@@ -1419,9 +1419,10 @@ D:\source\lakehouse\lakehouse\
 ├── dlt\           ← dlt pipeline scripts
 ├── dbt\           ← dbt project
 ├── streamlit\     ← Streamlit dashboard
+├── rag\           ← RAG document ingestion, embedding, query, and API
 ├── storage\       ← SeaweedFS volume data (auto-populated)
 ├── documents\     ← Source PDFs and documents for Docling ingestion
-└── chroma_db\     ← ChromaDB vectors (for later RAG)
+└── chroma_db\     ← ChromaDB vectors (for RAG)
 ```
 
 ---
@@ -1435,8 +1436,6 @@ All files in this phase go in `D:\source\lakehouse\lakehouse\docker\`.
 Create `D:\source\lakehouse\lakehouse\docker\docker-compose.yml`:
 
 ```yaml
-version: '3.8'
-
 services:
 
   # ── PostgreSQL ──────────────────────────────────────────────
@@ -1505,6 +1504,22 @@ services:
     volumes:
       - ./s3.json:/etc/seaweedfs/s3.json
 
+  # ── Polaris Bootstrap ───────────────────────────────────────
+  # Initializes database schema and root credentials (runs once then exits)
+  polaris-bootstrap:
+    image: apache/polaris-admin-tool:latest
+    container_name: lakehouse-polaris-bootstrap
+    environment:
+      QUARKUS_DATASOURCE_DB_KIND: postgresql
+      QUARKUS_DATASOURCE_USERNAME: polaris
+      QUARKUS_DATASOURCE_PASSWORD: polaris_secret
+      QUARKUS_DATASOURCE_JDBC_URL: jdbc:postgresql://postgres:5432/polaris
+      POLARIS_PERSISTENCE_TYPE: relational-jdbc
+    entrypoint: ["sh", "-c", "java -jar /deployments/quarkus-run.jar bootstrap -r POLARIS -c POLARIS,root,s3cr3t || true"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   # ── Apache Polaris ──────────────────────────────────────────
   # REST catalog for Apache Iceberg tables
   # Note: verify the image tag at https://github.com/apache/polaris
@@ -1522,8 +1537,10 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      polaris-bootstrap:
+        condition: service_completed_successfully
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8181/api/management/v1/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8182/q/health"]
       interval: 10s
       timeout: 5s
       retries: 20
@@ -1538,11 +1555,14 @@ services:
     ports:
       - "8889:8889"    # Jupyter Lab
       - "8501:8501"    # Streamlit
+      - "8000:8000"    # RAG API
     volumes:
       - ../data:/workspace/data
       - ../dlt:/workspace/dlt
       - ../dbt:/workspace/dbt
       - ../streamlit:/workspace/streamlit
+      - ../rag:/workspace/rag
+      - ../documents:/workspace/documents
       - ../chroma_db:/workspace/chroma_db
       - workspace_db:/workspace/db    # DuckDB persistent storage
     environment:
@@ -1636,7 +1656,7 @@ dlt[duckdb,filesystem]==1.21.0
 duckdb==1.4.4
 
 # Table format
-pyiceberg[s3fs,duckdb]==0.11.0
+pyiceberg[s3fs,duckdb]==0.11.1
 
 # Transformation
 dbt-core==1.11.5
@@ -1647,7 +1667,7 @@ streamlit==1.54.0
 plotly==6.5.2
 
 # Data processing
-pandas==3.0.0
+polars==1.30.0
 pyarrow==23.0.1
 
 # S3 client
@@ -1760,9 +1780,67 @@ print(f"Created {out} with {len(rows)} rows")
 
 ---
 
-#### Step 3.4: Initialize Polaris Namespaces
+#### Step 3.4: Initialize Polaris Catalog and Namespaces
 
-In Jupyter, run:
+Polaris 1.3 requires OAuth authentication and an explicit catalog before creating namespaces.
+
+**Step 3.4a: Create the Polaris catalog** (run in Jupyter):
+
+```python
+import requests
+
+# Get OAuth token
+token_resp = requests.post(
+    "http://polaris:8181/api/catalog/v1/oauth/tokens",
+    data={
+        "grant_type": "client_credentials",
+        "client_id": "root",
+        "client_secret": "s3cr3t",
+        "scope": "PRINCIPAL_ROLE:ALL",
+    },
+)
+token_resp.raise_for_status()
+token = token_resp.json()["access_token"]
+headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+
+# Create the 'lakehouse' catalog
+catalog_resp = requests.post(
+    "http://polaris:8181/api/management/v1/catalogs",
+    headers=headers,
+    json={
+        "catalog": {
+            "name": "lakehouse",
+            "type": "INTERNAL",
+            "storageConfigInfo": {
+                "storageType": "S3",
+                "allowedLocations": ["s3://lakehouse/"],
+            },
+            "properties": {
+                "default-base-location": "s3://lakehouse/",
+                "s3.endpoint": "http://seaweedfs-s3:8333",
+                "s3.access-key-id": "lakehouse_key",
+                "s3.secret-access-key": "lakehouse_secret",
+                "s3.path-style-access": "true",
+            },
+        }
+    },
+)
+print(f"Create catalog: {catalog_resp.status_code}")
+
+# Grant the root principal access to the catalog
+grant_resp = requests.put(
+    "http://polaris:8181/api/management/v1/catalogs/lakehouse/catalog-roles/catalog_admin",
+    headers=headers,
+    json={
+        "catalogRole": {
+            "name": "catalog_admin",
+        }
+    },
+)
+print(f"Catalog role: {grant_resp.status_code}")
+```
+
+**Step 3.4b: Create namespaces** (run in Jupyter):
 
 ```python
 from pyiceberg.catalog.rest import RestCatalog
@@ -1771,6 +1849,8 @@ catalog = RestCatalog(
     name="polaris",
     uri="http://polaris:8181/api/catalog",
     warehouse="lakehouse",
+    credential="root:s3cr3t",
+    scope="PRINCIPAL_ROLE:ALL",
     **{
         "s3.endpoint": "http://seaweedfs-s3:8333",
         "s3.access-key-id": "lakehouse_key",
@@ -1783,8 +1863,8 @@ for ns in ["raw", "staging", "marts"]:
     try:
         catalog.create_namespace(ns)
         print(f"Created namespace: {ns}")
-    except Exception:
-        print(f"Namespace already exists: {ns}")
+    except Exception as e:
+        print(f"Namespace already exists: {ns} ({e})")
 
 print("All namespaces:", catalog.list_namespaces())
 ```
@@ -1905,12 +1985,27 @@ models:
       +schema: marts
 ```
 
-**Create the models directory structure:**
+**Create the models and macros directory structure:**
 
 ```bash
 mkdir -p /workspace/dbt/lakehouse_mvp/models/staging
 mkdir -p /workspace/dbt/lakehouse_mvp/models/marts
+mkdir -p /workspace/dbt/lakehouse_mvp/macros
 ```
+
+**Create `macros/generate_schema_name.sql`** (prevents dbt from prefixing schema names with the target schema):
+
+```sql
+{% macro generate_schema_name(custom_schema_name, node) -%}
+    {%- if custom_schema_name is none -%}
+        {{ target.schema }}
+    {%- else -%}
+        {{ custom_schema_name | trim }}
+    {%- endif -%}
+{%- endmacro %}
+```
+
+Without this macro, dbt-duckdb would create schemas like `staging_marts` instead of `marts`.
 
 **Create `models/staging/stg_sales.sql`:**
 
@@ -2028,7 +2123,7 @@ Create `D:\source\lakehouse\lakehouse\streamlit\dashboard.py`:
 ```python
 import streamlit as st
 import duckdb
-import pandas as pd
+import polars as pl
 import plotly.express as px
 
 st.set_page_config(page_title="Lakehouse Sales Dashboard", layout="wide")
@@ -2038,11 +2133,11 @@ DB_PATH = "/workspace/db/lakehouse.duckdb"
 
 
 @st.cache_data(ttl=60)
-def load_data() -> pd.DataFrame:
+def load_data() -> pl.DataFrame:
     conn = duckdb.connect(DB_PATH, read_only=True)
-    df = conn.execute("SELECT * FROM marts.daily_revenue").df()
+    df = conn.execute("SELECT * FROM marts.daily_revenue").pl()
     conn.close()
-    df["order_date"] = pd.to_datetime(df["order_date"])
+    df = df.with_columns(pl.col("order_date").cast(pl.Date))
     return df
 
 
@@ -2051,21 +2146,22 @@ df = load_data()
 # ── Sidebar Filters ───────────────────────────────────────────
 st.sidebar.header("Filters")
 
-regions = ["All"] + sorted(df["region"].unique().tolist())
+regions = ["All"] + sorted(df["region"].unique().to_list())
 selected_region = st.sidebar.selectbox("Region", regions)
 
-date_min = df["order_date"].min().date()
-date_max = df["order_date"].max().date()
+date_min = df["order_date"].min()
+date_max = df["order_date"].max()
 date_range = st.sidebar.date_input("Date Range", [date_min, date_max])
 
 # Apply filters
-filtered = df.copy()
+filtered = df
 if selected_region != "All":
-    filtered = filtered[filtered["region"] == selected_region]
+    filtered = filtered.filter(pl.col("region") == selected_region)
 if len(date_range) == 2:
-    start = pd.Timestamp(date_range[0])
-    end   = pd.Timestamp(date_range[1])
-    filtered = filtered[(filtered["order_date"] >= start) & (filtered["order_date"] <= end)]
+    start, end = date_range
+    filtered = filtered.filter(
+        (pl.col("order_date") >= start) & (pl.col("order_date") <= end)
+    )
 
 # ── KPI Metrics ───────────────────────────────────────────────
 c1, c2, c3, c4 = st.columns(4)
@@ -2080,23 +2176,23 @@ st.divider()
 col_left, col_right = st.columns(2)
 
 with col_left:
-    daily = filtered.groupby("order_date")["revenue"].sum().reset_index()
+    daily = filtered.group_by("order_date").agg(pl.col("revenue").sum()).sort("order_date")
     st.plotly_chart(
         px.line(daily, x="order_date", y="revenue", title="Daily Revenue Trend"),
         use_container_width=True,
     )
 
 with col_right:
-    by_region = filtered.groupby("region")["revenue"].sum().reset_index()
+    by_region = filtered.group_by("region").agg(pl.col("revenue").sum()).sort("region")
     st.plotly_chart(
         px.bar(by_region, x="region", y="revenue", title="Revenue by Region", color="region"),
         use_container_width=True,
     )
 
 by_product = (
-    filtered.groupby("product")["revenue"].sum()
-    .sort_values(ascending=False)
-    .reset_index()
+    filtered.group_by("product")
+    .agg(pl.col("revenue").sum())
+    .sort("revenue", descending=True)
 )
 st.plotly_chart(
     px.bar(by_product, x="product", y="revenue", title="Revenue by Product", color="product"),
@@ -2104,7 +2200,7 @@ st.plotly_chart(
 )
 
 st.subheader("Detailed Data")
-st.dataframe(filtered.sort_values("order_date", ascending=False), use_container_width=True)
+st.dataframe(filtered.sort("order_date", descending=True), use_container_width=True)
 ```
 
 **Run Streamlit** from the Jupyter terminal:
@@ -2148,7 +2244,7 @@ print("PASS: SeaweedFS S3 read/write working")
 ```python
 import requests
 
-r = requests.get("http://polaris:8181/api/management/v1/health")
+r = requests.get("http://polaris:8182/q/health")
 assert r.status_code == 200, f"FAIL: HTTP {r.status_code}"
 print("PASS: Polaris catalog healthy")
 ```
@@ -2255,7 +2351,7 @@ docker compose up -d --build
 docker inspect lakehouse-postgres | findstr "Health"
 
 # Test Polaris health endpoint
-curl http://localhost:8181/api/management/v1/health
+curl http://localhost:8182/q/health
 
 # Restart just Polaris after verifying postgres is up
 docker compose restart polaris
@@ -2373,7 +2469,7 @@ langchain==1.2.10
 langchain-community==0.4.1
 chromadb==1.0.0
 sentence-transformers==5.2.2
-fastapi==0.129.0
+fastapi==0.115.9
 uvicorn==0.34.0
 ```
 
@@ -2502,6 +2598,8 @@ catalog = RestCatalog(
     name="polaris",
     uri="http://polaris:8181/api/catalog",
     warehouse="lakehouse",
+    credential="root:s3cr3t",
+    scope="PRINCIPAL_ROLE:ALL",
     **{
         "s3.endpoint": "http://seaweedfs-s3:8333",
         "s3.access-key-id": "lakehouse_key",
@@ -2554,7 +2652,7 @@ This makes dbt only reprocess new dates instead of rebuilding the entire table o
 - [ ] All 7 containers show `running` in `docker compose ps`
 - [ ] `http://localhost:8889` opens Jupyter Lab
 - [ ] `http://localhost:9333` shows SeaweedFS master status
-- [ ] `http://localhost:8181/api/management/v1/health` returns 200
+- [ ] `http://localhost:8182/q/health` returns 200
 
 **Data Layer**:
 - [ ] S3 bucket `lakehouse` exists in SeaweedFS

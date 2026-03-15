@@ -1,0 +1,1086 @@
+[0m19:43:11.395997 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'start', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7999a75f3d50>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7999a77709d0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7999a78583d0>]}
+
+
+============================== 19:43:11.399588 | 6f430329-9c17-45b1-a4b2-98582fed39a5 ==============================
+[0m19:43:11.399588 [info ] [MainThread]: Running with dbt=1.11.5
+[0m19:43:11.401447 [debug] [MainThread]: running dbt with arguments {'target_path': 'None', 'profiles_dir': '/workspace/dbt/lakehouse_mvp', 'static_parser': 'True', 'log_path': '/workspace/dbt/lakehouse_mvp/logs', 'invocation_command': 'dbt debug', 'warn_error_options': 'WarnErrorOptionsV2(error=[], warn=[], silence=[])', 'debug': 'False', 'send_anonymous_usage_stats': 'True', 'version_check': 'True', 'cache_selected_only': 'False', 'log_cache_events': 'False', 'indirect_selection': 'eager', 'printer_width': '80', 'empty': 'None', 'use_experimental_parser': 'False', 'no_print': 'None', 'fail_fast': 'False', 'introspect': 'True', 'quiet': 'False', 'use_colors': 'True', 'log_format': 'default', 'partial_parse': 'True', 'write_json': 'True', 'warn_error': 'None'}
+[0m19:43:11.415684 [info ] [MainThread]: dbt version: 1.11.5
+[0m19:43:11.416996 [info ] [MainThread]: python version: 3.11.15
+[0m19:43:11.418115 [info ] [MainThread]: python path: /usr/local/bin/python3.11
+[0m19:43:11.419226 [info ] [MainThread]: os info: Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.41
+[0m19:43:11.561209 [info ] [MainThread]: Using profiles dir at /workspace/dbt/lakehouse_mvp
+[0m19:43:11.565491 [info ] [MainThread]: Using profiles.yml file at /workspace/dbt/lakehouse_mvp/profiles.yml
+[0m19:43:11.569178 [info ] [MainThread]: Using dbt_project.yml file at /workspace/dbt/lakehouse_mvp/dbt_project.yml
+[0m19:43:11.572569 [info ] [MainThread]: adapter type: duckdb
+[0m19:43:11.576300 [info ] [MainThread]: adapter version: 1.10.0
+[0m19:43:11.708236 [info ] [MainThread]: Configuration:
+[0m19:43:11.711206 [info ] [MainThread]:   profiles.yml file [[32mOK found and valid[0m]
+[0m19:43:11.713141 [info ] [MainThread]:   dbt_project.yml file [[32mOK found and valid[0m]
+[0m19:43:11.719244 [info ] [MainThread]: Required dependencies:
+[0m19:43:11.721597 [debug] [MainThread]: Executing "git --help"
+[0m19:43:11.733646 [debug] [MainThread]: STDOUT: "b"usage: git [-v | --version] [-h | --help] [-C <path>] [-c <name>=<value>]\n           [--exec-path[=<path>]] [--html-path] [--man-path] [--info-path]\n           [-p | --paginate | -P | --no-pager] [--no-replace-objects] [--no-lazy-fetch]\n           [--no-optional-locks] [--no-advice] [--bare] [--git-dir=<path>]\n           [--work-tree=<path>] [--namespace=<name>] [--config-env=<name>=<envvar>]\n           <command> [<args>]\n\nThese are common Git commands used in various situations:\n\nstart a working area (see also: git help tutorial)\n   clone     Clone a repository into a new directory\n   init      Create an empty Git repository or reinitialize an existing one\n\nwork on the current change (see also: git help everyday)\n   add       Add file contents to the index\n   mv        Move or rename a file, a directory, or a symlink\n   restore   Restore working tree files\n   rm        Remove files from the working tree and from the index\n\nexamine the history and state (see also: git help revisions)\n   bisect    Use binary search to find the commit that introduced a bug\n   diff      Show changes between commits, commit and working tree, etc\n   grep      Print lines matching a pattern\n   log       Show commit logs\n   show      Show various types of objects\n   status    Show the working tree status\n\ngrow, mark and tweak your common history\n   branch    List, create, or delete branches\n   commit    Record changes to the repository\n   merge     Join two or more development histories together\n   rebase    Reapply commits on top of another base tip\n   reset     Reset current HEAD to the specified state\n   switch    Switch branches\n   tag       Create, list, delete or verify a tag object signed with GPG\n\ncollaborate (see also: git help workflows)\n   fetch     Download objects and refs from another repository\n   pull      Fetch from and integrate with another repository or a local branch\n   push      Update remote refs along with associated objects\n\n'git help -a' and 'git help -g' list available subcommands and some\nconcept guides. See 'git help <command>' or 'git help <concept>'\nto read about a specific subcommand or concept.\nSee 'git help git' for an overview of the system.\n""
+[0m19:43:11.742025 [debug] [MainThread]: STDERR: "b''"
+[0m19:43:11.750527 [info ] [MainThread]:  - git [[32mOK found[0m]
+
+[0m19:43:11.755202 [info ] [MainThread]: Connection:
+[0m19:43:11.758772 [info ] [MainThread]:   database: lakehouse
+[0m19:43:11.760411 [info ] [MainThread]:   schema: staging
+[0m19:43:11.762225 [info ] [MainThread]:   path: /workspace/db/lakehouse.duckdb
+[0m19:43:11.764873 [info ] [MainThread]:   config_options: None
+[0m19:43:11.767592 [info ] [MainThread]:   extensions: None
+[0m19:43:11.769908 [info ] [MainThread]:   settings: {}
+[0m19:43:11.773744 [info ] [MainThread]:   external_root: .
+[0m19:43:11.776198 [info ] [MainThread]:   use_credential_provider: None
+[0m19:43:11.777712 [info ] [MainThread]:   attach: None
+[0m19:43:11.782490 [info ] [MainThread]:   filesystems: None
+[0m19:43:11.784142 [info ] [MainThread]:   remote: None
+[0m19:43:11.788458 [info ] [MainThread]:   plugins: None
+[0m19:43:11.791666 [info ] [MainThread]:   disable_transactions: False
+[0m19:43:11.794454 [info ] [MainThread]: Registered adapter: duckdb=1.10.0
+[0m19:43:11.910411 [debug] [MainThread]: Acquiring new duckdb connection 'debug'
+[0m19:43:11.933684 [debug] [MainThread]: Using duckdb connection "debug"
+[0m19:43:11.935394 [debug] [MainThread]: On debug: select 1 as id
+[0m19:43:11.936753 [debug] [MainThread]: Opening a new connection, currently in state init
+[0m19:43:11.952475 [debug] [MainThread]: SQL status: OK in 0.016 seconds
+[0m19:43:11.954322 [debug] [MainThread]: On debug: Close
+[0m19:43:11.955585 [info ] [MainThread]:   Connection test: [[32mOK connection ok[0m]
+
+[0m19:43:11.956704 [info ] [MainThread]: [32mAll checks passed![0m
+[0m19:43:11.958447 [debug] [MainThread]: Resource report: {"command_name": "debug", "command_success": true, "command_wall_clock_time": 0.64895433, "process_in_blocks": "35296", "process_kernel_time": 0.30913, "process_mem_max_rss": "167884", "process_out_blocks": "32", "process_user_time": 2.627612}
+[0m19:43:11.959962 [debug] [MainThread]: Command `dbt debug` succeeded at 19:43:11.959823 after 0.65 seconds
+[0m19:43:11.961244 [debug] [MainThread]: Connection 'debug' was properly closed.
+[0m19:43:11.962554 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'end', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7999a75a9b90>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7999a742b210>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x79999932a410>]}
+[0m19:43:11.963876 [debug] [MainThread]: Flushing usage events
+[0m19:43:12.123845 [debug] [MainThread]: An error was encountered while trying to flush usage events
+[0m19:43:14.811790 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'start', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7309914905d0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x73099078fed0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x73099078c110>]}
+
+
+============================== 19:43:14.815068 | b7505792-d900-4e0e-b190-edaad3a1a66a ==============================
+[0m19:43:14.815068 [info ] [MainThread]: Running with dbt=1.11.5
+[0m19:43:14.817286 [debug] [MainThread]: running dbt with arguments {'warn_error': 'None', 'send_anonymous_usage_stats': 'True', 'warn_error_options': 'WarnErrorOptionsV2(error=[], warn=[], silence=[])', 'invocation_command': 'dbt run', 'log_path': '/workspace/dbt/lakehouse_mvp/logs', 'printer_width': '80', 'partial_parse': 'True', 'use_experimental_parser': 'False', 'indirect_selection': 'eager', 'profiles_dir': '/workspace/dbt/lakehouse_mvp', 'target_path': 'None', 'empty': 'False', 'cache_selected_only': 'False', 'debug': 'False', 'static_parser': 'True', 'introspect': 'True', 'version_check': 'True', 'no_print': 'None', 'log_cache_events': 'False', 'fail_fast': 'False', 'write_json': 'True', 'log_format': 'default', 'quiet': 'False', 'use_colors': 'True'}
+[0m19:43:15.077445 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'project_id', 'label': 'b7505792-d900-4e0e-b190-edaad3a1a66a', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x730990618710>]}
+[0m19:43:15.214217 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'adapter_info', 'label': 'b7505792-d900-4e0e-b190-edaad3a1a66a', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x73099366f790>]}
+[0m19:43:15.225637 [info ] [MainThread]: Registered adapter: duckdb=1.10.0
+[0m19:43:15.286091 [debug] [MainThread]: checksum: 917838c7befe257b9b22a76c21e5785f6f23ac83ef0336e2870f03c9c3f28402, vars: {}, profile: , target: , version: 1.11.5
+[0m19:43:15.289019 [info ] [MainThread]: Unable to do partial parsing because saved manifest not found. Starting full parse.
+[0m19:43:15.292236 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'partial_parser', 'label': 'b7505792-d900-4e0e-b190-edaad3a1a66a', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7309906656d0>]}
+[0m19:43:16.446527 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'load_project', 'label': 'b7505792-d900-4e0e-b190-edaad3a1a66a', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x730982b2a850>]}
+[0m19:43:16.525674 [debug] [MainThread]: Wrote artifact WritableManifest to /workspace/dbt/lakehouse_mvp/target/manifest.json
+[0m19:43:16.541430 [debug] [MainThread]: Wrote artifact SemanticManifest to /workspace/dbt/lakehouse_mvp/target/semantic_manifest.json
+[0m19:43:16.562536 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'resource_counts', 'label': 'b7505792-d900-4e0e-b190-edaad3a1a66a', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x730931497d90>]}
+[0m19:43:16.564780 [info ] [MainThread]: Found 2 models, 6 data tests, 472 macros
+[0m19:43:16.567571 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'runnable_timing', 'label': 'b7505792-d900-4e0e-b190-edaad3a1a66a', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x730931532210>]}
+[0m19:43:16.572217 [info ] [MainThread]: 
+[0m19:43:16.584366 [info ] [MainThread]: Concurrency: 4 threads (target='dev')
+[0m19:43:16.585678 [info ] [MainThread]: 
+[0m19:43:16.587664 [debug] [MainThread]: Acquiring new duckdb connection 'master'
+[0m19:43:16.605598 [debug] [ThreadPool]: Acquiring new duckdb connection 'list_lakehouse'
+[0m19:43:16.606595 [debug] [ThreadPool]: Acquiring new duckdb connection 'list_lakehouse'
+[0m19:43:16.640262 [debug] [ThreadPool]: Using duckdb connection "list_lakehouse"
+[0m19:43:16.640706 [debug] [ThreadPool]: Using duckdb connection "list_lakehouse"
+[0m19:43:16.641719 [debug] [ThreadPool]: On list_lakehouse: /* {"app": "dbt", "dbt_version": "1.11.5", "profile_name": "lakehouse_mvp", "target_name": "dev", "connection_name": "list_lakehouse"} */
+
+    
+    select schema_name
+    from system.information_schema.schemata
+    
+    where lower(catalog_name) = '"lakehouse"'
+    
+  
+  
+[0m19:43:16.642988 [debug] [ThreadPool]: On list_lakehouse: /* {"app": "dbt", "dbt_version": "1.11.5", "profile_name": "lakehouse_mvp", "target_name": "dev", "connection_name": "list_lakehouse"} */
+
+    
+    select schema_name
+    from system.information_schema.schemata
+    
+    where lower(catalog_name) = '"lakehouse"'
+    
+  
+  
+[0m19:43:16.644615 [debug] [ThreadPool]: Opening a new connection, currently in state init
+[0m19:43:16.646058 [debug] [ThreadPool]: Opening a new connection, currently in state init
+[0m19:43:16.661072 [debug] [ThreadPool]: SQL status: OK in 0.016 seconds
+[0m19:43:16.661524 [debug] [ThreadPool]: SQL status: OK in 0.015 seconds
+[0m19:43:16.663394 [debug] [ThreadPool]: On list_lakehouse: Close
+[0m19:43:16.665220 [debug] [ThreadPool]: On list_lakehouse: Close
+[0m19:43:16.667363 [debug] [ThreadPool]: Re-using an available connection from the pool (formerly list_lakehouse, now create_lakehouse_staging_staging)
+[0m19:43:16.667820 [debug] [ThreadPool]: Re-using an available connection from the pool (formerly list_lakehouse, now create_lakehouse_staging_marts)
+[0m19:43:16.669031 [debug] [ThreadPool]: Creating schema "database: "lakehouse"
+schema: "staging_staging"
+"
+[0m19:43:16.670417 [debug] [ThreadPool]: Creating schema "database: "lakehouse"
+schema: "staging_marts"
+"
+[0m19:43:16.677457 [debug] [ThreadPool]: Using duckdb connection "create_lakehouse_staging_staging"
+[0m19:43:16.681944 [debug] [ThreadPool]: Using duckdb connection "create_lakehouse_staging_marts"
+[0m19:43:16.684121 [debug] [ThreadPool]: On create_lakehouse_staging_staging: /* {"app": "dbt", "dbt_version": "1.11.5", "profile_name": "lakehouse_mvp", "target_name": "dev", "connection_name": "create_lakehouse_staging_staging"} */
+
+    
+        select type from duckdb_databases()
+        where lower(database_name)='lakehouse'
+        and type='sqlite'
+    
+  
+[0m19:43:16.685426 [debug] [ThreadPool]: On create_lakehouse_staging_marts: /* {"app": "dbt", "dbt_version": "1.11.5", "profile_name": "lakehouse_mvp", "target_name": "dev", "connection_name": "create_lakehouse_staging_marts"} */
+
+    
+        select type from duckdb_databases()
+        where lower(database_name)='lakehouse'
+        and type='sqlite'
+    
+  
+[0m19:43:16.686590 [debug] [ThreadPool]: Opening a new connection, currently in state closed
+[0m19:43:16.687887 [debug] [ThreadPool]: Opening a new connection, currently in state closed
+[0m19:43:16.690788 [debug] [ThreadPool]: SQL status: OK in 0.004 seconds
+[0m19:43:16.692442 [debug] [ThreadPool]: SQL status: OK in 0.005 seconds
+[0m19:43:16.694008 [debug] [ThreadPool]: Using duckdb connection "create_lakehouse_staging_staging"
+[0m19:43:16.695921 [debug] [ThreadPool]: Using duckdb connection "create_lakehouse_staging_marts"
+[0m19:43:16.696743 [debug] [ThreadPool]: On create_lakehouse_staging_staging: BEGIN
+[0m19:43:16.698200 [debug] [ThreadPool]: On create_lakehouse_staging_marts: BEGIN
+[0m19:43:16.700077 [debug] [ThreadPool]: SQL status: OK in 0.001 seconds
+[0m19:43:16.700870 [debug] [ThreadPool]: SQL status: OK in 0.000 seconds
+[0m19:43:16.708628 [debug] [ThreadPool]: Using duckdb connection "create_lakehouse_staging_staging"
+[0m19:43:16.710191 [debug] [ThreadPool]: Using duckdb connection "create_lakehouse_staging_marts"
+[0m19:43:16.713445 [debug] [ThreadPool]: On create_lakehouse_staging_staging: /* {"app": "dbt", "dbt_version": "1.11.5", "profile_name": "lakehouse_mvp", "target_name": "dev", "connection_name": "create_lakehouse_staging_staging"} */
+
+    
+    
+        create schema if not exists "lakehouse"."staging_staging"
+    
+[0m19:43:16.714491 [debug] [ThreadPool]: On create_lakehouse_staging_marts: /* {"app": "dbt", "dbt_version": "1.11.5", "profile_name": "lakehouse_mvp", "target_name": "dev", "connection_name": "create_lakehouse_staging_marts"} */
+
+    
+    
+        create schema if not exists "lakehouse"."staging_marts"
+    
+[0m19:43:16.716146 [debug] [ThreadPool]: SQL status: OK in 0.001 seconds
+[0m19:43:16.716832 [debug] [ThreadPool]: SQL status: OK in 0.000 seconds
+[0m19:43:16.718001 [debug] [ThreadPool]: On create_lakehouse_staging_staging: COMMIT
+[0m19:43:16.719992 [debug] [ThreadPool]: On create_lakehouse_staging_marts: COMMIT
+[0m19:43:16.721243 [debug] [ThreadPool]: Using duckdb connection "create_lakehouse_staging_staging"
+[0m19:43:16.722454 [debug] [ThreadPool]: Using duckdb connection "create_lakehouse_staging_marts"
+[0m19:43:16.723615 [debug] [ThreadPool]: On create_lakehouse_staging_staging: COMMIT
+[0m19:43:16.724678 [debug] [ThreadPool]: On create_lakehouse_staging_marts: COMMIT
+[0m19:43:16.730408 [debug] [ThreadPool]: SQL status: OK in 0.005 seconds
+[0m19:43:16.731705 [debug] [ThreadPool]: On create_lakehouse_staging_staging: Close
+[0m19:43:16.733766 [debug] [ThreadPool]: SQL status: OK in 0.007 seconds
+[0m19:43:16.734746 [debug] [ThreadPool]: On create_lakehouse_staging_marts: Close
+[0m19:43:16.736764 [debug] [ThreadPool]: Re-using an available connection from the pool (formerly create_lakehouse_staging_marts, now list_lakehouse_staging_staging)
+[0m19:43:16.737344 [debug] [ThreadPool]: Re-using an available connection from the pool (formerly create_lakehouse_staging_staging, now list_lakehouse_staging_marts)
+[0m19:43:16.742472 [debug] [ThreadPool]: Using duckdb connection "list_lakehouse_staging_staging"
+[0m19:43:16.745025 [debug] [ThreadPool]: Using duckdb connection "list_lakehouse_staging_marts"
+[0m19:43:16.745989 [debug] [ThreadPool]: On list_lakehouse_staging_staging: BEGIN
+[0m19:43:16.746951 [debug] [ThreadPool]: On list_lakehouse_staging_marts: BEGIN
+[0m19:43:16.748102 [debug] [ThreadPool]: Opening a new connection, currently in state closed
+[0m19:43:16.749109 [debug] [ThreadPool]: Opening a new connection, currently in state closed
+[0m19:43:16.750781 [debug] [ThreadPool]: SQL status: OK in 0.003 seconds
+[0m19:43:16.751886 [debug] [ThreadPool]: SQL status: OK in 0.003 seconds
+[0m19:43:16.752346 [debug] [ThreadPool]: Using duckdb connection "list_lakehouse_staging_staging"
+[0m19:43:16.753260 [debug] [ThreadPool]: Using duckdb connection "list_lakehouse_staging_marts"
+[0m19:43:16.754138 [debug] [ThreadPool]: On list_lakehouse_staging_staging: /* {"app": "dbt", "dbt_version": "1.11.5", "profile_name": "lakehouse_mvp", "target_name": "dev", "connection_name": "list_lakehouse_staging_staging"} */
+select
+      'lakehouse' as database,
+      table_name as name,
+      table_schema as schema,
+      CASE table_type
+        WHEN 'BASE TABLE' THEN 'table'
+        WHEN 'VIEW' THEN 'view'
+        WHEN 'LOCAL TEMPORARY' THEN 'table'
+        END as type
+    from system.information_schema.tables
+    where lower(table_schema) = 'staging_staging'
+    and lower(table_catalog) = 'lakehouse'
+  
+[0m19:43:16.755008 [debug] [ThreadPool]: On list_lakehouse_staging_marts: /* {"app": "dbt", "dbt_version": "1.11.5", "profile_name": "lakehouse_mvp", "target_name": "dev", "connection_name": "list_lakehouse_staging_marts"} */
+select
+      'lakehouse' as database,
+      table_name as name,
+      table_schema as schema,
+      CASE table_type
+        WHEN 'BASE TABLE' THEN 'table'
+        WHEN 'VIEW' THEN 'view'
+        WHEN 'LOCAL TEMPORARY' THEN 'table'
+        END as type
+    from system.information_schema.tables
+    where lower(table_schema) = 'staging_marts'
+    and lower(table_catalog) = 'lakehouse'
+  
+[0m19:43:16.765058 [debug] [ThreadPool]: SQL status: OK in 0.008 seconds
+[0m19:43:16.765372 [debug] [ThreadPool]: SQL status: OK in 0.009 seconds
+[0m19:43:16.766745 [debug] [ThreadPool]: On list_lakehouse_staging_marts: ROLLBACK
+[0m19:43:16.768258 [debug] [ThreadPool]: On list_lakehouse_staging_staging: ROLLBACK
+[0m19:43:16.769932 [debug] [ThreadPool]: Failed to rollback 'list_lakehouse_staging_marts'
+[0m19:43:16.770405 [debug] [ThreadPool]: Failed to rollback 'list_lakehouse_staging_staging'
+[0m19:43:16.770968 [debug] [ThreadPool]: On list_lakehouse_staging_marts: Close
+[0m19:43:16.771798 [debug] [ThreadPool]: On list_lakehouse_staging_staging: Close
+[0m19:43:16.773520 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'runnable_timing', 'label': 'b7505792-d900-4e0e-b190-edaad3a1a66a', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x730933f90450>]}
+[0m19:43:16.774490 [debug] [MainThread]: Using duckdb connection "master"
+[0m19:43:16.775294 [debug] [MainThread]: On master: BEGIN
+[0m19:43:16.776167 [debug] [MainThread]: Opening a new connection, currently in state init
+[0m19:43:16.777369 [debug] [MainThread]: SQL status: OK in 0.001 seconds
+[0m19:43:16.778192 [debug] [MainThread]: On master: COMMIT
+[0m19:43:16.778878 [debug] [MainThread]: Using duckdb connection "master"
+[0m19:43:16.779625 [debug] [MainThread]: On master: COMMIT
+[0m19:43:16.780695 [debug] [MainThread]: SQL status: OK in 0.000 seconds
+[0m19:43:16.781450 [debug] [MainThread]: On master: Close
+[0m19:43:16.790015 [debug] [Thread-1 (]: Began running node model.lakehouse_mvp.stg_sales
+[0m19:43:16.800914 [info ] [Thread-1 (]: 1 of 2 START sql table model staging_staging.stg_sales ......................... [RUN]
+[0m19:43:16.802890 [debug] [Thread-1 (]: Re-using an available connection from the pool (formerly list_lakehouse_staging_staging, now model.lakehouse_mvp.stg_sales)
+[0m19:43:16.807561 [debug] [Thread-1 (]: Began compiling node model.lakehouse_mvp.stg_sales
+[0m19:43:16.817086 [debug] [Thread-1 (]: Writing injected SQL for node "model.lakehouse_mvp.stg_sales"
+[0m19:43:16.848593 [debug] [Thread-1 (]: Began executing node model.lakehouse_mvp.stg_sales
+[0m19:43:16.875962 [debug] [Thread-1 (]: Writing runtime sql for node "model.lakehouse_mvp.stg_sales"
+[0m19:43:16.914068 [debug] [Thread-1 (]: Using duckdb connection "model.lakehouse_mvp.stg_sales"
+[0m19:43:16.914928 [debug] [Thread-1 (]: On model.lakehouse_mvp.stg_sales: BEGIN
+[0m19:43:16.915807 [debug] [Thread-1 (]: Opening a new connection, currently in state closed
+[0m19:43:16.917349 [debug] [Thread-1 (]: SQL status: OK in 0.002 seconds
+[0m19:43:16.918239 [debug] [Thread-1 (]: Using duckdb connection "model.lakehouse_mvp.stg_sales"
+[0m19:43:16.919010 [debug] [Thread-1 (]: On model.lakehouse_mvp.stg_sales: /* {"app": "dbt", "dbt_version": "1.11.5", "profile_name": "lakehouse_mvp", "target_name": "dev", "node_id": "model.lakehouse_mvp.stg_sales"} */
+
+  
+    
+    
+
+    create  table
+      "lakehouse"."staging_staging"."stg_sales__dbt_tmp"
+  
+    as (
+      with source as (
+    select * from raw.sales
+),
+
+cleaned as (
+    select
+        order_id,
+        customer_id,
+        cast(order_date as date)                              as order_date,
+        product,
+        quantity,
+        amount,
+        region,
+        date_part('year',    cast(order_date as date))::int  as order_year,
+        date_part('month',   cast(order_date as date))::int  as order_month,
+        date_part('quarter', cast(order_date as date))::int  as order_quarter,
+        quantity * amount                                     as line_total
+    from source
+    where quantity > 0
+      and amount   > 0
+)
+
+select * from cleaned
+    );
+  
+  
+[0m19:43:16.927853 [debug] [Thread-1 (]: SQL status: OK in 0.005 seconds
+[0m19:43:16.933692 [debug] [Thread-1 (]: Using duckdb connection "model.lakehouse_mvp.stg_sales"
+[0m19:43:16.934734 [debug] [Thread-1 (]: On model.lakehouse_mvp.stg_sales: /* {"app": "dbt", "dbt_version": "1.11.5", "profile_name": "lakehouse_mvp", "target_name": "dev", "node_id": "model.lakehouse_mvp.stg_sales"} */
+alter table "lakehouse"."staging_staging"."stg_sales__dbt_tmp" rename to "stg_sales"
+[0m19:43:16.936505 [debug] [Thread-1 (]: SQL status: OK in 0.001 seconds
+[0m19:43:16.947519 [debug] [Thread-1 (]: On model.lakehouse_mvp.stg_sales: COMMIT
+[0m19:43:16.948549 [debug] [Thread-1 (]: Using duckdb connection "model.lakehouse_mvp.stg_sales"
+[0m19:43:16.949435 [debug] [Thread-1 (]: On model.lakehouse_mvp.stg_sales: COMMIT
+[0m19:43:16.954255 [debug] [Thread-1 (]: SQL status: OK in 0.004 seconds
+[0m19:43:16.959737 [debug] [Thread-1 (]: Using duckdb connection "model.lakehouse_mvp.stg_sales"
+[0m19:43:16.960736 [debug] [Thread-1 (]: On model.lakehouse_mvp.stg_sales: /* {"app": "dbt", "dbt_version": "1.11.5", "profile_name": "lakehouse_mvp", "target_name": "dev", "node_id": "model.lakehouse_mvp.stg_sales"} */
+
+      drop table if exists "lakehouse"."staging_staging"."stg_sales__dbt_backup" cascade
+    
+[0m19:43:16.962091 [debug] [Thread-1 (]: SQL status: OK in 0.000 seconds
+[0m19:43:16.964661 [debug] [Thread-1 (]: On model.lakehouse_mvp.stg_sales: Close
+[0m19:43:16.966965 [debug] [Thread-1 (]: Sending event: {'category': 'dbt', 'action': 'run_model', 'label': 'b7505792-d900-4e0e-b190-edaad3a1a66a', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x730930131610>]}
+[0m19:43:16.968111 [info ] [Thread-1 (]: 1 of 2 OK created sql table model staging_staging.stg_sales .................... [[32mOK[0m in 0.16s]
+[0m19:43:16.969519 [debug] [Thread-1 (]: Finished running node model.lakehouse_mvp.stg_sales
+[0m19:43:16.971056 [debug] [Thread-3 (]: Began running node model.lakehouse_mvp.daily_revenue
+[0m19:43:16.972128 [info ] [Thread-3 (]: 2 of 2 START sql table model staging_marts.daily_revenue ....................... [RUN]
+[0m19:43:16.973362 [debug] [Thread-3 (]: Acquiring new duckdb connection 'model.lakehouse_mvp.daily_revenue'
+[0m19:43:16.974518 [debug] [Thread-3 (]: Began compiling node model.lakehouse_mvp.daily_revenue
+[0m19:43:16.977694 [debug] [Thread-3 (]: Writing injected SQL for node "model.lakehouse_mvp.daily_revenue"
+[0m19:43:16.987182 [debug] [Thread-3 (]: Began executing node model.lakehouse_mvp.daily_revenue
+[0m19:43:16.992129 [debug] [Thread-3 (]: Writing runtime sql for node "model.lakehouse_mvp.daily_revenue"
+[0m19:43:17.008546 [debug] [Thread-3 (]: Using duckdb connection "model.lakehouse_mvp.daily_revenue"
+[0m19:43:17.016777 [debug] [Thread-3 (]: On model.lakehouse_mvp.daily_revenue: BEGIN
+[0m19:43:17.018795 [debug] [Thread-3 (]: Opening a new connection, currently in state init
+[0m19:43:17.020445 [debug] [Thread-3 (]: SQL status: OK in 0.002 seconds
+[0m19:43:17.022192 [debug] [Thread-3 (]: Using duckdb connection "model.lakehouse_mvp.daily_revenue"
+[0m19:43:17.023208 [debug] [Thread-3 (]: On model.lakehouse_mvp.daily_revenue: /* {"app": "dbt", "dbt_version": "1.11.5", "profile_name": "lakehouse_mvp", "target_name": "dev", "node_id": "model.lakehouse_mvp.daily_revenue"} */
+
+  
+    
+    
+
+    create  table
+      "lakehouse"."staging_marts"."daily_revenue__dbt_tmp"
+  
+    as (
+      with stg as (
+    select * from "lakehouse"."staging_staging"."stg_sales"
+)
+
+select
+    order_date,
+    region,
+    product,
+    count(distinct order_id)    as order_count,
+    count(distinct customer_id) as customer_count,
+    sum(quantity)               as total_units,
+    round(sum(line_total), 2)   as revenue,
+    round(avg(amount), 2)       as avg_order_value
+from stg
+group by order_date, region, product
+order by order_date, region, product
+    );
+  
+  
+[0m19:43:17.045716 [debug] [Thread-3 (]: SQL status: OK in 0.021 seconds
+[0m19:43:17.050017 [debug] [Thread-3 (]: Using duckdb connection "model.lakehouse_mvp.daily_revenue"
+[0m19:43:17.051457 [debug] [Thread-3 (]: On model.lakehouse_mvp.daily_revenue: /* {"app": "dbt", "dbt_version": "1.11.5", "profile_name": "lakehouse_mvp", "target_name": "dev", "node_id": "model.lakehouse_mvp.daily_revenue"} */
+alter table "lakehouse"."staging_marts"."daily_revenue__dbt_tmp" rename to "daily_revenue"
+[0m19:43:17.053307 [debug] [Thread-3 (]: SQL status: OK in 0.000 seconds
+[0m19:43:17.055567 [debug] [Thread-3 (]: On model.lakehouse_mvp.daily_revenue: COMMIT
+[0m19:43:17.056885 [debug] [Thread-3 (]: Using duckdb connection "model.lakehouse_mvp.daily_revenue"
+[0m19:43:17.058137 [debug] [Thread-3 (]: On model.lakehouse_mvp.daily_revenue: COMMIT
+[0m19:43:17.063574 [debug] [Thread-3 (]: SQL status: OK in 0.004 seconds
+[0m19:43:17.066485 [debug] [Thread-3 (]: Using duckdb connection "model.lakehouse_mvp.daily_revenue"
+[0m19:43:17.067574 [debug] [Thread-3 (]: On model.lakehouse_mvp.daily_revenue: /* {"app": "dbt", "dbt_version": "1.11.5", "profile_name": "lakehouse_mvp", "target_name": "dev", "node_id": "model.lakehouse_mvp.daily_revenue"} */
+
+      drop table if exists "lakehouse"."staging_marts"."daily_revenue__dbt_backup" cascade
+    
+[0m19:43:17.069132 [debug] [Thread-3 (]: SQL status: OK in 0.000 seconds
+[0m19:43:17.070967 [debug] [Thread-3 (]: On model.lakehouse_mvp.daily_revenue: Close
+[0m19:43:17.074873 [debug] [Thread-3 (]: Sending event: {'category': 'dbt', 'action': 'run_model', 'label': 'b7505792-d900-4e0e-b190-edaad3a1a66a', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7308dbf6ac90>]}
+[0m19:43:17.076240 [info ] [Thread-3 (]: 2 of 2 OK created sql table model staging_marts.daily_revenue .................. [[32mOK[0m in 0.10s]
+[0m19:43:17.077534 [debug] [Thread-3 (]: Finished running node model.lakehouse_mvp.daily_revenue
+[0m19:43:17.079959 [debug] [MainThread]: Using duckdb connection "master"
+[0m19:43:17.080992 [debug] [MainThread]: On master: BEGIN
+[0m19:43:17.081930 [debug] [MainThread]: Opening a new connection, currently in state closed
+[0m19:43:17.083324 [debug] [MainThread]: SQL status: OK in 0.001 seconds
+[0m19:43:17.084322 [debug] [MainThread]: On master: COMMIT
+[0m19:43:17.085219 [debug] [MainThread]: Using duckdb connection "master"
+[0m19:43:17.086096 [debug] [MainThread]: On master: COMMIT
+[0m19:43:17.087316 [debug] [MainThread]: SQL status: OK in 0.000 seconds
+[0m19:43:17.088611 [debug] [MainThread]: On master: Close
+[0m19:43:17.089748 [debug] [MainThread]: Connection 'master' was properly closed.
+[0m19:43:17.090663 [debug] [MainThread]: Connection 'list_lakehouse_staging_marts' was properly closed.
+[0m19:43:17.091601 [debug] [MainThread]: Connection 'model.lakehouse_mvp.stg_sales' was properly closed.
+[0m19:43:17.092459 [debug] [MainThread]: Connection 'model.lakehouse_mvp.daily_revenue' was properly closed.
+[0m19:43:17.093370 [info ] [MainThread]: 
+[0m19:43:17.094411 [info ] [MainThread]: Finished running 2 table models in 0 hours 0 minutes and 0.51 seconds (0.51s).
+[0m19:43:17.095844 [debug] [MainThread]: Command end result
+[0m19:43:17.124543 [debug] [MainThread]: Wrote artifact WritableManifest to /workspace/dbt/lakehouse_mvp/target/manifest.json
+[0m19:43:17.128799 [debug] [MainThread]: Wrote artifact SemanticManifest to /workspace/dbt/lakehouse_mvp/target/semantic_manifest.json
+[0m19:43:17.137435 [debug] [MainThread]: Wrote artifact RunExecutionResult to /workspace/dbt/lakehouse_mvp/target/run_results.json
+[0m19:43:17.138435 [info ] [MainThread]: 
+[0m19:43:17.139602 [info ] [MainThread]: [32mCompleted successfully[0m
+[0m19:43:17.140539 [info ] [MainThread]: 
+[0m19:43:17.141484 [info ] [MainThread]: Done. PASS=2 WARN=0 ERROR=0 SKIP=0 NO-OP=0 TOTAL=2
+[0m19:43:17.143058 [debug] [MainThread]: Resource report: {"command_name": "run", "command_success": true, "command_wall_clock_time": 2.4095476, "process_in_blocks": "8432", "process_kernel_time": 0.332171, "process_mem_max_rss": "214476", "process_out_blocks": "312", "process_user_time": 4.181207}
+[0m19:43:17.144405 [debug] [MainThread]: Command `dbt run` succeeded at 19:43:17.144280 after 2.41 seconds
+[0m19:43:17.145445 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'end', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x730990a2b490>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x73099078d7d0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x73099659dcd0>]}
+[0m19:43:17.146533 [debug] [MainThread]: Flushing usage events
+[0m19:43:17.254851 [debug] [MainThread]: An error was encountered while trying to flush usage events
+[0m19:43:20.167579 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'start', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x707b43162d90>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x707b43603450>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x707b431dfb10>]}
+
+
+============================== 19:43:20.170865 | e37da7c1-1977-4aa9-87d8-6cc375ec1bd1 ==============================
+[0m19:43:20.170865 [info ] [MainThread]: Running with dbt=1.11.5
+[0m19:43:20.172522 [debug] [MainThread]: running dbt with arguments {'log_format': 'default', 'no_print': 'None', 'fail_fast': 'False', 'invocation_command': 'dbt test', 'log_cache_events': 'False', 'partial_parse': 'True', 'send_anonymous_usage_stats': 'True', 'printer_width': '80', 'target_path': 'None', 'use_experimental_parser': 'False', 'quiet': 'False', 'use_colors': 'True', 'warn_error': 'None', 'write_json': 'True', 'indirect_selection': 'eager', 'profiles_dir': '/workspace/dbt/lakehouse_mvp', 'log_path': '/workspace/dbt/lakehouse_mvp/logs', 'empty': 'None', 'cache_selected_only': 'False', 'debug': 'False', 'version_check': 'True', 'static_parser': 'True', 'introspect': 'True', 'warn_error_options': 'WarnErrorOptionsV2(error=[], warn=[], silence=[])'}
+[0m19:43:20.420423 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'project_id', 'label': 'e37da7c1-1977-4aa9-87d8-6cc375ec1bd1', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x707b43219650>]}
+[0m19:43:20.553643 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'adapter_info', 'label': 'e37da7c1-1977-4aa9-87d8-6cc375ec1bd1', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x707b46083e90>]}
+[0m19:43:20.556391 [info ] [MainThread]: Registered adapter: duckdb=1.10.0
+[0m19:43:20.616931 [debug] [MainThread]: checksum: 917838c7befe257b9b22a76c21e5785f6f23ac83ef0336e2870f03c9c3f28402, vars: {}, profile: , target: , version: 1.11.5
+[0m19:43:20.746252 [debug] [MainThread]: Partial parsing enabled: 0 files deleted, 0 files added, 0 files changed.
+[0m19:43:20.747196 [debug] [MainThread]: Nothing changed, skipping partial parsing.
+[0m19:43:20.748030 [debug] [MainThread]: Partial parsing enabled, no changes found, skipping parsing
+[0m19:43:20.785420 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'load_project', 'label': 'e37da7c1-1977-4aa9-87d8-6cc375ec1bd1', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x707b352185d0>]}
+[0m19:43:20.856061 [debug] [MainThread]: Wrote artifact WritableManifest to /workspace/dbt/lakehouse_mvp/target/manifest.json
+[0m19:43:20.871480 [debug] [MainThread]: Wrote artifact SemanticManifest to /workspace/dbt/lakehouse_mvp/target/semantic_manifest.json
+[0m19:43:20.896134 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'resource_counts', 'label': 'e37da7c1-1977-4aa9-87d8-6cc375ec1bd1', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x707aea91fe90>]}
+[0m19:43:20.897146 [info ] [MainThread]: Found 2 models, 6 data tests, 472 macros
+[0m19:43:20.898944 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'runnable_timing', 'label': 'e37da7c1-1977-4aa9-87d8-6cc375ec1bd1', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x707b3538ed50>]}
+[0m19:43:20.914645 [info ] [MainThread]: 
+[0m19:43:20.916660 [info ] [MainThread]: Concurrency: 4 threads (target='dev')
+[0m19:43:20.917595 [info ] [MainThread]: 
+[0m19:43:20.918606 [debug] [MainThread]: Acquiring new duckdb connection 'master'
+[0m19:43:20.920222 [debug] [ThreadPool]: Acquiring new duckdb connection 'list_lakehouse_staging_staging'
+[0m19:43:20.920948 [debug] [ThreadPool]: Acquiring new duckdb connection 'list_lakehouse_staging_marts'
+[0m19:43:20.953697 [debug] [ThreadPool]: Using duckdb connection "list_lakehouse_staging_staging"
+[0m19:43:20.954092 [debug] [ThreadPool]: Using duckdb connection "list_lakehouse_staging_marts"
+[0m19:43:20.954847 [debug] [ThreadPool]: On list_lakehouse_staging_staging: BEGIN
+[0m19:43:20.955784 [debug] [ThreadPool]: On list_lakehouse_staging_marts: BEGIN
+[0m19:43:20.956510 [debug] [ThreadPool]: Opening a new connection, currently in state init
+[0m19:43:20.957317 [debug] [ThreadPool]: Opening a new connection, currently in state init
+[0m19:43:20.970794 [debug] [ThreadPool]: SQL status: OK in 0.014 seconds
+[0m19:43:20.971292 [debug] [ThreadPool]: SQL status: OK in 0.014 seconds
+[0m19:43:20.972282 [debug] [ThreadPool]: Using duckdb connection "list_lakehouse_staging_staging"
+[0m19:43:20.973171 [debug] [ThreadPool]: Using duckdb connection "list_lakehouse_staging_marts"
+[0m19:43:20.973879 [debug] [ThreadPool]: On list_lakehouse_staging_staging: /* {"app": "dbt", "dbt_version": "1.11.5", "profile_name": "lakehouse_mvp", "target_name": "dev", "connection_name": "list_lakehouse_staging_staging"} */
+select
+      'lakehouse' as database,
+      table_name as name,
+      table_schema as schema,
+      CASE table_type
+        WHEN 'BASE TABLE' THEN 'table'
+        WHEN 'VIEW' THEN 'view'
+        WHEN 'LOCAL TEMPORARY' THEN 'table'
+        END as type
+    from system.information_schema.tables
+    where lower(table_schema) = 'staging_staging'
+    and lower(table_catalog) = 'lakehouse'
+  
+[0m19:43:20.974694 [debug] [ThreadPool]: On list_lakehouse_staging_marts: /* {"app": "dbt", "dbt_version": "1.11.5", "profile_name": "lakehouse_mvp", "target_name": "dev", "connection_name": "list_lakehouse_staging_marts"} */
+select
+      'lakehouse' as database,
+      table_name as name,
+      table_schema as schema,
+      CASE table_type
+        WHEN 'BASE TABLE' THEN 'table'
+        WHEN 'VIEW' THEN 'view'
+        WHEN 'LOCAL TEMPORARY' THEN 'table'
+        END as type
+    from system.information_schema.tables
+    where lower(table_schema) = 'staging_marts'
+    and lower(table_catalog) = 'lakehouse'
+  
+[0m19:43:20.984651 [debug] [ThreadPool]: SQL status: OK in 0.009 seconds
+[0m19:43:20.984978 [debug] [ThreadPool]: SQL status: OK in 0.009 seconds
+[0m19:43:20.986503 [debug] [ThreadPool]: On list_lakehouse_staging_staging: ROLLBACK
+[0m19:43:20.988175 [debug] [ThreadPool]: On list_lakehouse_staging_marts: ROLLBACK
+[0m19:43:20.989149 [debug] [ThreadPool]: Failed to rollback 'list_lakehouse_staging_staging'
+[0m19:43:20.989957 [debug] [ThreadPool]: Failed to rollback 'list_lakehouse_staging_marts'
+[0m19:43:20.990822 [debug] [ThreadPool]: On list_lakehouse_staging_staging: Close
+[0m19:43:20.991685 [debug] [ThreadPool]: On list_lakehouse_staging_marts: Close
+[0m19:43:20.993901 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'runnable_timing', 'label': 'e37da7c1-1977-4aa9-87d8-6cc375ec1bd1', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x707b354b1b90>]}
+[0m19:43:20.994828 [debug] [MainThread]: Using duckdb connection "master"
+[0m19:43:20.995679 [debug] [MainThread]: On master: BEGIN
+[0m19:43:20.996353 [debug] [MainThread]: Opening a new connection, currently in state init
+[0m19:43:20.997537 [debug] [MainThread]: SQL status: OK in 0.001 seconds
+[0m19:43:20.998225 [debug] [MainThread]: On master: COMMIT
+[0m19:43:20.999084 [debug] [MainThread]: Using duckdb connection "master"
+[0m19:43:20.999822 [debug] [MainThread]: On master: COMMIT
+[0m19:43:21.000965 [debug] [MainThread]: SQL status: OK in 0.000 seconds
+[0m19:43:21.001788 [debug] [MainThread]: On master: Close
+[0m19:43:21.005106 [debug] [Thread-1 (]: Began running node test.lakehouse_mvp.not_null_stg_sales_amount.89b708b472
+[0m19:43:21.005486 [debug] [Thread-2 (]: Began running node test.lakehouse_mvp.not_null_stg_sales_customer_id.af88ce3793
+[0m19:43:21.005854 [debug] [Thread-3 (]: Began running node test.lakehouse_mvp.not_null_stg_sales_order_date.c25c86fb8d
+[0m19:43:21.006216 [debug] [Thread-4 (]: Began running node test.lakehouse_mvp.not_null_stg_sales_order_id.5d52c19c3b
+[0m19:43:21.007071 [info ] [Thread-1 (]: 1 of 6 START test not_null_stg_sales_amount .................................... [RUN]
+[0m19:43:21.008194 [info ] [Thread-2 (]: 2 of 6 START test not_null_stg_sales_customer_id ............................... [RUN]
+[0m19:43:21.009219 [info ] [Thread-3 (]: 3 of 6 START test not_null_stg_sales_order_date ................................ [RUN]
+[0m19:43:21.010546 [info ] [Thread-4 (]: 4 of 6 START test not_null_stg_sales_order_id .................................. [RUN]
+[0m19:43:21.011958 [debug] [Thread-1 (]: Re-using an available connection from the pool (formerly list_lakehouse_staging_marts, now test.lakehouse_mvp.not_null_stg_sales_amount.89b708b472)
+[0m19:43:21.013282 [debug] [Thread-2 (]: Re-using an available connection from the pool (formerly list_lakehouse_staging_staging, now test.lakehouse_mvp.not_null_stg_sales_customer_id.af88ce3793)
+[0m19:43:21.014285 [debug] [Thread-3 (]: Acquiring new duckdb connection 'test.lakehouse_mvp.not_null_stg_sales_order_date.c25c86fb8d'
+[0m19:43:21.015292 [debug] [Thread-4 (]: Acquiring new duckdb connection 'test.lakehouse_mvp.not_null_stg_sales_order_id.5d52c19c3b'
+[0m19:43:21.016249 [debug] [Thread-1 (]: Began compiling node test.lakehouse_mvp.not_null_stg_sales_amount.89b708b472
+[0m19:43:21.017287 [debug] [Thread-2 (]: Began compiling node test.lakehouse_mvp.not_null_stg_sales_customer_id.af88ce3793
+[0m19:43:21.018234 [debug] [Thread-3 (]: Began compiling node test.lakehouse_mvp.not_null_stg_sales_order_date.c25c86fb8d
+[0m19:43:21.019234 [debug] [Thread-4 (]: Began compiling node test.lakehouse_mvp.not_null_stg_sales_order_id.5d52c19c3b
+[0m19:43:21.033472 [debug] [Thread-1 (]: Writing injected SQL for node "test.lakehouse_mvp.not_null_stg_sales_amount.89b708b472"
+[0m19:43:21.037070 [debug] [Thread-2 (]: Writing injected SQL for node "test.lakehouse_mvp.not_null_stg_sales_customer_id.af88ce3793"
+[0m19:43:21.041117 [debug] [Thread-3 (]: Writing injected SQL for node "test.lakehouse_mvp.not_null_stg_sales_order_date.c25c86fb8d"
+[0m19:43:21.044942 [debug] [Thread-4 (]: Writing injected SQL for node "test.lakehouse_mvp.not_null_stg_sales_order_id.5d52c19c3b"
+[0m19:43:21.051438 [debug] [Thread-4 (]: Began executing node test.lakehouse_mvp.not_null_stg_sales_order_id.5d52c19c3b
+[0m19:43:21.053612 [debug] [Thread-2 (]: Began executing node test.lakehouse_mvp.not_null_stg_sales_customer_id.af88ce3793
+[0m19:43:21.059185 [debug] [Thread-3 (]: Began executing node test.lakehouse_mvp.not_null_stg_sales_order_date.c25c86fb8d
+[0m19:43:21.068659 [debug] [Thread-4 (]: Writing runtime sql for node "test.lakehouse_mvp.not_null_stg_sales_order_id.5d52c19c3b"
+[0m19:43:21.071096 [debug] [Thread-2 (]: Writing runtime sql for node "test.lakehouse_mvp.not_null_stg_sales_customer_id.af88ce3793"
+[0m19:43:21.071914 [debug] [Thread-1 (]: Began executing node test.lakehouse_mvp.not_null_stg_sales_amount.89b708b472
+[0m19:43:21.074122 [debug] [Thread-3 (]: Writing runtime sql for node "test.lakehouse_mvp.not_null_stg_sales_order_date.c25c86fb8d"
+[0m19:43:21.079412 [debug] [Thread-1 (]: Writing runtime sql for node "test.lakehouse_mvp.not_null_stg_sales_amount.89b708b472"
+[0m19:43:21.085051 [debug] [Thread-1 (]: Using duckdb connection "test.lakehouse_mvp.not_null_stg_sales_amount.89b708b472"
+[0m19:43:21.085960 [debug] [Thread-1 (]: On test.lakehouse_mvp.not_null_stg_sales_amount.89b708b472: BEGIN
+[0m19:43:21.086350 [debug] [Thread-3 (]: Using duckdb connection "test.lakehouse_mvp.not_null_stg_sales_order_date.c25c86fb8d"
+[0m19:43:21.088675 [debug] [Thread-1 (]: Opening a new connection, currently in state closed
+[0m19:43:21.093773 [debug] [Thread-2 (]: Using duckdb connection "test.lakehouse_mvp.not_null_stg_sales_customer_id.af88ce3793"
+[0m19:43:21.094118 [debug] [Thread-3 (]: On test.lakehouse_mvp.not_null_stg_sales_order_date.c25c86fb8d: BEGIN
+[0m19:43:21.097727 [debug] [Thread-1 (]: SQL status: OK in 0.009 seconds
+[0m19:43:21.104622 [debug] [Thread-2 (]: On test.lakehouse_mvp.not_null_stg_sales_customer_id.af88ce3793: BEGIN
+[0m19:43:21.105000 [debug] [Thread-4 (]: Using duckdb connection "test.lakehouse_mvp.not_null_stg_sales_order_id.5d52c19c3b"
+[0m19:43:21.105603 [debug] [Thread-3 (]: Opening a new connection, currently in state init
+[0m19:43:21.106381 [debug] [Thread-1 (]: Using duckdb connection "test.lakehouse_mvp.not_null_stg_sales_amount.89b708b472"
+[0m19:43:21.107129 [debug] [Thread-2 (]: Opening a new connection, currently in state closed
+[0m19:43:21.108002 [debug] [Thread-4 (]: On test.lakehouse_mvp.not_null_stg_sales_order_id.5d52c19c3b: BEGIN
+[0m19:43:21.109445 [debug] [Thread-3 (]: SQL status: OK in 0.004 seconds
+[0m19:43:21.109968 [debug] [Thread-1 (]: On test.lakehouse_mvp.not_null_stg_sales_amount.89b708b472: /* {"app": "dbt", "dbt_version": "1.11.5", "profile_name": "lakehouse_mvp", "target_name": "dev", "node_id": "test.lakehouse_mvp.not_null_stg_sales_amount.89b708b472"} */
+
+    
+    select
+      count(*) as failures,
+      count(*) != 0 as should_warn,
+      count(*) != 0 as should_error
+    from (
+      
+    
+  
+    
+    
+
+
+
+select amount
+from "lakehouse"."staging_staging"."stg_sales"
+where amount is null
+
+
+
+  
+  
+      
+    ) dbt_internal_test
+[0m19:43:21.111375 [debug] [Thread-2 (]: SQL status: OK in 0.004 seconds
+[0m19:43:21.111932 [debug] [Thread-4 (]: Opening a new connection, currently in state init
+[0m19:43:21.112767 [debug] [Thread-3 (]: Using duckdb connection "test.lakehouse_mvp.not_null_stg_sales_order_date.c25c86fb8d"
+[0m19:43:21.114270 [debug] [Thread-2 (]: Using duckdb connection "test.lakehouse_mvp.not_null_stg_sales_customer_id.af88ce3793"
+[0m19:43:21.114696 [debug] [Thread-1 (]: SQL status: OK in 0.001 seconds
+[0m19:43:21.115791 [debug] [Thread-4 (]: SQL status: OK in 0.004 seconds
+[0m19:43:21.116446 [debug] [Thread-3 (]: On test.lakehouse_mvp.not_null_stg_sales_order_date.c25c86fb8d: /* {"app": "dbt", "dbt_version": "1.11.5", "profile_name": "lakehouse_mvp", "target_name": "dev", "node_id": "test.lakehouse_mvp.not_null_stg_sales_order_date.c25c86fb8d"} */
+
+    
+    select
+      count(*) as failures,
+      count(*) != 0 as should_warn,
+      count(*) != 0 as should_error
+    from (
+      
+    
+  
+    
+    
+
+
+
+select order_date
+from "lakehouse"."staging_staging"."stg_sales"
+where order_date is null
+
+
+
+  
+  
+      
+    ) dbt_internal_test
+[0m19:43:21.117466 [debug] [Thread-2 (]: On test.lakehouse_mvp.not_null_stg_sales_customer_id.af88ce3793: /* {"app": "dbt", "dbt_version": "1.11.5", "profile_name": "lakehouse_mvp", "target_name": "dev", "node_id": "test.lakehouse_mvp.not_null_stg_sales_customer_id.af88ce3793"} */
+
+    
+    select
+      count(*) as failures,
+      count(*) != 0 as should_warn,
+      count(*) != 0 as should_error
+    from (
+      
+    
+  
+    
+    
+
+
+
+select customer_id
+from "lakehouse"."staging_staging"."stg_sales"
+where customer_id is null
+
+
+
+  
+  
+      
+    ) dbt_internal_test
+[0m19:43:21.121530 [debug] [Thread-1 (]: On test.lakehouse_mvp.not_null_stg_sales_amount.89b708b472: ROLLBACK
+[0m19:43:21.122177 [debug] [Thread-4 (]: Using duckdb connection "test.lakehouse_mvp.not_null_stg_sales_order_id.5d52c19c3b"
+[0m19:43:21.124083 [debug] [Thread-3 (]: SQL status: OK in 0.001 seconds
+[0m19:43:21.124772 [debug] [Thread-2 (]: SQL status: OK in 0.001 seconds
+[0m19:43:21.125311 [debug] [Thread-1 (]: Failed to rollback 'test.lakehouse_mvp.not_null_stg_sales_amount.89b708b472'
+[0m19:43:21.125998 [debug] [Thread-4 (]: On test.lakehouse_mvp.not_null_stg_sales_order_id.5d52c19c3b: /* {"app": "dbt", "dbt_version": "1.11.5", "profile_name": "lakehouse_mvp", "target_name": "dev", "node_id": "test.lakehouse_mvp.not_null_stg_sales_order_id.5d52c19c3b"} */
+
+    
+    select
+      count(*) as failures,
+      count(*) != 0 as should_warn,
+      count(*) != 0 as should_error
+    from (
+      
+    
+  
+    
+    
+
+
+
+select order_id
+from "lakehouse"."staging_staging"."stg_sales"
+where order_id is null
+
+
+
+  
+  
+      
+    ) dbt_internal_test
+[0m19:43:21.127696 [debug] [Thread-3 (]: On test.lakehouse_mvp.not_null_stg_sales_order_date.c25c86fb8d: ROLLBACK
+[0m19:43:21.129177 [debug] [Thread-2 (]: On test.lakehouse_mvp.not_null_stg_sales_customer_id.af88ce3793: ROLLBACK
+[0m19:43:21.129843 [debug] [Thread-1 (]: On test.lakehouse_mvp.not_null_stg_sales_amount.89b708b472: Close
+[0m19:43:21.131491 [debug] [Thread-3 (]: Failed to rollback 'test.lakehouse_mvp.not_null_stg_sales_order_date.c25c86fb8d'
+[0m19:43:21.131922 [debug] [Thread-4 (]: SQL status: OK in 0.001 seconds
+[0m19:43:21.132662 [debug] [Thread-2 (]: Failed to rollback 'test.lakehouse_mvp.not_null_stg_sales_customer_id.af88ce3793'
+[0m19:43:21.133573 [info ] [Thread-1 (]: 1 of 6 PASS not_null_stg_sales_amount .......................................... [[32mPASS[0m in 0.12s]
+[0m19:43:21.134243 [debug] [Thread-3 (]: On test.lakehouse_mvp.not_null_stg_sales_order_date.c25c86fb8d: Close
+[0m19:43:21.136166 [debug] [Thread-4 (]: On test.lakehouse_mvp.not_null_stg_sales_order_id.5d52c19c3b: ROLLBACK
+[0m19:43:21.136936 [debug] [Thread-2 (]: On test.lakehouse_mvp.not_null_stg_sales_customer_id.af88ce3793: Close
+[0m19:43:21.138047 [debug] [Thread-1 (]: Finished running node test.lakehouse_mvp.not_null_stg_sales_amount.89b708b472
+[0m19:43:21.139236 [info ] [Thread-3 (]: 3 of 6 PASS not_null_stg_sales_order_date ...................................... [[32mPASS[0m in 0.13s]
+[0m19:43:21.140098 [debug] [Thread-4 (]: Failed to rollback 'test.lakehouse_mvp.not_null_stg_sales_order_id.5d52c19c3b'
+[0m19:43:21.140988 [info ] [Thread-2 (]: 2 of 6 PASS not_null_stg_sales_customer_id ..................................... [[32mPASS[0m in 0.13s]
+[0m19:43:21.141696 [debug] [Thread-1 (]: Began running node test.lakehouse_mvp.not_null_stg_sales_quantity.0198ea4c12
+[0m19:43:21.142757 [debug] [Thread-3 (]: Finished running node test.lakehouse_mvp.not_null_stg_sales_order_date.c25c86fb8d
+[0m19:43:21.143667 [debug] [Thread-4 (]: On test.lakehouse_mvp.not_null_stg_sales_order_id.5d52c19c3b: Close
+[0m19:43:21.144706 [debug] [Thread-2 (]: Finished running node test.lakehouse_mvp.not_null_stg_sales_customer_id.af88ce3793
+[0m19:43:21.145727 [info ] [Thread-1 (]: 5 of 6 START test not_null_stg_sales_quantity .................................. [RUN]
+[0m19:43:21.146703 [debug] [Thread-3 (]: Began running node test.lakehouse_mvp.unique_stg_sales_order_id.3cdf3825ee
+[0m19:43:21.147711 [info ] [Thread-4 (]: 4 of 6 PASS not_null_stg_sales_order_id ........................................ [[32mPASS[0m in 0.13s]
+[0m19:43:21.149090 [debug] [Thread-1 (]: Re-using an available connection from the pool (formerly test.lakehouse_mvp.not_null_stg_sales_amount.89b708b472, now test.lakehouse_mvp.not_null_stg_sales_quantity.0198ea4c12)
+[0m19:43:21.149961 [info ] [Thread-3 (]: 6 of 6 START test unique_stg_sales_order_id .................................... [RUN]
+[0m19:43:21.151248 [debug] [Thread-4 (]: Finished running node test.lakehouse_mvp.not_null_stg_sales_order_id.5d52c19c3b
+[0m19:43:21.152536 [debug] [Thread-1 (]: Began compiling node test.lakehouse_mvp.not_null_stg_sales_quantity.0198ea4c12
+[0m19:43:21.153527 [debug] [Thread-3 (]: Re-using an available connection from the pool (formerly test.lakehouse_mvp.not_null_stg_sales_order_date.c25c86fb8d, now test.lakehouse_mvp.unique_stg_sales_order_id.3cdf3825ee)
+[0m19:43:21.158257 [debug] [Thread-1 (]: Writing injected SQL for node "test.lakehouse_mvp.not_null_stg_sales_quantity.0198ea4c12"
+[0m19:43:21.159507 [debug] [Thread-3 (]: Began compiling node test.lakehouse_mvp.unique_stg_sales_order_id.3cdf3825ee
+[0m19:43:21.165976 [debug] [Thread-3 (]: Writing injected SQL for node "test.lakehouse_mvp.unique_stg_sales_order_id.3cdf3825ee"
+[0m19:43:21.170480 [debug] [Thread-1 (]: Began executing node test.lakehouse_mvp.not_null_stg_sales_quantity.0198ea4c12
+[0m19:43:21.173108 [debug] [Thread-1 (]: Writing runtime sql for node "test.lakehouse_mvp.not_null_stg_sales_quantity.0198ea4c12"
+[0m19:43:21.173479 [debug] [Thread-3 (]: Began executing node test.lakehouse_mvp.unique_stg_sales_order_id.3cdf3825ee
+[0m19:43:21.177260 [debug] [Thread-3 (]: Writing runtime sql for node "test.lakehouse_mvp.unique_stg_sales_order_id.3cdf3825ee"
+[0m19:43:21.185284 [debug] [Thread-3 (]: Using duckdb connection "test.lakehouse_mvp.unique_stg_sales_order_id.3cdf3825ee"
+[0m19:43:21.186451 [debug] [Thread-3 (]: On test.lakehouse_mvp.unique_stg_sales_order_id.3cdf3825ee: BEGIN
+[0m19:43:21.187150 [debug] [Thread-1 (]: Using duckdb connection "test.lakehouse_mvp.not_null_stg_sales_quantity.0198ea4c12"
+[0m19:43:21.187695 [debug] [Thread-3 (]: Opening a new connection, currently in state closed
+[0m19:43:21.188599 [debug] [Thread-1 (]: On test.lakehouse_mvp.not_null_stg_sales_quantity.0198ea4c12: BEGIN
+[0m19:43:21.190157 [debug] [Thread-3 (]: SQL status: OK in 0.002 seconds
+[0m19:43:21.190490 [debug] [Thread-1 (]: Opening a new connection, currently in state closed
+[0m19:43:21.191389 [debug] [Thread-3 (]: Using duckdb connection "test.lakehouse_mvp.unique_stg_sales_order_id.3cdf3825ee"
+[0m19:43:21.192864 [debug] [Thread-1 (]: SQL status: OK in 0.002 seconds
+[0m19:43:21.193403 [debug] [Thread-3 (]: On test.lakehouse_mvp.unique_stg_sales_order_id.3cdf3825ee: /* {"app": "dbt", "dbt_version": "1.11.5", "profile_name": "lakehouse_mvp", "target_name": "dev", "node_id": "test.lakehouse_mvp.unique_stg_sales_order_id.3cdf3825ee"} */
+
+    
+    select
+      count(*) as failures,
+      count(*) != 0 as should_warn,
+      count(*) != 0 as should_error
+    from (
+      
+    
+  
+    
+    
+
+select
+    order_id as unique_field,
+    count(*) as n_records
+
+from "lakehouse"."staging_staging"."stg_sales"
+where order_id is not null
+group by order_id
+having count(*) > 1
+
+
+
+  
+  
+      
+    ) dbt_internal_test
+[0m19:43:21.194209 [debug] [Thread-1 (]: Using duckdb connection "test.lakehouse_mvp.not_null_stg_sales_quantity.0198ea4c12"
+[0m19:43:21.195516 [debug] [Thread-1 (]: On test.lakehouse_mvp.not_null_stg_sales_quantity.0198ea4c12: /* {"app": "dbt", "dbt_version": "1.11.5", "profile_name": "lakehouse_mvp", "target_name": "dev", "node_id": "test.lakehouse_mvp.not_null_stg_sales_quantity.0198ea4c12"} */
+
+    
+    select
+      count(*) as failures,
+      count(*) != 0 as should_warn,
+      count(*) != 0 as should_error
+    from (
+      
+    
+  
+    
+    
+
+
+
+select quantity
+from "lakehouse"."staging_staging"."stg_sales"
+where quantity is null
+
+
+
+  
+  
+      
+    ) dbt_internal_test
+[0m19:43:21.197047 [debug] [Thread-1 (]: SQL status: OK in 0.001 seconds
+[0m19:43:21.199225 [debug] [Thread-1 (]: On test.lakehouse_mvp.not_null_stg_sales_quantity.0198ea4c12: ROLLBACK
+[0m19:43:21.199639 [debug] [Thread-3 (]: SQL status: OK in 0.005 seconds
+[0m19:43:21.200498 [debug] [Thread-1 (]: Failed to rollback 'test.lakehouse_mvp.not_null_stg_sales_quantity.0198ea4c12'
+[0m19:43:21.202019 [debug] [Thread-3 (]: On test.lakehouse_mvp.unique_stg_sales_order_id.3cdf3825ee: ROLLBACK
+[0m19:43:21.202591 [debug] [Thread-1 (]: On test.lakehouse_mvp.not_null_stg_sales_quantity.0198ea4c12: Close
+[0m19:43:21.203565 [debug] [Thread-3 (]: Failed to rollback 'test.lakehouse_mvp.unique_stg_sales_order_id.3cdf3825ee'
+[0m19:43:21.204426 [info ] [Thread-1 (]: 5 of 6 PASS not_null_stg_sales_quantity ........................................ [[32mPASS[0m in 0.06s]
+[0m19:43:21.205058 [debug] [Thread-3 (]: On test.lakehouse_mvp.unique_stg_sales_order_id.3cdf3825ee: Close
+[0m19:43:21.206209 [debug] [Thread-1 (]: Finished running node test.lakehouse_mvp.not_null_stg_sales_quantity.0198ea4c12
+[0m19:43:21.207229 [info ] [Thread-3 (]: 6 of 6 PASS unique_stg_sales_order_id .......................................... [[32mPASS[0m in 0.05s]
+[0m19:43:21.208663 [debug] [Thread-3 (]: Finished running node test.lakehouse_mvp.unique_stg_sales_order_id.3cdf3825ee
+[0m19:43:21.210727 [debug] [MainThread]: Using duckdb connection "master"
+[0m19:43:21.211602 [debug] [MainThread]: On master: BEGIN
+[0m19:43:21.212257 [debug] [MainThread]: Opening a new connection, currently in state closed
+[0m19:43:21.213404 [debug] [MainThread]: SQL status: OK in 0.001 seconds
+[0m19:43:21.214103 [debug] [MainThread]: On master: COMMIT
+[0m19:43:21.214702 [debug] [MainThread]: Using duckdb connection "master"
+[0m19:43:21.215324 [debug] [MainThread]: On master: COMMIT
+[0m19:43:21.216460 [debug] [MainThread]: SQL status: OK in 0.000 seconds
+[0m19:43:21.217358 [debug] [MainThread]: On master: Close
+[0m19:43:21.218283 [debug] [MainThread]: Connection 'master' was properly closed.
+[0m19:43:21.218995 [debug] [MainThread]: Connection 'test.lakehouse_mvp.not_null_stg_sales_customer_id.af88ce3793' was properly closed.
+[0m19:43:21.219679 [debug] [MainThread]: Connection 'test.lakehouse_mvp.not_null_stg_sales_quantity.0198ea4c12' was properly closed.
+[0m19:43:21.220326 [debug] [MainThread]: Connection 'test.lakehouse_mvp.unique_stg_sales_order_id.3cdf3825ee' was properly closed.
+[0m19:43:21.220985 [debug] [MainThread]: Connection 'test.lakehouse_mvp.not_null_stg_sales_order_id.5d52c19c3b' was properly closed.
+[0m19:43:21.221676 [info ] [MainThread]: 
+[0m19:43:21.222673 [info ] [MainThread]: Finished running 6 data tests in 0 hours 0 minutes and 0.30 seconds (0.30s).
+[0m19:43:21.224494 [debug] [MainThread]: Command end result
+[0m19:43:21.253204 [debug] [MainThread]: Wrote artifact WritableManifest to /workspace/dbt/lakehouse_mvp/target/manifest.json
+[0m19:43:21.257996 [debug] [MainThread]: Wrote artifact SemanticManifest to /workspace/dbt/lakehouse_mvp/target/semantic_manifest.json
+[0m19:43:21.266161 [debug] [MainThread]: Wrote artifact RunExecutionResult to /workspace/dbt/lakehouse_mvp/target/run_results.json
+[0m19:43:21.266876 [info ] [MainThread]: 
+[0m19:43:21.267821 [info ] [MainThread]: [32mCompleted successfully[0m
+[0m19:43:21.269877 [info ] [MainThread]: 
+[0m19:43:21.272428 [info ] [MainThread]: Done. PASS=6 WARN=0 ERROR=0 SKIP=0 NO-OP=0 TOTAL=6
+[0m19:43:21.279079 [debug] [MainThread]: Resource report: {"command_name": "test", "command_success": true, "command_wall_clock_time": 1.1888782, "process_in_blocks": "1640", "process_kernel_time": 0.347295, "process_mem_max_rss": "187324", "process_out_blocks": "0", "process_user_time": 3.154596}
+[0m19:43:21.280334 [debug] [MainThread]: Command `dbt test` succeeded at 19:43:21.280210 after 1.19 seconds
+[0m19:43:21.281314 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'end', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x707b43603390>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x707b48fb4bd0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x707b48fb5cd0>]}
+[0m19:43:21.282180 [debug] [MainThread]: Flushing usage events
+[0m19:43:21.378552 [debug] [MainThread]: An error was encountered while trying to flush usage events
+[0m19:45:49.255254 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'start', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7e29402adbd0>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7e29402af810>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7e29402e33d0>]}
+
+
+============================== 19:45:49.258882 | 720bb06e-9ca4-4142-891a-7308ef4e7d73 ==============================
+[0m19:45:49.258882 [info ] [MainThread]: Running with dbt=1.11.5
+[0m19:45:49.261254 [debug] [MainThread]: running dbt with arguments {'log_format': 'default', 'quiet': 'False', 'use_colors': 'True', 'fail_fast': 'False', 'profiles_dir': '/workspace/dbt/lakehouse_mvp', 'use_experimental_parser': 'False', 'target_path': 'None', 'empty': 'False', 'cache_selected_only': 'False', 'warn_error_options': 'WarnErrorOptionsV2(error=[], warn=[], silence=[])', 'no_print': 'None', 'warn_error': 'None', 'partial_parse': 'True', 'send_anonymous_usage_stats': 'True', 'introspect': 'True', 'write_json': 'True', 'version_check': 'True', 'debug': 'False', 'log_cache_events': 'False', 'log_path': '/workspace/dbt/lakehouse_mvp/logs', 'printer_width': '80', 'invocation_command': 'dbt run', 'static_parser': 'True', 'indirect_selection': 'eager'}
+[0m19:45:49.513727 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'project_id', 'label': '720bb06e-9ca4-4142-891a-7308ef4e7d73', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7e2940153f90>]}
+[0m19:45:49.647829 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'adapter_info', 'label': '720bb06e-9ca4-4142-891a-7308ef4e7d73', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7e294318ac10>]}
+[0m19:45:49.650301 [info ] [MainThread]: Registered adapter: duckdb=1.10.0
+[0m19:45:49.710329 [debug] [MainThread]: checksum: 917838c7befe257b9b22a76c21e5785f6f23ac83ef0336e2870f03c9c3f28402, vars: {}, profile: , target: , version: 1.11.5
+[0m19:45:49.851515 [debug] [MainThread]: Partial parsing enabled: 0 files deleted, 1 files added, 0 files changed.
+[0m19:45:49.852730 [debug] [MainThread]: Partial parsing: added file: lakehouse_mvp://macros/generate_schema_name.sql
+[0m19:45:49.855003 [info ] [MainThread]: Unable to do partial parsing because change detected to override macro. Starting full parse.
+[0m19:45:50.877633 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'load_project', 'label': '720bb06e-9ca4-4142-891a-7308ef4e7d73', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7e2932318110>]}
+[0m19:45:50.959486 [debug] [MainThread]: Wrote artifact WritableManifest to /workspace/dbt/lakehouse_mvp/target/manifest.json
+[0m19:45:50.981234 [debug] [MainThread]: Wrote artifact SemanticManifest to /workspace/dbt/lakehouse_mvp/target/semantic_manifest.json
+[0m19:45:51.007874 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'resource_counts', 'label': '720bb06e-9ca4-4142-891a-7308ef4e7d73', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7e28ed19c190>]}
+[0m19:45:51.009544 [info ] [MainThread]: Found 2 models, 6 data tests, 473 macros
+[0m19:45:51.010864 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'runnable_timing', 'label': '720bb06e-9ca4-4142-891a-7308ef4e7d73', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7e294020a110>]}
+[0m19:45:51.020738 [info ] [MainThread]: 
+[0m19:45:51.022341 [info ] [MainThread]: Concurrency: 4 threads (target='dev')
+[0m19:45:51.023706 [info ] [MainThread]: 
+[0m19:45:51.025136 [debug] [MainThread]: Acquiring new duckdb connection 'master'
+[0m19:45:51.031007 [debug] [ThreadPool]: Acquiring new duckdb connection 'list_lakehouse'
+[0m19:45:51.031640 [debug] [ThreadPool]: Acquiring new duckdb connection 'list_lakehouse'
+[0m19:45:51.063450 [debug] [ThreadPool]: Using duckdb connection "list_lakehouse"
+[0m19:45:51.063823 [debug] [ThreadPool]: Using duckdb connection "list_lakehouse"
+[0m19:45:51.064767 [debug] [ThreadPool]: On list_lakehouse: /* {"app": "dbt", "dbt_version": "1.11.5", "profile_name": "lakehouse_mvp", "target_name": "dev", "connection_name": "list_lakehouse"} */
+
+    
+    select schema_name
+    from system.information_schema.schemata
+    
+    where lower(catalog_name) = '"lakehouse"'
+    
+  
+  
+[0m19:45:51.065644 [debug] [ThreadPool]: On list_lakehouse: /* {"app": "dbt", "dbt_version": "1.11.5", "profile_name": "lakehouse_mvp", "target_name": "dev", "connection_name": "list_lakehouse"} */
+
+    
+    select schema_name
+    from system.information_schema.schemata
+    
+    where lower(catalog_name) = '"lakehouse"'
+    
+  
+  
+[0m19:45:51.066487 [debug] [ThreadPool]: Opening a new connection, currently in state init
+[0m19:45:51.067249 [debug] [ThreadPool]: Opening a new connection, currently in state init
+[0m19:45:51.083612 [debug] [ThreadPool]: SQL status: OK in 0.016 seconds
+[0m19:45:51.083993 [debug] [ThreadPool]: SQL status: OK in 0.018 seconds
+[0m19:45:51.085743 [debug] [ThreadPool]: On list_lakehouse: Close
+[0m19:45:51.087339 [debug] [ThreadPool]: On list_lakehouse: Close
+[0m19:45:51.089470 [debug] [ThreadPool]: Re-using an available connection from the pool (formerly list_lakehouse, now create_lakehouse_staging)
+[0m19:45:51.089881 [debug] [ThreadPool]: Re-using an available connection from the pool (formerly list_lakehouse, now create_lakehouse_marts)
+[0m19:45:51.090705 [debug] [ThreadPool]: Creating schema "database: "lakehouse"
+schema: "staging"
+"
+[0m19:45:51.091687 [debug] [ThreadPool]: Creating schema "database: "lakehouse"
+schema: "marts"
+"
+[0m19:45:51.098954 [debug] [ThreadPool]: Using duckdb connection "create_lakehouse_staging"
+[0m19:45:51.101012 [debug] [ThreadPool]: Using duckdb connection "create_lakehouse_marts"
+[0m19:45:51.102036 [debug] [ThreadPool]: On create_lakehouse_staging: /* {"app": "dbt", "dbt_version": "1.11.5", "profile_name": "lakehouse_mvp", "target_name": "dev", "connection_name": "create_lakehouse_staging"} */
+
+    
+        select type from duckdb_databases()
+        where lower(database_name)='lakehouse'
+        and type='sqlite'
+    
+  
+[0m19:45:51.102991 [debug] [ThreadPool]: On create_lakehouse_marts: /* {"app": "dbt", "dbt_version": "1.11.5", "profile_name": "lakehouse_mvp", "target_name": "dev", "connection_name": "create_lakehouse_marts"} */
+
+    
+        select type from duckdb_databases()
+        where lower(database_name)='lakehouse'
+        and type='sqlite'
+    
+  
+[0m19:45:51.103851 [debug] [ThreadPool]: Opening a new connection, currently in state closed
+[0m19:45:51.104775 [debug] [ThreadPool]: Opening a new connection, currently in state closed
+[0m19:45:51.106533 [debug] [ThreadPool]: SQL status: OK in 0.003 seconds
+[0m19:45:51.107959 [debug] [ThreadPool]: SQL status: OK in 0.003 seconds
+[0m19:45:51.109386 [debug] [ThreadPool]: Using duckdb connection "create_lakehouse_staging"
+[0m19:45:51.113940 [debug] [ThreadPool]: Using duckdb connection "create_lakehouse_marts"
+[0m19:45:51.116461 [debug] [ThreadPool]: On create_lakehouse_staging: BEGIN
+[0m19:45:51.118629 [debug] [ThreadPool]: On create_lakehouse_marts: BEGIN
+[0m19:45:51.121206 [debug] [ThreadPool]: SQL status: OK in 0.001 seconds
+[0m19:45:51.122549 [debug] [ThreadPool]: SQL status: OK in 0.000 seconds
+[0m19:45:51.123238 [debug] [ThreadPool]: Using duckdb connection "create_lakehouse_staging"
+[0m19:45:51.124186 [debug] [ThreadPool]: Using duckdb connection "create_lakehouse_marts"
+[0m19:45:51.125296 [debug] [ThreadPool]: On create_lakehouse_staging: /* {"app": "dbt", "dbt_version": "1.11.5", "profile_name": "lakehouse_mvp", "target_name": "dev", "connection_name": "create_lakehouse_staging"} */
+
+    
+    
+        create schema if not exists "lakehouse"."staging"
+    
+[0m19:45:51.126314 [debug] [ThreadPool]: On create_lakehouse_marts: /* {"app": "dbt", "dbt_version": "1.11.5", "profile_name": "lakehouse_mvp", "target_name": "dev", "connection_name": "create_lakehouse_marts"} */
+
+    
+    
+        create schema if not exists "lakehouse"."marts"
+    
+[0m19:45:51.127705 [debug] [ThreadPool]: SQL status: OK in 0.001 seconds
+[0m19:45:51.128802 [debug] [ThreadPool]: SQL status: OK in 0.001 seconds
+[0m19:45:51.129722 [debug] [ThreadPool]: On create_lakehouse_staging: COMMIT
+[0m19:45:51.131089 [debug] [ThreadPool]: On create_lakehouse_marts: COMMIT
+[0m19:45:51.131966 [debug] [ThreadPool]: Using duckdb connection "create_lakehouse_staging"
+[0m19:45:51.132877 [debug] [ThreadPool]: Using duckdb connection "create_lakehouse_marts"
+[0m19:45:51.133713 [debug] [ThreadPool]: On create_lakehouse_staging: COMMIT
+[0m19:45:51.134493 [debug] [ThreadPool]: On create_lakehouse_marts: COMMIT
+[0m19:45:51.139114 [debug] [ThreadPool]: SQL status: OK in 0.004 seconds
+[0m19:45:51.139969 [debug] [ThreadPool]: On create_lakehouse_staging: Close
+[0m19:45:51.142234 [debug] [ThreadPool]: SQL status: OK in 0.006 seconds
+[0m19:45:51.143041 [debug] [ThreadPool]: On create_lakehouse_marts: Close
+[0m19:45:51.144932 [debug] [ThreadPool]: Re-using an available connection from the pool (formerly create_lakehouse_marts, now list_lakehouse_staging)
+[0m19:45:51.145512 [debug] [ThreadPool]: Re-using an available connection from the pool (formerly create_lakehouse_staging, now list_lakehouse_marts)
+[0m19:45:51.150608 [debug] [ThreadPool]: Using duckdb connection "list_lakehouse_staging"
+[0m19:45:51.152771 [debug] [ThreadPool]: Using duckdb connection "list_lakehouse_marts"
+[0m19:45:51.153542 [debug] [ThreadPool]: On list_lakehouse_staging: BEGIN
+[0m19:45:51.154391 [debug] [ThreadPool]: On list_lakehouse_marts: BEGIN
+[0m19:45:51.155262 [debug] [ThreadPool]: Opening a new connection, currently in state closed
+[0m19:45:51.156533 [debug] [ThreadPool]: Opening a new connection, currently in state closed
+[0m19:45:51.158419 [debug] [ThreadPool]: SQL status: OK in 0.003 seconds
+[0m19:45:51.159446 [debug] [ThreadPool]: SQL status: OK in 0.003 seconds
+[0m19:45:51.159957 [debug] [ThreadPool]: Using duckdb connection "list_lakehouse_staging"
+[0m19:45:51.160797 [debug] [ThreadPool]: Using duckdb connection "list_lakehouse_marts"
+[0m19:45:51.161595 [debug] [ThreadPool]: On list_lakehouse_staging: /* {"app": "dbt", "dbt_version": "1.11.5", "profile_name": "lakehouse_mvp", "target_name": "dev", "connection_name": "list_lakehouse_staging"} */
+select
+      'lakehouse' as database,
+      table_name as name,
+      table_schema as schema,
+      CASE table_type
+        WHEN 'BASE TABLE' THEN 'table'
+        WHEN 'VIEW' THEN 'view'
+        WHEN 'LOCAL TEMPORARY' THEN 'table'
+        END as type
+    from system.information_schema.tables
+    where lower(table_schema) = 'staging'
+    and lower(table_catalog) = 'lakehouse'
+  
+[0m19:45:51.162400 [debug] [ThreadPool]: On list_lakehouse_marts: /* {"app": "dbt", "dbt_version": "1.11.5", "profile_name": "lakehouse_mvp", "target_name": "dev", "connection_name": "list_lakehouse_marts"} */
+select
+      'lakehouse' as database,
+      table_name as name,
+      table_schema as schema,
+      CASE table_type
+        WHEN 'BASE TABLE' THEN 'table'
+        WHEN 'VIEW' THEN 'view'
+        WHEN 'LOCAL TEMPORARY' THEN 'table'
+        END as type
+    from system.information_schema.tables
+    where lower(table_schema) = 'marts'
+    and lower(table_catalog) = 'lakehouse'
+  
+[0m19:45:51.172162 [debug] [ThreadPool]: SQL status: OK in 0.008 seconds
+[0m19:45:51.172686 [debug] [ThreadPool]: SQL status: OK in 0.009 seconds
+[0m19:45:51.174061 [debug] [ThreadPool]: On list_lakehouse_marts: ROLLBACK
+[0m19:45:51.175337 [debug] [ThreadPool]: On list_lakehouse_staging: ROLLBACK
+[0m19:45:51.176251 [debug] [ThreadPool]: Failed to rollback 'list_lakehouse_marts'
+[0m19:45:51.177135 [debug] [ThreadPool]: Failed to rollback 'list_lakehouse_staging'
+[0m19:45:51.178271 [debug] [ThreadPool]: On list_lakehouse_marts: Close
+[0m19:45:51.179175 [debug] [ThreadPool]: On list_lakehouse_staging: Close
+[0m19:45:51.181176 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'runnable_timing', 'label': '720bb06e-9ca4-4142-891a-7308ef4e7d73', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7e28ed032290>]}
+[0m19:45:51.184535 [debug] [MainThread]: Using duckdb connection "master"
+[0m19:45:51.186581 [debug] [MainThread]: On master: BEGIN
+[0m19:45:51.187561 [debug] [MainThread]: Opening a new connection, currently in state init
+[0m19:45:51.188999 [debug] [MainThread]: SQL status: OK in 0.001 seconds
+[0m19:45:51.189778 [debug] [MainThread]: On master: COMMIT
+[0m19:45:51.190569 [debug] [MainThread]: Using duckdb connection "master"
+[0m19:45:51.191315 [debug] [MainThread]: On master: COMMIT
+[0m19:45:51.192481 [debug] [MainThread]: SQL status: OK in 0.000 seconds
+[0m19:45:51.193431 [debug] [MainThread]: On master: Close
+[0m19:45:51.197020 [debug] [Thread-1 (]: Began running node model.lakehouse_mvp.stg_sales
+[0m19:45:51.198084 [info ] [Thread-1 (]: 1 of 2 START sql table model staging.stg_sales ................................. [RUN]
+[0m19:45:51.199149 [debug] [Thread-1 (]: Re-using an available connection from the pool (formerly list_lakehouse_staging, now model.lakehouse_mvp.stg_sales)
+[0m19:45:51.200023 [debug] [Thread-1 (]: Began compiling node model.lakehouse_mvp.stg_sales
+[0m19:45:51.206633 [debug] [Thread-1 (]: Writing injected SQL for node "model.lakehouse_mvp.stg_sales"
+[0m19:45:51.212161 [debug] [Thread-1 (]: Began executing node model.lakehouse_mvp.stg_sales
+[0m19:45:51.241924 [debug] [Thread-1 (]: Writing runtime sql for node "model.lakehouse_mvp.stg_sales"
+[0m19:45:51.248713 [debug] [Thread-1 (]: Using duckdb connection "model.lakehouse_mvp.stg_sales"
+[0m19:45:51.249621 [debug] [Thread-1 (]: On model.lakehouse_mvp.stg_sales: BEGIN
+[0m19:45:51.250423 [debug] [Thread-1 (]: Opening a new connection, currently in state closed
+[0m19:45:51.251878 [debug] [Thread-1 (]: SQL status: OK in 0.001 seconds
+[0m19:45:51.252704 [debug] [Thread-1 (]: Using duckdb connection "model.lakehouse_mvp.stg_sales"
+[0m19:45:51.253991 [debug] [Thread-1 (]: On model.lakehouse_mvp.stg_sales: /* {"app": "dbt", "dbt_version": "1.11.5", "profile_name": "lakehouse_mvp", "target_name": "dev", "node_id": "model.lakehouse_mvp.stg_sales"} */
+
+  
+    
+    
+
+    create  table
+      "lakehouse"."staging"."stg_sales__dbt_tmp"
+  
+    as (
+      with source as (
+    select * from raw.sales
+),
+
+cleaned as (
+    select
+        order_id,
+        customer_id,
+        cast(order_date as date)                              as order_date,
+        product,
+        quantity,
+        amount,
+        region,
+        date_part('year',    cast(order_date as date))::int  as order_year,
+        date_part('month',   cast(order_date as date))::int  as order_month,
+        date_part('quarter', cast(order_date as date))::int  as order_quarter,
+        quantity * amount                                     as line_total
+    from source
+    where quantity > 0
+      and amount   > 0
+)
+
+select * from cleaned
+    );
+  
+  
+[0m19:45:51.258378 [debug] [Thread-1 (]: SQL status: OK in 0.003 seconds
+[0m19:45:51.264127 [debug] [Thread-1 (]: Using duckdb connection "model.lakehouse_mvp.stg_sales"
+[0m19:45:51.265175 [debug] [Thread-1 (]: On model.lakehouse_mvp.stg_sales: /* {"app": "dbt", "dbt_version": "1.11.5", "profile_name": "lakehouse_mvp", "target_name": "dev", "node_id": "model.lakehouse_mvp.stg_sales"} */
+alter table "lakehouse"."staging"."stg_sales__dbt_tmp" rename to "stg_sales"
+[0m19:45:51.266582 [debug] [Thread-1 (]: SQL status: OK in 0.001 seconds
+[0m19:45:51.277846 [debug] [Thread-1 (]: On model.lakehouse_mvp.stg_sales: COMMIT
+[0m19:45:51.278692 [debug] [Thread-1 (]: Using duckdb connection "model.lakehouse_mvp.stg_sales"
+[0m19:45:51.279435 [debug] [Thread-1 (]: On model.lakehouse_mvp.stg_sales: COMMIT
+[0m19:45:51.284681 [debug] [Thread-1 (]: SQL status: OK in 0.004 seconds
+[0m19:45:51.289724 [debug] [Thread-1 (]: Using duckdb connection "model.lakehouse_mvp.stg_sales"
+[0m19:45:51.290561 [debug] [Thread-1 (]: On model.lakehouse_mvp.stg_sales: /* {"app": "dbt", "dbt_version": "1.11.5", "profile_name": "lakehouse_mvp", "target_name": "dev", "node_id": "model.lakehouse_mvp.stg_sales"} */
+
+      drop table if exists "lakehouse"."staging"."stg_sales__dbt_backup" cascade
+    
+[0m19:45:51.291802 [debug] [Thread-1 (]: SQL status: OK in 0.000 seconds
+[0m19:45:51.294295 [debug] [Thread-1 (]: On model.lakehouse_mvp.stg_sales: Close
+[0m19:45:51.296431 [debug] [Thread-1 (]: Sending event: {'category': 'dbt', 'action': 'run_model', 'label': '720bb06e-9ca4-4142-891a-7308ef4e7d73', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7e28ec44e390>]}
+[0m19:45:51.297667 [info ] [Thread-1 (]: 1 of 2 OK created sql table model staging.stg_sales ............................ [[32mOK[0m in 0.10s]
+[0m19:45:51.298908 [debug] [Thread-1 (]: Finished running node model.lakehouse_mvp.stg_sales
+[0m19:45:51.300403 [debug] [Thread-3 (]: Began running node model.lakehouse_mvp.daily_revenue
+[0m19:45:51.301501 [info ] [Thread-3 (]: 2 of 2 START sql table model marts.daily_revenue ............................... [RUN]
+[0m19:45:51.302676 [debug] [Thread-3 (]: Acquiring new duckdb connection 'model.lakehouse_mvp.daily_revenue'
+[0m19:45:51.303436 [debug] [Thread-3 (]: Began compiling node model.lakehouse_mvp.daily_revenue
+[0m19:45:51.306462 [debug] [Thread-3 (]: Writing injected SQL for node "model.lakehouse_mvp.daily_revenue"
+[0m19:45:51.311301 [debug] [Thread-3 (]: Began executing node model.lakehouse_mvp.daily_revenue
+[0m19:45:51.314278 [debug] [Thread-3 (]: Writing runtime sql for node "model.lakehouse_mvp.daily_revenue"
+[0m19:45:51.320283 [debug] [Thread-3 (]: Using duckdb connection "model.lakehouse_mvp.daily_revenue"
+[0m19:45:51.321255 [debug] [Thread-3 (]: On model.lakehouse_mvp.daily_revenue: BEGIN
+[0m19:45:51.322094 [debug] [Thread-3 (]: Opening a new connection, currently in state init
+[0m19:45:51.323528 [debug] [Thread-3 (]: SQL status: OK in 0.001 seconds
+[0m19:45:51.324402 [debug] [Thread-3 (]: Using duckdb connection "model.lakehouse_mvp.daily_revenue"
+[0m19:45:51.325510 [debug] [Thread-3 (]: On model.lakehouse_mvp.daily_revenue: /* {"app": "dbt", "dbt_version": "1.11.5", "profile_name": "lakehouse_mvp", "target_name": "dev", "node_id": "model.lakehouse_mvp.daily_revenue"} */
+
+  
+    
+    
+
+    create  table
+      "lakehouse"."marts"."daily_revenue__dbt_tmp"
+  
+    as (
+      with stg as (
+    select * from "lakehouse"."staging"."stg_sales"
+)
+
+select
+    order_date,
+    region,
+    product,
+    count(distinct order_id)    as order_count,
+    count(distinct customer_id) as customer_count,
+    sum(quantity)               as total_units,
+    round(sum(line_total), 2)   as revenue,
+    round(avg(amount), 2)       as avg_order_value
+from stg
+group by order_date, region, product
+order by order_date, region, product
+    );
+  
+  
+[0m19:45:51.333736 [debug] [Thread-3 (]: SQL status: OK in 0.007 seconds
+[0m19:45:51.337076 [debug] [Thread-3 (]: Using duckdb connection "model.lakehouse_mvp.daily_revenue"
+[0m19:45:51.338140 [debug] [Thread-3 (]: On model.lakehouse_mvp.daily_revenue: /* {"app": "dbt", "dbt_version": "1.11.5", "profile_name": "lakehouse_mvp", "target_name": "dev", "node_id": "model.lakehouse_mvp.daily_revenue"} */
+alter table "lakehouse"."marts"."daily_revenue__dbt_tmp" rename to "daily_revenue"
+[0m19:45:51.339577 [debug] [Thread-3 (]: SQL status: OK in 0.000 seconds
+[0m19:45:51.341344 [debug] [Thread-3 (]: On model.lakehouse_mvp.daily_revenue: COMMIT
+[0m19:45:51.342183 [debug] [Thread-3 (]: Using duckdb connection "model.lakehouse_mvp.daily_revenue"
+[0m19:45:51.342997 [debug] [Thread-3 (]: On model.lakehouse_mvp.daily_revenue: COMMIT
+[0m19:45:51.347738 [debug] [Thread-3 (]: SQL status: OK in 0.004 seconds
+[0m19:45:51.350318 [debug] [Thread-3 (]: Using duckdb connection "model.lakehouse_mvp.daily_revenue"
+[0m19:45:51.351312 [debug] [Thread-3 (]: On model.lakehouse_mvp.daily_revenue: /* {"app": "dbt", "dbt_version": "1.11.5", "profile_name": "lakehouse_mvp", "target_name": "dev", "node_id": "model.lakehouse_mvp.daily_revenue"} */
+
+      drop table if exists "lakehouse"."marts"."daily_revenue__dbt_backup" cascade
+    
+[0m19:45:51.352774 [debug] [Thread-3 (]: SQL status: OK in 0.001 seconds
+[0m19:45:51.354268 [debug] [Thread-3 (]: On model.lakehouse_mvp.daily_revenue: Close
+[0m19:45:51.355147 [debug] [Thread-3 (]: Sending event: {'category': 'dbt', 'action': 'run_model', 'label': '720bb06e-9ca4-4142-891a-7308ef4e7d73', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7e28ec468a10>]}
+[0m19:45:51.356025 [info ] [Thread-3 (]: 2 of 2 OK created sql table model marts.daily_revenue .......................... [[32mOK[0m in 0.05s]
+[0m19:45:51.357147 [debug] [Thread-3 (]: Finished running node model.lakehouse_mvp.daily_revenue
+[0m19:45:51.359305 [debug] [MainThread]: Using duckdb connection "master"
+[0m19:45:51.360152 [debug] [MainThread]: On master: BEGIN
+[0m19:45:51.361262 [debug] [MainThread]: Opening a new connection, currently in state closed
+[0m19:45:51.362638 [debug] [MainThread]: SQL status: OK in 0.001 seconds
+[0m19:45:51.363601 [debug] [MainThread]: On master: COMMIT
+[0m19:45:51.364639 [debug] [MainThread]: Using duckdb connection "master"
+[0m19:45:51.365752 [debug] [MainThread]: On master: COMMIT
+[0m19:45:51.366968 [debug] [MainThread]: SQL status: OK in 0.000 seconds
+[0m19:45:51.367810 [debug] [MainThread]: On master: Close
+[0m19:45:51.368722 [debug] [MainThread]: Connection 'master' was properly closed.
+[0m19:45:51.369446 [debug] [MainThread]: Connection 'model.lakehouse_mvp.stg_sales' was properly closed.
+[0m19:45:51.370204 [debug] [MainThread]: Connection 'list_lakehouse_marts' was properly closed.
+[0m19:45:51.370965 [debug] [MainThread]: Connection 'model.lakehouse_mvp.daily_revenue' was properly closed.
+[0m19:45:51.371777 [info ] [MainThread]: 
+[0m19:45:51.372774 [info ] [MainThread]: Finished running 2 table models in 0 hours 0 minutes and 0.35 seconds (0.35s).
+[0m19:45:51.374061 [debug] [MainThread]: Command end result
+[0m19:45:51.402098 [debug] [MainThread]: Wrote artifact WritableManifest to /workspace/dbt/lakehouse_mvp/target/manifest.json
+[0m19:45:51.420626 [debug] [MainThread]: Wrote artifact SemanticManifest to /workspace/dbt/lakehouse_mvp/target/semantic_manifest.json
+[0m19:45:51.429603 [debug] [MainThread]: Wrote artifact RunExecutionResult to /workspace/dbt/lakehouse_mvp/target/run_results.json
+[0m19:45:51.430500 [info ] [MainThread]: 
+[0m19:45:51.431927 [info ] [MainThread]: [32mCompleted successfully[0m
+[0m19:45:51.433465 [info ] [MainThread]: 
+[0m19:45:51.435114 [info ] [MainThread]: Done. PASS=2 WARN=0 ERROR=0 SKIP=0 NO-OP=0 TOTAL=2
+[0m19:45:51.437042 [debug] [MainThread]: Resource report: {"command_name": "run", "command_success": true, "command_wall_clock_time": 2.265682, "process_in_blocks": "0", "process_kernel_time": 0.317487, "process_mem_max_rss": "201768", "process_out_blocks": "288", "process_user_time": 4.290261}
+[0m19:45:51.441375 [debug] [MainThread]: Command `dbt run` succeeded at 19:45:51.441267 after 2.27 seconds
+[0m19:45:51.442164 [debug] [MainThread]: Sending event: {'category': 'dbt', 'action': 'invocation', 'label': 'end', 'context': [<snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7e29460bd750>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7e29460bcb90>, <snowplow_tracker.self_describing_json.SelfDescribingJson object at 0x7e29460bdcd0>]}
+[0m19:45:51.443253 [debug] [MainThread]: Flushing usage events
+[0m19:45:51.588499 [debug] [MainThread]: An error was encountered while trying to flush usage events
