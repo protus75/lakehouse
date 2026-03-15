@@ -19,7 +19,7 @@ from typing import Optional
 DB_PATH = "/workspace/db/lakehouse.duckdb"
 CHROMA_PATH = "/workspace/chroma_db"
 COLLECTION_NAME = "tabletop_rules_chunks"
-OLLAMA_URL = "http://host.docker.internal:11434"
+OLLAMA_URL = "http://ollama:11434"  # Docker service URL
 DEFAULT_MODEL = "llama3:70b"
 
 

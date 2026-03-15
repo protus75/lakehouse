@@ -1,14 +1,14 @@
 """
 dlt pipeline: loads tabletop RPG/board game PDFs into DuckDB (documents_tabletop_rules schema).
-Parses PDFs with Docling using PARALLEL PROCESSING (uses all available CPU cores).
+Parses PDFs with Docling using PARALLEL PROCESSING (thread pool, works with Jupyter).
 Chunks markdown by headings and stores with metadata.
 
 Run from Jupyter:
   from dlt.load_tabletop_rules_docs import run
   run(game_system="D&D 5e", content_type="rules")
 
-Or with custom core count:
-  run(game_system="D&D 5e", max_workers=4)
+Or with custom worker count:
+  run(game_system="D&D 5e", max_workers=8)
 """
 
 import re
@@ -16,7 +16,7 @@ from pathlib import Path
 from datetime import datetime, timezone
 from typing import Generator
 import multiprocessing as mp
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import duckdb
 from docling.document_converter import DocumentConverter
@@ -97,11 +97,19 @@ def chunk_markdown(markdown: str, max_chars: int = 2000) -> list[dict]:
 
 def parse_pdf(filepath: Path) -> tuple[str, list[dict]] | None:
     """Parse a single PDF and return (filename, chunks). No database writes."""
+    import time
     try:
+        start = time.time()
+        file_size_mb = filepath.stat().st_size / (1024 * 1024)
+        print(f"  Parsing {filepath.name} ({file_size_mb:.1f} MB)...")
+
         converter = DocumentConverter()
         result = converter.convert(str(filepath))
         markdown = result.document.export_to_markdown()
         chunks = chunk_markdown(markdown)
+
+        elapsed = time.time() - start
+        print(f"    ✓ Done in {elapsed:.1f}s → {len(chunks)} chunks")
         return (filepath.name, chunks)
     except Exception as e:
         print(f"  ✗ ERROR parsing {filepath.name}: {e}")
@@ -193,6 +201,9 @@ def ingest_all(
         tags: comma-separated tags for categorization
         max_workers: Number of cores to use (default: all available)
     """
+    import time
+    overall_start = time.time()
+
     doc_dir = directory or DOCUMENTS_DIR
     files = sorted(doc_dir.glob("*.pdf"))
 
@@ -200,16 +211,18 @@ def ingest_all(
         print(f"No PDF files found in {doc_dir}")
         return
 
-    # Auto-detect CPU count if not specified
+    # Auto-detect thread count if not specified (1 per core recommended)
     if max_workers is None:
         max_workers = mp.cpu_count()
 
-    print(f"Parsing {len(files)} PDFs using {max_workers} cores...")
+    total_size_mb = sum(f.stat().st_size for f in files) / (1024 * 1024)
+    print(f"Parsing {len(files)} PDFs ({total_size_mb:.1f} MB total) using {max_workers} threads...")
     print()
 
-    # Phase 1: Parallel PDF parsing
+    # Phase 1: Parallel PDF parsing with ThreadPoolExecutor (works in Jupyter)
     parsed_results = {}
-    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+    parse_start = time.time()
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
         # Submit all parse jobs
         future_to_file = {executor.submit(parse_pdf, f): f for f in files}
 
@@ -221,8 +234,9 @@ def ingest_all(
                 filename, chunks = result
                 parsed_results[filename] = chunks
             completed += 1
-            print(f"  Parsed {completed}/{len(files)} files")
 
+    parse_elapsed = time.time() - parse_start
+    print(f"\n✓ Parsing complete: {parse_elapsed:.1f}s")
     print()
 
     # Phase 2: Sequential database writes (faster than bottlenecking on I/O)
@@ -245,7 +259,11 @@ def ingest_all(
         print(f"  {i}/{len(files)} files written")
 
     conn.close()
-    print(f"\n✅ Done: {len(files)} files, {total_chunks} total chunks ingested")
+    overall_elapsed = time.time() - overall_start
+    print(f"\n✅ Done in {overall_elapsed:.1f}s total:")
+    print(f"   {len(files)} files, {total_chunks} total chunks ingested")
+    if len(files) > 0:
+        print(f"   {total_chunks / overall_elapsed:.0f} chunks/sec")
 
 
 def run(

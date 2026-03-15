@@ -18,6 +18,9 @@ COLLECTION_NAME = "tabletop_rules_chunks"
 
 def embed_all() -> None:
     """Read chunks from documents_tabletop_rules schema and upsert into ChromaDB."""
+    import time
+    start = time.time()
+
     conn = duckdb.connect(DB_PATH, read_only=True)
 
     # Query all chunks with their metadata
@@ -41,6 +44,9 @@ def embed_all() -> None:
         print("No chunks found in documents_tabletop_rules schema.")
         print("Run: from dlt.load_tabletop_rules_docs import run; run()")
         return
+
+    print(f"Embedding {len(rows)} chunks into ChromaDB...")
+    print()
 
     # Initialize ChromaDB client
     client = chromadb.PersistentClient(
@@ -72,6 +78,7 @@ def embed_all() -> None:
 
     # Upsert in batches
     batch_size = 100
+    embed_start = time.time()
     for i in range(0, len(ids), batch_size):
         batch_end = min(i + batch_size, len(ids))
         collection.upsert(
@@ -79,10 +86,15 @@ def embed_all() -> None:
             documents=documents[i:batch_end],
             metadatas=metadatas[i:batch_end],
         )
-        print(f"  Embedded chunks {i + 1}–{batch_end} of {len(ids)}")
+        print(f"  Embedded {batch_end}/{len(ids)} chunks")
 
-    print(f"\nDone: {len(ids)} chunks embedded in ChromaDB collection '{COLLECTION_NAME}'")
-    print(f"Collection count: {collection.count()}")
+    embed_elapsed = time.time() - embed_start
+    total_elapsed = time.time() - start
+
+    print(f"\n✅ Done in {total_elapsed:.1f}s:")
+    print(f"   {len(ids)} chunks embedded")
+    print(f"   {len(ids) / embed_elapsed:.0f} chunks/sec")
+    print(f"   Collection: '{COLLECTION_NAME}'")
 
 
 if __name__ == "__main__":

@@ -179,12 +179,13 @@ A radically simplified lakehouse architecture optimized for small teams (2-5 peo
 │                       DuckDB                                     │
 └─────────────────────────────────────────────────────────────────┘
                               ↓
-        ┌───────────────────────┴──────────────────────┐
-        ↓                                               ↓
-┌──────────────────────┐                  ┌────────────────────────┐
-│  Visualization       │                  │  AI/RAG Integration    │
-│  Streamlit + Dash    │                  │  Docling + LangChain   │
-└──────────────────────┘                  └────────────────────────┘
+        ┌────────────────────┬─────────────────────┐
+        ↓                    ↓                     ↓
+┌──────────────────┐ ┌──────────────────┐ ┌────────────────────┐
+│  Visualization   │ │  AI/RAG Layer    │ │  Local LLM        │
+│  Streamlit+Dash  │ │  Docling+Langch  │ │  Ollama@GPU       │
+└──────────────────┘ │  ChromaDB        │ │  (RTX 4090)       │
+                     └──────────────────┘ └────────────────────┘
 ```
 
 ---
@@ -613,7 +614,74 @@ Answer returned to user
 
 ---
 
-### 9. Orchestration Layer: Apache Airflow
+### 9. Local LLM Service: Ollama
+
+**What It Is**: Self-hosted LLM inference engine with GPU acceleration
+
+**Why Ollama as Core Infrastructure**:
+- ✅ **Zero API costs**: Run large models locally on RTX 4090
+- ✅ **Production-grade**: 70B parameter models (Llama 3, Mixtral) in enterprise deployments
+- ✅ **Fast inference**: 50-80 tokens/second on RTX 4090 for 70B models
+- ✅ **Data privacy**: Models and queries never leave your infrastructure
+- ✅ **Simple deployment**: Single executable for Windows, works seamlessly with Docker
+- ✅ **Network access**: Accessible from Docker containers via `http://host.docker.internal:11434`
+
+**Language**: Go (but provides standard REST API)
+
+**Hardware Requirements**:
+- **CPU-only mode**: Runs on CPU (slow) or requires GPU for practical inference
+- **RTX 4090 (24 GB VRAM)**: Supports Llama 3 70B at Q4 quantization (state-of-the-art open model)
+- **RTX 4080 / RTX 4070**: Supports smaller models (13B-30B parameters)
+- **MacBook Pro with M3 Max**: Supports 70B models efficiently (Apple Silicon optimization)
+
+**Models Available**:
+- **Llama 3 70B** (Q4): ~16 GB VRAM, highest quality reasoning
+- **Mistral 8x7B**: ~20 GB VRAM, high speed, good quality
+- **Llama 2 70B**: Older, slightly lower quality than Llama 3
+- **CodeLlama**: Specialized for code generation and understanding
+- **Orca**: Optimized for instruction-following
+
+**Role in Stack**:
+- Generate answers for document-based RAG queries (rules, policies, specifications)
+- Generate SQL for data-based RAG queries (text-to-SQL)
+- Power chatbots and voice assistants
+- Provide fallback to cloud LLM if needed (but not required)
+
+**Installation (Windows)**:
+1. Download from https://ollama.ai
+2. Run installer
+3. Pull a model: `ollama pull llama3:70b`
+4. Run: `ollama serve` with `OLLAMA_HOST=0.0.0.0:11434`
+5. Accessible from Docker at `http://host.docker.internal:11434`
+
+**Integration Pattern**:
+```
+User Question (in Streamlit/FastAPI)
+  ↓
+RAG retrieval (ChromaDB + DuckDB)
+  ↓
+LangChain calls Ollama via POST to /api/generate
+  ↓
+Ollama runs inference on GPU (RTX 4090)
+  ↓
+Response streamed back to user
+  ↓
+Total latency: 2-5 seconds for RAG-augmented answer
+```
+
+**Cost Comparison**:
+- **Cloud LLM** (GPT-4): $0.03 per 1K tokens = $30-60/month for active use
+- **Ollama local**: Zero per-query cost; one-time $1,500 GPU investment already made
+
+**Governance Approach**:
+- **No telemetry**: Ollama sends no usage data
+- **No data leak risk**: All inference stays on GPU
+- **Rate limiting**: Implement in FastAPI wrapper if needed
+- **Audit logging**: Log all LLM queries for compliance
+
+---
+
+### 10. Orchestration Layer: Apache Airflow
 
 **What It Is**: Workflow orchestration platform
 
@@ -862,7 +930,7 @@ Available for RAG queries
 
 ## Technology Summary
 
-### Pure Python Components (90% of stack)
+### Pure Python Components (85% of stack)
 - dlt (ingestion)
 - dbt (transformation)
 - DuckDB (queries)
@@ -880,14 +948,16 @@ Available for RAG queries
 - **Polaris** (Java/Quarkus): Only mature Iceberg catalog, REST API
 - **SeaweedFS** (Go): S3-compatible storage, language-agnostic API
 - **DuckDB core** (C++): Embedded database, feels native to Python
+- **Ollama** (Go): Self-hosted LLM inference, REST API, zero API costs, GPU acceleration
 
 ### Why This Works
 - Single language for development (Python)
-- Minimal JVM operational burden (1 service)
+- Minimal JVM operational burden (1 service only)
+- Ollama runs natively on Windows (not in Docker), accessible to all services
 - Simpler debugging and monitoring
 - Unified toolchain (pytest, black, ruff, mypy)
 - Easier hiring (Python skills only)
-- Lower infrastructure costs (fewer services)
+- Lower infrastructure costs (fewer services, no API costs for LLMs)
 
 ---
 
@@ -1596,6 +1666,13 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: lakehouse-workspace
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     ports:
       - "8889:8889"    # Jupyter Lab
       - "8501:8501"    # Streamlit
@@ -2515,12 +2592,14 @@ chromadb==1.0.0
 sentence-transformers==5.2.2
 fastapi==0.115.9
 uvicorn==0.34.0
+docling==2.31.0
 ```
 
 Build the retrieval layer on top of Docling-parsed documents:
 - Embed document chunks into ChromaDB for semantic search
 - Use DuckDB full-text search for exact clause/keyword matching
 - Combine both retrieval methods for rules-context AI queries
+- Call Ollama at `http://host.docker.internal:11434` for LLM inference (already running on Windows host)
 - Index DuckDB table schemas into ChromaDB for data query RAG
 
 #### Enhancement 3: Add Production Dash Dashboard
@@ -2541,9 +2620,13 @@ Create `.github/workflows/dbt_test.yml` to run `dbt test` on every pull request,
 
 Create `docker-compose.staging.yml` with different port mappings, volume names, and `POLARIS_NAMESPACE=staging_analytics`, so staging and production run independently on the same machine.
 
-#### Enhancement 6: Local LLM via Ollama
+#### Enhancement 6: Advanced RAG Features (Optional)
 
-> **Note:** Ollama installation and model setup has been moved to **Step 1.7** in Phase 1, since it is core infrastructure for the RAG layer. See [Step 1.7](#step-17-install-ollama-rtx-4090-local-llm--no-api-costs).
+Ollama is already core infrastructure as of Phase 1 ([Step 1.7](#step-17-install-ollama-rtx-4090-local-llm--no-api-costs)). Optional enhancements include:
+- Fine-tune specific models for your domain (rules extraction, SQL generation)
+- Implement model quantization strategies (Q5/Q6 for higher quality, Q3 for speed)
+- Add multi-model setup (Llama 3 for reasoning, CodeLlama for SQL)
+- Implement model routing (use fastest model for simple queries)
 
 ---
 
