@@ -105,7 +105,8 @@
       - [Issue 5: Streamlit shows empty charts](#issue-5-streamlit-shows-empty-charts)
     - [Phase 8: Next Steps After MVP](#phase-8-next-steps-after-mvp)
       - [Enhancement 1: Add Airflow Orchestration](#enhancement-1-add-airflow-orchestration)
-      - [Enhancement 2: Implement RAG Layer](#enhancement-2-implement-rag-layer)
+      - [Enhancement 2: Document Ingestion with Docling](#enhancement-2-document-ingestion-with-docling)
+      - [Enhancement 2b: Implement RAG Layer](#enhancement-2b-implement-rag-layer)
       - [Enhancement 3: Add Production Dash Dashboard](#enhancement-3-add-production-dash-dashboard)
       - [Enhancement 4: Implement CI/CD](#enhancement-4-implement-cicd)
       - [Enhancement 5: Multi-Environment Setup](#enhancement-5-multi-environment-setup)
@@ -181,7 +182,7 @@ A radically simplified lakehouse architecture optimized for small teams (2-5 peo
         ↓                                               ↓
 ┌──────────────────────┐                  ┌────────────────────────┐
 │  Visualization       │                  │  AI/RAG Integration    │
-│  Streamlit + Dash    │                  │  LangChain + ChromaDB  │
+│  Streamlit + Dash    │                  │  Docling + LangChain   │
 └──────────────────────┘                  └────────────────────────┘
 ```
 
@@ -205,7 +206,7 @@ A radically simplified lakehouse architecture optimized for small teams (2-5 peo
 **Role in Stack**:
 - Stores Iceberg data files (Parquet)
 - Stores Iceberg metadata files
-- Persistent storage for ChromaDB vectors
+- Persistent storage for ChromaDB vectors and parsed document markdown
 - Can be replaced with AWS S3, MinIO, or any S3-compatible storage
 
 **Governance Approach**:
@@ -517,14 +518,39 @@ dbt transformations run (also in Airflow)
 
 ### 8. AI/RAG Integration Layer
 
-**What It Is**: Natural language query interface to lakehouse data
+**What It Is**: Natural language query interface to lakehouse data, powered by document ingestion and contextual retrieval
 
 **Components** (All Python):
+- **Docling**: PDF/document parsing to structured markdown (IBM, MIT license)
 - **LangChain**: RAG orchestration framework
-- **ChromaDB**: Vector database for metadata embeddings
+- **ChromaDB**: Vector database for document and metadata embeddings
 - **Sentence Transformers**: Generate embeddings locally
 
-**Architecture Pattern**:
+**Architecture Pattern — Document-Based RAG (Primary Use Case)**:
+```
+PDF/document ingestion (batch):
+  Source PDFs (rules, policies, specifications)
+    ↓
+  Docling parses PDF → structured markdown (preserves tables, headers, sections)
+    ↓
+  Chunked by section/heading hierarchy
+    ↓
+  Embedded via Sentence Transformers → stored in ChromaDB
+    ↓
+  Parsed markdown stored in DuckDB (documents table) for full-text search
+
+Query time:
+  User asks question about rules/policies
+    ↓
+  ChromaDB retrieves relevant document chunks (semantic search)
+    + DuckDB full-text search for exact clause matching (keyword search)
+    ↓
+  LLM generates answer with retrieved context
+    ↓
+  Response returned with source citations (document, page, section)
+```
+
+**Architecture Pattern — Data Query RAG**:
 ```
 User asks: "What were sales last month?"
   ↓
@@ -540,11 +566,19 @@ Answer returned to user
 ```
 
 **What Gets Indexed in ChromaDB**:
+- Parsed document chunks (rules, policies, specifications) with section metadata
 - Table schemas (from Polaris catalog)
 - Column descriptions and data types
 - Business glossary terms
 - Example queries and their SQL
 - Common metrics definitions (ARR, MRR, CAC, etc.)
+
+**Docling Capabilities**:
+- Parses PDF, DOCX, PPTX, HTML, and image-based documents
+- Layout-aware: preserves tables, headers, lists, and section hierarchy
+- Outputs structured markdown suitable for chunking and embedding
+- Runs locally with no API costs (optional GPU acceleration on RTX 4090)
+- Handles large documents efficiently with streaming/page-level processing
 
 **LLM Options**:
 - **Cloud-based**: OpenAI GPT-4, Anthropic Claude (API costs)
@@ -561,11 +595,12 @@ Answer returned to user
 
 **Integration Pattern**:
 - FastAPI service exposes REST endpoint
-- Airflow DAG updates ChromaDB daily (when schemas change)
+- Airflow DAG runs Docling to parse new/updated documents and index into ChromaDB
+- Airflow DAG updates ChromaDB schema metadata daily (when schemas change)
 - Dash/Streamlit apps can call RAG API
 - External tools query via HTTP
 
-**Language**: Pure Python (LangChain, ChromaDB, FastAPI)
+**Language**: Pure Python (Docling, LangChain, ChromaDB, FastAPI)
 
 **Governance Approach**:
 - **Read-only DuckDB user**: RAG queries can't modify data
@@ -593,6 +628,7 @@ Answer returned to user
 **Role in Stack**:
 - Schedule dlt ingestion pipelines
 - Orchestrate dbt transformations (via Cosmos)
+- Run Docling document parsing on new/updated PDFs
 - Update RAG metadata (ChromaDB indexing)
 - Data quality checks
 - Alert on failures
@@ -703,7 +739,20 @@ DuckDB uses Polaris catalog for metadata
 Results displayed in app
 ```
 
-### RAG Flow
+### RAG Flow — Document Queries
+```
+User asks question about rules/policies
+  ↓
+ChromaDB semantic search + DuckDB full-text search
+  ↓
+Relevant document chunks retrieved with source metadata
+  ↓
+LLM generates answer with context
+  ↓
+Response returned with citations (document, page, section)
+```
+
+### RAG Flow — Data Queries
 ```
 User asks question in natural language
   ↓
@@ -716,6 +765,23 @@ DuckDB executes query
 LangChain formats answer
   ↓
 Response returned
+```
+
+### Document Ingestion Flow
+```
+New PDF/document added to ingestion path
+  ↓
+Airflow triggers Docling parsing pipeline
+  ↓
+Docling converts document → structured markdown
+  ↓
+Markdown chunked by section hierarchy
+  ↓
+Chunks embedded via Sentence Transformers → ChromaDB
+  ↓
+Parsed markdown + metadata stored in DuckDB documents table
+  ↓
+Available for RAG queries
 ```
 
 ---
@@ -803,6 +869,7 @@ Response returned
 - Airflow (orchestration)
 - Streamlit (rapid viz)
 - Plotly Dash (production viz)
+- Docling (PDF/document parsing)
 - LangChain (RAG orchestration)
 - ChromaDB (vector DB)
 - Sentence Transformers (embeddings)
@@ -905,6 +972,7 @@ This stack is designed to scale up gradually:
 - dbt test results for data quality
 - DuckDB query logs for performance
 - Streamlit/Dash app metrics
+- Docling document parsing success/failure rates
 - RAG API success rates
 
 ### Cost Management
@@ -1340,7 +1408,7 @@ Open PowerShell and run:
 ```powershell
 New-Item -ItemType Directory -Force -Path D:\source\lakehouse\lakehouse
 cd D:\source\lakehouse\lakehouse
-mkdir docker, data, dlt, dbt, streamlit, storage, chroma_db
+mkdir docker, data, dlt, dbt, streamlit, storage, documents, chroma_db
 ```
 
 Expected structure:
@@ -1352,6 +1420,7 @@ D:\source\lakehouse\lakehouse\
 ├── dbt\           ← dbt project
 ├── streamlit\     ← Streamlit dashboard
 ├── storage\       ← SeaweedFS volume data (auto-populated)
+├── documents\     ← Source PDFs and documents for Docling ingestion
 └── chroma_db\     ← ChromaDB vectors (for later RAG)
 ```
 
@@ -2276,7 +2345,27 @@ duckdb-engine==0.17.0
 
 Create a DAG file that calls `load_sales.run()` then shells out to `dbt run`, scheduled with `schedule_interval="0 6 * * *"` (daily at 6 AM).
 
-#### Enhancement 2: Implement RAG Layer
+#### Enhancement 2: Document Ingestion with Docling
+
+Docling (`docling==2.31.0`) is already in `requirements.txt`. Create a document ingestion pipeline:
+
+1. Place source PDFs in `D:\source\lakehouse\lakehouse\documents\`
+2. Create a Docling parsing script that converts PDFs to structured markdown
+3. Chunk markdown by section/heading hierarchy
+4. Store parsed content in a DuckDB `documents` table (source_file, page, section_title, content, parsed_at)
+5. Optionally embed chunks into ChromaDB for semantic search
+
+```python
+from docling.document_converter import DocumentConverter
+
+converter = DocumentConverter()
+result = converter.convert("path/to/rules.pdf")
+markdown = result.document.export_to_markdown()
+```
+
+This is the foundation for the RAG layer — parse documents first, then build retrieval on top.
+
+#### Enhancement 2b: Implement RAG Layer
 
 Add to `requirements.txt`:
 ```
@@ -2288,7 +2377,11 @@ fastapi==0.129.0
 uvicorn==0.34.0
 ```
 
-Index DuckDB table schemas into ChromaDB, then use an LLM to convert natural language to SQL and execute it via DuckDB.
+Build the retrieval layer on top of Docling-parsed documents:
+- Embed document chunks into ChromaDB for semantic search
+- Use DuckDB full-text search for exact clause/keyword matching
+- Combine both retrieval methods for rules-context AI queries
+- Index DuckDB table schemas into ChromaDB for data query RAG
 
 #### Enhancement 3: Add Production Dash Dashboard
 

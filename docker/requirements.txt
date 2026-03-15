@@ -27,6 +27,9 @@ pyarrow==23.0.1
 boto3==1.42.50
 s3fs==2026.2.0
 
+# PDF parsing
+docling==2.31.0
+
 # Utilities
 requests==2.32.5
 python-dotenv==1.2.1
