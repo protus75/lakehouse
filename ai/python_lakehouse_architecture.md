@@ -74,7 +74,8 @@
       - [Step 1.4: Verify NVIDIA Driver (Windows)](#step-14-verify-nvidia-driver-windows)
       - [Step 1.5: Install CUDA Toolkit in WSL2](#step-15-install-cuda-toolkit-in-wsl2)
       - [Step 1.6: Install NVIDIA Container Toolkit (GPU access for Docker)](#step-16-install-nvidia-container-toolkit-gpu-access-for-docker)
-      - [Step 1.7: Create Project Directory Structure](#step-17-create-project-directory-structure)
+      - [Step 1.7: Install Ollama (RTX 4090 Local LLM)](#step-17-install-ollama-rtx-4090-local-llm--no-api-costs)
+      - [Step 1.8: Create Project Directory Structure](#step-18-create-project-directory-structure)
     - [Phase 2: Docker Compose Configuration](#phase-2-docker-compose-configuration)
       - [Step 2.1: Create docker-compose.yml](#step-21-create-docker-composeyml)
       - [Step 2.2: Create SeaweedFS S3 Auth Config](#step-22-create-seaweedfs-s3-auth-config)
@@ -110,7 +111,7 @@
       - [Enhancement 3: Add Production Dash Dashboard](#enhancement-3-add-production-dash-dashboard)
       - [Enhancement 4: Implement CI/CD](#enhancement-4-implement-cicd)
       - [Enhancement 5: Multi-Environment Setup](#enhancement-5-multi-environment-setup)
-      - [Enhancement 6: Local LLM via Ollama (RTX 4090 — no API costs)](#enhancement-6-local-llm-via-ollama-rtx-4090--no-api-costs)
+      - [Enhancement 6: Local LLM via Ollama](#enhancement-6-local-llm-via-ollama)
     - [Phase 9: Performance Optimization](#phase-9-performance-optimization)
       - [Optimization 1: DuckDB Configuration](#optimization-1-duckdb-configuration)
       - [Optimization 2: Iceberg Table Maintenance](#optimization-2-iceberg-table-maintenance)
@@ -1401,7 +1402,50 @@ Expected: RTX 4090 shown inside the container output. If this passes, all Docker
 
 ---
 
-#### Step 1.7: Create Project Directory Structure
+#### Step 1.7: Install Ollama (RTX 4090 Local LLM — No API Costs)
+
+Ollama runs natively on Windows and uses the RTX 4090 directly. Docker containers reach it via `http://host.docker.internal:11434`.
+
+**Install Ollama** (PowerShell):
+
+```powershell
+winget install Ollama.Ollama
+```
+
+Close and reopen PowerShell after install.
+
+**Start Ollama and bind to all interfaces** so Docker containers can reach it:
+
+```powershell
+$env:OLLAMA_HOST = "0.0.0.0:11434"
+ollama serve
+```
+
+**Pull the model** (open a second PowerShell tab):
+
+```powershell
+# Llama 3 70B at Q4 quantization — fits in 24 GB VRAM
+ollama pull llama3:70b
+
+# Verify GPU is being used
+ollama run llama3:70b "Say hello"
+# Check GPU utilization: nvidia-smi (should show GPU memory in use)
+```
+
+> **RTX 4090 performance:** Llama 3 70B at Q4 runs at ~50–80 tokens/second — fast enough for interactive RAG queries with no per-call API costs.
+
+**Test from inside a Docker container** (after Phase 2 setup):
+
+```bash
+# From Jupyter terminal
+curl http://host.docker.internal:11434/api/tags
+```
+
+Should return a JSON list including `llama3:70b`.
+
+---
+
+#### Step 1.8: Create Project Directory Structure
 
 Open PowerShell and run:
 
@@ -2497,79 +2541,9 @@ Create `.github/workflows/dbt_test.yml` to run `dbt test` on every pull request,
 
 Create `docker-compose.staging.yml` with different port mappings, volume names, and `POLARIS_NAMESPACE=staging_analytics`, so staging and production run independently on the same machine.
 
-#### Enhancement 6: Local LLM via Ollama (RTX 4090 — no API costs)
+#### Enhancement 6: Local LLM via Ollama
 
-Install Ollama natively on Windows so it uses the RTX 4090 directly, then call it from Docker containers over the host network.
-
-**Install Ollama on Windows** (PowerShell):
-
-```powershell
-# Download and install from ollama.com
-winget install Ollama.Ollama
-```
-
-**Start Ollama and expose it to Docker containers:**
-
-```powershell
-# Bind to all interfaces so Docker containers can reach it
-$env:OLLAMA_HOST = "0.0.0.0:11434"
-ollama serve
-```
-
-**Pull models** (open a second PowerShell tab):
-
-```powershell
-# Llama 3 70B at Q4 quantization — fits in 24 GB VRAM
-ollama pull llama3:70b
-
-# SQLCoder (fine-tuned text-to-SQL) — fits in 8 GB VRAM
-ollama pull defog/sqlcoder-70b-alpha
-
-# Verify GPU is being used
-ollama run llama3:70b "Say hello"
-# Check GPU utilization: nvidia-smi  (should show GPU memory in use)
-```
-
-**Call Ollama from Python inside Docker containers:**
-
-```python
-import requests
-
-response = requests.post(
-    "http://host.docker.internal:11434/api/generate",
-    json={
-        "model": "llama3:70b",
-        "prompt": "Generate SQL to find total sales by region from the sales table",
-        "stream": False,
-    }
-)
-print(response.json()["response"])
-```
-
-**Or use the `ollama` Python library:**
-
-```python
-# Add to requirements.txt: ollama==0.6.1
-import ollama
-
-response = ollama.chat(
-    model="llama3:70b",
-    messages=[{"role": "user", "content": "Write SQL for total sales by region"}]
-)
-print(response["message"]["content"])
-```
-
-**Update `requirements.txt`** to add GPU-accelerated sentence-transformers:
-
-```
-# GPU-accelerated PyTorch (CUDA 12.x) — replaces plain torch
---extra-index-url https://download.pytorch.org/whl/cu121
-torch
-sentence-transformers==5.2.2
-ollama==0.6.1
-```
-
-> **RTX 4090 performance:** Llama 3 70B at Q4 runs at ~50–80 tokens/second on the RTX 4090 — fast enough for interactive SQL generation and RAG queries with no per-call API costs.
+> **Note:** Ollama installation and model setup has been moved to **Step 1.7** in Phase 1, since it is core infrastructure for the RAG layer. See [Step 1.7](#step-17-install-ollama-rtx-4090-local-llm--no-api-costs).
 
 ---
 
