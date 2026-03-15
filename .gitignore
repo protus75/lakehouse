@@ -1,0 +1,21 @@
+# Claude Code temp directories
+tmpclaude-*
+
+# Docker volumes
+storage/
+
+# DuckDB
+*.duckdb
+*.duckdb.wal
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# dbt
+dbt/lakehouse_mvp/target/
+dbt/lakehouse_mvp/logs/
+
+# Environment
+.env
