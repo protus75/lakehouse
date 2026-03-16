@@ -22,7 +22,7 @@ Vector Store:
 Metadata Fields Tracked:
   - filename: Original PDF filename
   - document_title: Title (auto-extracted from filename if not provided)
-  - game_system: D&D 5e, Pathfinder 2e, etc.
+  - game_system: D&D 2e, Pathfinder 2e, etc.
   - content_type: rules, module, campaign, etc.
   - tags: Comma-separated categories
   - rules_version: Version number of rules
@@ -37,7 +37,7 @@ QUICKSTART
 
    # Step 1: Ingest PDFs and parse into chunks
    from dlt.load_tabletop_rules_docs import run as ingest
-   ingest(game_system="D&D 5e", content_type="rules")
+   ingest(game_system="D&D 2e", content_type="rules")
 
    # Step 2: Embed chunks into ChromaDB for semantic search
    from rag.embed_tabletop_rules import embed_all
@@ -45,7 +45,7 @@ QUICKSTART
 
    # Step 3: Ask questions about the rules
    from rag.query_tabletop_rules import ask
-   answer = ask("What are the rules for attacking?", game_system="D&D 5e")
+   answer = ask("What are the rules for attacking?", game_system="D&D 2e")
    print(answer)
 
 3. Check ingestion status:
@@ -67,7 +67,7 @@ A. INGESTION (load_tabletop_rules_docs.py)
    Usage:
      from dlt.load_tabletop_rules_docs import ingest_all
      ingest_all(
-         game_system="D&D 5e",
+         game_system="D&D 2e",
          content_type="rules",
          tags="5th-edition,combat"
      )
@@ -97,17 +97,17 @@ C. RETRIEVAL & Q&A (query_tabletop_rules.py)
    Usage - Filtered by game system:
      answer = ask(
          "How do you resolve attacks?",
-         game_system="D&D 5e",
+         game_system="D&D 2e",
          content_type="rules"
      )
 
    Usage - Keyword search only:
      from rag.query_tabletop_rules import search_duckdb
-     results = search_duckdb("saving throw", game_system="D&D 5e")
+     results = search_duckdb("saving throw", game_system="D&D 2e")
 
    Usage - Semantic search only:
      from rag.query_tabletop_rules import search_chromadb
-     results = search_chromadb("spell duration", game_system="D&D 5e")
+     results = search_chromadb("spell duration", game_system="D&D 2e")
 
 DATABASE SCHEMA
 ===============
@@ -123,7 +123,7 @@ Table: documents_tabletop_rules.chunks
 Table: documents_tabletop_rules.files
   source_file     VARCHAR PRIMARY KEY         ← PDF filename
   document_title  VARCHAR                     ← Title
-  game_system     VARCHAR                     ← D&D 5e, Pathfinder 2e, etc.
+  game_system     VARCHAR                     ← D&D 2e, Pathfinder 2e, etc.
   content_type    VARCHAR                     ← rules/module/campaign
   tags            VARCHAR                     ← Comma-separated tags
   rules_version   VARCHAR                     ← Version number
@@ -134,16 +134,16 @@ Table: documents_tabletop_rules.files
 QUERY EXAMPLES
 ==============
 
-1. Find all rules documents for D&D 5e:
+1. Find all rules documents for D&D 2e:
    from rag.query_tabletop_rules import search_duckdb
-   results = search_duckdb("", game_system="D&D 5e", content_type="rules")
+   results = search_duckdb("", game_system="D&D 2e", content_type="rules")
    # Returns metadata about all chunks (not useful without query filter)
 
 2. Search for spellcasting across all books:
    answer = ask("How do you cast a spell?")
 
-3. Search only in D&D 5e Player's Handbook:
-   answer = ask("How do you multiclass?", game_system="D&D 5e")
+3. Search only in D&D 2e Player's Handbook:
+   answer = ask("How do you multiclass?", game_system="D&D 2e")
 
 4. Search only campaign material:
    answer = ask("What happens in Act 1?", content_type="campaign")
@@ -158,7 +158,7 @@ TROUBLESHOOTING
 Q: "No chunks found in documents_tabletop_rules schema"
 A: Run ingest first:
    from dlt.load_tabletop_rules_docs import run
-   run(game_system="D&D 5e", content_type="rules")
+   run(game_system="D&D 2e", content_type="rules")
 
 Q: "ConnectionRefusedError: [Errno 10061] No connection could be made"
 A: Ollama is not running. Start it:

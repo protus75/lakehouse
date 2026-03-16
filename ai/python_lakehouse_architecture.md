@@ -35,6 +35,7 @@
     - [Transformation Flow](#transformation-flow)
     - [Query Flow](#query-flow)
     - [RAG Flow](#rag-flow)
+    - [RAG Maintenance: Re-indexing After Changes](#rag-maintenance-re-indexing-after-changes)
   - [Development Workflow](#development-workflow)
     - [Environment Isolation (Polaris Namespaces)](#environment-isolation-polaris-namespaces)
     - [Local Development](#local-development)
@@ -861,6 +862,53 @@ Parsed markdown + metadata stored in DuckDB documents table
   ↓
 Available for RAG queries
 ```
+
+### RAG Maintenance: Re-indexing After Changes
+
+When chunking parameters, embedding models, or ingestion logic change, you must re-run the full pipeline. This section covers installing dependencies and resetting the vector store.
+
+#### Install Sentence Transformers
+
+The RAG pipeline uses `all-mpnet-base-v2` for embeddings (768 dimensions, significantly more accurate than the default `all-MiniLM-L6-v2`). Install inside your workspace container or virtual environment:
+
+```bash
+pip install sentence-transformers
+```
+
+This pulls in PyTorch and Hugging Face Transformers. The model (~420 MB) is downloaded automatically on first use. If running on GPU, ensure `torch` is installed with CUDA support:
+
+```bash
+# GPU-accelerated embeddings (optional, speeds up large batch embedding)
+pip install torch --index-url https://download.pytorch.org/whl/cu121
+pip install sentence-transformers
+```
+
+#### Re-extract, Re-embed, and Rebuild the Vector Store
+
+When you change chunk sizes, overlap, or the embedding model, existing vectors become incompatible. Run these steps in order:
+
+```bash
+# Step 1: Re-ingest PDFs with new chunking parameters
+#   This re-parses all PDFs and overwrites chunks in DuckDB
+python -c "from dlt.load_tabletop_rules_docs import run; run(game_system='D&D 2e', content_type='rules')"
+
+# Step 2: Delete the old ChromaDB collection
+#   Required when the embedding model or dimensions change — old vectors
+#   are incompatible with the new model and will produce garbage results
+python -c "
+import chromadb
+from chromadb.config import Settings
+client = chromadb.PersistentClient(path='/workspace/chroma_db', settings=Settings(anonymized_telemetry=False))
+client.delete_collection('tabletop_rules_chunks')
+print('Collection deleted.')
+"
+
+# Step 3: Re-embed all chunks into a fresh collection
+#   Uses the new embedding model (all-mpnet-base-v2) and creates a new collection
+python -c "from rag.embed_tabletop_rules import embed_all; embed_all()"
+```
+
+After these steps, the RAG engine is ready for queries with the updated pipeline.
 
 ---
 

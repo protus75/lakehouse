@@ -10,10 +10,12 @@ Run from Jupyter:
 import duckdb
 import chromadb
 from chromadb.config import Settings
+from chromadb.utils.embedding_functions import SentenceTransformerEmbeddingFunction
 
 DB_PATH = "/workspace/db/lakehouse.duckdb"
 CHROMA_PATH = "/workspace/chroma_db"
 COLLECTION_NAME = "tabletop_rules_chunks"
+EMBEDDING_MODEL = "all-mpnet-base-v2"
 
 
 def embed_all() -> None:
@@ -54,10 +56,14 @@ def embed_all() -> None:
         settings=Settings(anonymized_telemetry=False),
     )
 
+    # Use a stronger embedding model for better retrieval accuracy
+    embedding_fn = SentenceTransformerEmbeddingFunction(model_name=EMBEDDING_MODEL)
+
     # Get or create dedicated collection for tabletop_rules
     collection = client.get_or_create_collection(
         name=COLLECTION_NAME,
         metadata={"hnsw:space": "cosine", "project": "tabletop_rules"},
+        embedding_function=embedding_fn,
     )
 
     # Prepare batch data

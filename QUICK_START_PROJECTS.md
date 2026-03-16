@@ -32,7 +32,7 @@ cp *.pdf documents/tabletop_rules/raw/
 **2. Ingest** (Jupyter)
 ```python
 from dlt.load_tabletop_rules_docs import run
-run(game_system="D&D 5e", content_type="rules")
+run(game_system="D&D 2e", content_type="rules")
 ```
 
 **3. Embed**

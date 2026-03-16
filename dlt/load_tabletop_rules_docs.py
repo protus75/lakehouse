@@ -5,10 +5,10 @@ Chunks markdown by headings and stores with metadata.
 
 Run from Jupyter:
   from dlt.load_tabletop_rules_docs import run
-  run(game_system="D&D 5e", content_type="rules")
+  run(game_system="D&D 2e", content_type="rules")
 
 Or with custom worker count:
-  run(game_system="D&D 5e", max_workers=8)
+  run(game_system="D&D 2e", max_workers=8)
 """
 
 import re
@@ -58,9 +58,10 @@ def init_schema(conn: duckdb.DuckDBPyConnection) -> None:
     """)
 
 
-def chunk_markdown(markdown: str, max_chars: int = 2000) -> list[dict]:
+def chunk_markdown(markdown: str, max_chars: int = 800, overlap: int = 200) -> list[dict]:
     """
     Split markdown by headings (H1-H4), then by paragraphs if sections exceed max_chars.
+    Adds overlap between consecutive chunks within a section for better retrieval.
     Returns list of dicts with keys: section_title, content
     """
     # Split on markdown headings (# ## ### ####)
@@ -80,17 +81,23 @@ def chunk_markdown(markdown: str, max_chars: int = 2000) -> list[dict]:
         if len(section) <= max_chars:
             chunks.append({"section_title": title, "content": section})
         else:
-            # Split large sections by paragraphs
+            # Split large sections by paragraphs, with overlap
             paragraphs = section.split("\n\n")
+            section_chunks = []
             current = ""
             for para in paragraphs:
                 if len(current) + len(para) + 2 > max_chars and current:
-                    chunks.append({"section_title": title, "content": current.strip()})
-                    current = para
+                    section_chunks.append(current.strip())
+                    # Keep trailing paragraphs as overlap for next chunk
+                    overlap_text = current.strip()[-overlap:] if overlap > 0 else ""
+                    current = overlap_text + "\n\n" + para if overlap_text else para
                 else:
                     current = current + "\n\n" + para if current else para
             if current.strip():
-                chunks.append({"section_title": title, "content": current.strip()})
+                section_chunks.append(current.strip())
+
+            for sc in section_chunks:
+                chunks.append({"section_title": title, "content": sc})
 
     return chunks
 
@@ -196,7 +203,7 @@ def ingest_all(
 
     Args:
         directory: Override directory to scan (defaults to /workspace/documents/tabletop_rules/raw)
-        game_system: e.g., "D&D 5e", "Pathfinder 2e"
+        game_system: e.g., "D&D 2e", "Pathfinder 2e"
         content_type: e.g., "rules", "module", "campaign"
         tags: comma-separated tags for categorization
         max_workers: Number of cores to use (default: all available)
@@ -282,5 +289,5 @@ def run(
 
 
 if __name__ == "__main__":
-    # Example: ingest all PDFs as D&D 5e rules, using all available cores
-    run(game_system="D&D 5e", content_type="rules")
+    # Example: ingest all PDFs as D&D 2e rules, using all available cores
+    run(game_system="D&D 2e", content_type="rules")

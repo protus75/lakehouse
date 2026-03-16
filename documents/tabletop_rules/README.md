@@ -25,7 +25,7 @@ Examples:
 ```python
 # Parse PDFs and create chunks
 from dlt.load_tabletop_rules_docs import run
-run(game_system="D&D 5e", content_type="rules")
+run(game_system="D&D 2e", content_type="rules")
 ```
 
 ### 3. Embed
@@ -50,7 +50,7 @@ When ingesting PDFs, you can specify:
 
 | Field | Example | Notes |
 |-------|---------|-------|
-| `game_system` | "D&D 5e" | D&D 5e, Pathfinder 2e, Warhammer 40K, etc. |
+| `game_system` | "D&D 2e" | D&D 2e, Pathfinder 2e, Warhammer 40K, etc. |
 | `content_type` | "rules" | rules, module, campaign, supplement |
 | `tags` | "combat,spells" | Comma-separated categories |
 | `rules_version` | "2024" | Version/edition identifier |
@@ -59,7 +59,7 @@ When ingesting PDFs, you can specify:
 
 ### Filter by Game System
 ```python
-answer = ask("How do you resolve attacks?", game_system="D&D 5e")
+answer = ask("How do you resolve attacks?", game_system="D&D 2e")
 ```
 
 ### Filter by Content Type
@@ -71,7 +71,7 @@ answer = ask("What happens in Act 1?", content_type="campaign")
 ### Keyword Search Only
 ```python
 from rag.query_tabletop_rules import search_duckdb
-results = search_duckdb("concentration", game_system="D&D 5e")
+results = search_duckdb("concentration", game_system="D&D 2e")
 ```
 
 ### Semantic Search Only
