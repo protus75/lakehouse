@@ -24,5 +24,6 @@ This interactive wizard will:
 
 ### Full Documentation
 
+- **[Python-First Lakehouse Architecture](./ai/python_lakehouse_architecture.md)** - High-level design for small data teams
 - **[PDF_PROJECT_SETUP.md](./PDF_PROJECT_SETUP.md)** - Complete setup guide with examples
 - **[QUICK_START_PROJECTS.md](./QUICK_START_PROJECTS.md)** - Cheat sheet for creating projects

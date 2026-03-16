@@ -647,6 +647,15 @@ Answer returned to user
 - Power chatbots and voice assistants
 - Provide fallback to cloud LLM if needed (but not required)
 
+**Why Native Windows (Not Containerized)**:
+- Running Ollama natively on Windows is simpler than containerizing it
+- Docker on Windows (via WSL2) GPU passthrough adds complexity with marginal benefit
+- **Native approach**: Windows NVIDIA driver → GPU directly, no WSL2 passthrough layer
+- **Containerized approach**: Docker → WSL2 → NVIDIA Container Toolkit → GPU passthrough (more failure points)
+- Models stored in Windows (easier to manage large files, no Docker volume overhead)
+- Docker containers reach native Ollama via `http://host.docker.internal:11434` (built-in Windows feature)
+- This separation of concerns (containerized analytics + native LLM) is cleaner and more maintainable
+
 **Installation (Windows)**:
 1. Download from https://ollama.ai
 2. Run installer

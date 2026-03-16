@@ -106,28 +106,6 @@ services:
       timeout: 5s
       retries: 20
 
-  # ── Ollama (LLM Service) ────────────────────────────────────────
-  # Self-hosted LLM for RAG question answering
-  ollama:
-    image: ollama/ollama:latest
-    container_name: lakehouse-ollama
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_data:/root/.ollama
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
-      interval: 10s
-      timeout: 5s
-      retries: 20
-
   # ── Python Workspace ────────────────────────────────────────
   # Jupyter Lab + all Python tools (dlt, dbt, Streamlit, etc.)
   workspace:
@@ -172,13 +150,10 @@ services:
     depends_on:
       polaris:
         condition: service_healthy
-      ollama:
-        condition: service_healthy
 
 volumes:
   postgres_data:
   workspace_db:
-  ollama_data:
 
 networks:
   default:
