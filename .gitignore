@@ -1,12 +1,20 @@
 # Claude Code temp directories
 tmpclaude-*
 
-# Docker volumes
+# Docker volumes and persistent data
 storage/
+db/
 
 # DuckDB
 *.duckdb
 *.duckdb.wal
+
+# ChromaDB
+chroma_db/*.sqlite3
+chroma_db/*/
+
+# HuggingFace / Sentence Transformers model cache
+cache/
 
 # Python
 .ipynb_checkpoints/
@@ -18,10 +26,14 @@ __pycache__/
 
 # dbt
 dbt/lakehouse_mvp/target/
+dbt/logs/
 dbt/lakehouse_mvp/logs/
 
 # Environment
 .env
 
-# data files
+# Data files
+data/*.csv
+data/*.parquet
+data/*.json
 documents/**/raw/*.pdf
