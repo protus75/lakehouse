@@ -58,10 +58,48 @@ def init_schema(conn: duckdb.DuckDBPyConnection) -> None:
     """)
 
 
-def chunk_markdown(markdown: str, max_chars: int = 800, overlap: int = 200) -> list[dict]:
+def _find_plain_text_supplement(title: str, plain_text: str) -> str:
+    """
+    Find the section in plain text that matches a markdown heading title.
+    Returns lines from plain text that aren't already in the markdown section,
+    capturing structured fields (e.g. spell stats) that markdown export drops.
+    """
+    if not title or not plain_text:
+        return ""
+
+    # Find the title in plain text and grab the lines immediately following it
+    pattern = re.compile(re.escape(title), re.IGNORECASE)
+    match = pattern.search(plain_text)
+    if not match:
+        return ""
+
+    # Grab up to 500 chars after the title match for the structured header block
+    start = match.end()
+    block = plain_text[start:start + 500]
+
+    # Take lines until we hit a blank line gap (end of the header block)
+    header_lines = []
+    for line in block.split("\n"):
+        stripped = line.strip()
+        if not stripped and header_lines:
+            break
+        if stripped:
+            header_lines.append(stripped)
+
+    return "\n".join(header_lines)
+
+
+def chunk_markdown(
+    markdown: str,
+    max_chars: int = 800,
+    overlap: int = 200,
+    plain_text: str = "",
+) -> list[dict]:
     """
     Split markdown by headings (H1-H4), then by paragraphs if sections exceed max_chars.
     Adds overlap between consecutive chunks within a section for better retrieval.
+    Supplements the first chunk of each section with structured fields from plain_text
+    export that markdown export may have dropped (e.g. spell stats, table rows).
     Returns list of dicts with keys: section_title, content
     """
     # Split on markdown headings (# ## ### ####)
@@ -76,6 +114,21 @@ def chunk_markdown(markdown: str, max_chars: int = 800, overlap: int = 200) -> l
         # Extract heading as section title
         lines = section.split("\n", 1)
         title = lines[0].lstrip("#").strip() if lines[0].startswith("#") else None
+
+        # Supplement with structured fields from plain text that markdown may have lost
+        if title and plain_text:
+            supplement = _find_plain_text_supplement(title, plain_text)
+            if supplement:
+                # Insert the plain text fields right after the heading
+                heading_line = lines[0]
+                body = lines[1].strip() if len(lines) > 1 else ""
+                # Only add lines that aren't already present in the markdown
+                new_lines = [
+                    ln for ln in supplement.split("\n")
+                    if ln.strip() and ln.strip().lower() not in section.lower()
+                ]
+                if new_lines:
+                    section = heading_line + "\n" + "\n".join(new_lines) + "\n\n" + body
 
         # Single chunk if fits within max_chars
         if len(section) <= max_chars:
@@ -113,7 +166,8 @@ def parse_pdf(filepath: Path) -> tuple[str, list[dict]] | None:
         converter = DocumentConverter()
         result = converter.convert(str(filepath))
         markdown = result.document.export_to_markdown()
-        chunks = chunk_markdown(markdown)
+        plain_text = result.document.export_to_text()
+        chunks = chunk_markdown(markdown, plain_text=plain_text)
 
         elapsed = time.time() - start
         print(f"    ✓ Done in {elapsed:.1f}s → {len(chunks)} chunks")
