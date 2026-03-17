@@ -12,7 +12,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ../db/postgres:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U polaris"]
       interval: 5s
@@ -132,8 +132,10 @@ services:
       - ../rag:/workspace/rag
       - ../documents:/workspace/documents
       - ../chroma_db:/workspace/chroma_db
-      - workspace_db:/workspace/db    # DuckDB persistent storage
+      - ../db/duckdb:/workspace/db
+      - ../cache/huggingface:/workspace/.cache/huggingface
     environment:
+      HF_HOME: /workspace/.cache/huggingface
       S3_ENDPOINT: http://seaweedfs-s3:8333
       S3_ACCESS_KEY: lakehouse_key
       S3_SECRET_KEY: lakehouse_secret
@@ -150,10 +152,6 @@ services:
     depends_on:
       polaris:
         condition: service_healthy
-
-volumes:
-  postgres_data:
-  workspace_db:
 
 networks:
   default:
