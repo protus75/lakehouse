@@ -1,0 +1,45 @@
+# Default book config — used when no book-specific config exists.
+# Provides basic chapter/section parsing without entry type detection.
+
+book:
+  title: "Unknown Book"
+  game_system: "Unknown"
+  content_type: "rules"
+
+toc:
+  chapter_patterns:
+    - '(?:Chapter|Appendix|Part|Section)\s+\d*\s*:?\s*[A-Za-z].*'
+  table_pattern: 'Table\s+\d+\s*:?\s*[A-Za-z].*'
+  toc_scan_pages: 15
+
+index_headings:
+  - "index"
+  - "alphabetical index"
+  - "general index"
+
+# No entry types defined — generic parsing only
+entry_types: {}
+
+cross_references:
+  appendix_indexes: []
+  generated_indexes: []
+
+vlm_detection_patterns: []
+
+prompts:
+  section_summary: |
+    You are summarizing a section from {book_title} for a rules reference.
+    Write a concise 2-4 sentence summary of this section that captures:
+    - What this section covers
+    - The key rules or mechanics described
+    - Any important numbers, thresholds, or exceptions
+    SECTION: {section}
+    CHAPTER: {chapter}
+    CONTENT:
+    {content}
+    SUMMARY:
+  entry_summary: ""
+
+chunking:
+  max_chars: 800
+  overlap: 200

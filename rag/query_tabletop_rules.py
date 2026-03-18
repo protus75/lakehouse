@@ -80,9 +80,11 @@ def search_chromadb(
                 "source_file": meta.get("source_file", ""),
                 "chapter_title": meta.get("chapter_title", ""),
                 "section_title": meta.get("section_title", ""),
+                "entry_title": meta.get("entry_title", ""),
                 "document_title": meta.get("document_title", ""),
                 "game_system": meta.get("game_system", ""),
                 "content_type": meta.get("content_type", ""),
+                "chunk_type": meta.get("chunk_type", "content"),
                 "tags": meta.get("tags", ""),
                 "distance": results["distances"][0][i],
             }
@@ -140,7 +142,7 @@ def search_duckdb(
         SELECT c.source_file, c.section_title, c.content,
                f.document_title, f.game_system, f.content_type, f.tags,
                ({match_score_expr}) as match_score,
-               c.chapter_title
+               c.chapter_title, c.entry_title, c.chunk_type
         FROM documents_tabletop_rules.chunks c
         LEFT JOIN documents_tabletop_rules.files f ON c.source_file = f.source_file
         {where}
@@ -161,9 +163,11 @@ def search_duckdb(
             "source_file": r[0],
             "chapter_title": r[8] or "",
             "section_title": r[1] or "",
+            "entry_title": r[9] or "",
             "document_title": r[3] or "",
             "game_system": r[4] or "",
             "content_type": r[5] or "",
+            "chunk_type": r[10] or "content",
             "tags": r[6] or "",
             "distance": 0.0,
         }

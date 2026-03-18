@@ -1,0 +1,117 @@
+# AD&D 2nd Edition Player's Handbook
+# Config for PDF: DnD2e Handbook Player.pdf
+
+book:
+  title: "AD&D 2nd Edition Player's Handbook"
+  game_system: "D&D 2e"
+  content_type: "rules"
+
+toc:
+  chapter_patterns:
+    - '(?:Chapter|Appendix)\s+\d*\s*:?\s*[A-Za-z].*'
+  table_pattern: 'Table\s+\d+\s*:\s*[A-Za-z].*'
+  toc_scan_pages: 15
+
+index_headings:
+  - "index"
+  - "alphabetical index"
+  - "general index"
+  - "spell index"
+  - "priest spell index"
+  - "wizard spell index"
+  - "spell list"
+  - "priest spell list"
+  - "wizard spell list"
+
+entry_types:
+  spell:
+    detect_fields:
+      - 'Range\s*:'
+      - 'Components\s*:'
+      - 'Duration\s*:'
+      - 'Casting Time\s*:'
+      - 'Area of Effect\s*:'
+      - 'Saving Throw\s*:'
+    detect_min_fields: 3
+    detect_class_fields:
+      - 'School\s*:'
+      - 'Sphere\s*:'
+    chapter_keywords:
+      - "spell"
+      - "appendix"
+    metadata:
+      school: 'School\s*:\s*(.+?)(?:\n|$)'
+      sphere: 'Sphere\s*:\s*(.+?)(?:\n|$)'
+      range: 'Range\s*:\s*(.+?)(?:\n|$)'
+      components: 'Components\s*:\s*(.+?)(?:\n|$)'
+      duration: 'Duration\s*:\s*(.+?)(?:\n|$)'
+      casting_time: 'Casting Time\s*:\s*(.+?)(?:\n|$)'
+      area_of_effect: 'Area of Effect\s*:\s*(.+?)(?:\n|$)'
+      saving_throw: 'Saving Throw\s*:\s*(.+?)(?:\n|$)'
+    class_rules:
+      - chapter_contains: "priest"
+        value: "Priest"
+      - chapter_contains: "wizard"
+        value: "Wizard"
+      - has_field: "sphere"
+        value: "Priest"
+      - default: "Wizard"
+    level_patterns:
+      "first": 1
+      "second": 2
+      "third": 3
+      "fourth": 4
+      "fifth": 5
+      "sixth": 6
+      "seventh": 7
+      "eighth": 8
+      "ninth": 9
+
+cross_references:
+  appendix_indexes:
+    - chapter_contains: "school"
+      label_template: "Spell Index: Wizard School - {section}"
+    - chapter_contains: "sphere"
+      label_template: "Spell Index: Priest Sphere - {section}"
+  generated_indexes:
+    - group_by: ["class", "level"]
+      label_template: "{class} Spells - Level {level}"
+      chapter_template: "Cross-Reference: {class} Spells"
+    - group_by: ["alpha"]
+      label_template: "Spell Index: {letter}"
+      chapter_template: "Cross-Reference: Alphabetical Spell Index"
+
+vlm_detection_patterns:
+  - '(?:Range|Components|Duration|Casting Time|Area of Effect|Saving Throw)\s*:'
+  - '(?:Power Score|PSP Cost|Initial Cost|Maintenance Cost)\s*:'
+  - '(?:AC|THAC0|Hit Dice|No\. of Attacks|Damage/Attack|Movement)\s*:'
+  - '(?:XP Value|GP Value|Charges)\s*:'
+
+prompts:
+  section_summary: |
+    You are summarizing a section from the {book_title} for a rules reference.
+    Write a concise 2-4 sentence summary of this section that captures:
+    - What this section covers
+    - The key rules or mechanics described
+    - Any important numbers, thresholds, or exceptions
+    SECTION: {section}
+    CHAPTER: {chapter}
+    CONTENT:
+    {content}
+    SUMMARY:
+  entry_summary: |
+    You are creating concise structured summaries of {game_system} spells for a rules reference.
+    For each spell below, produce a summary in this exact format:
+    SPELL: [Name]
+    Type: [Wizard/Priest] Level [N]
+    School: [school] | Sphere: [sphere if priest]
+    Key Effect: [1 sentence describing what the spell does]
+    Important Details: [1-2 sentences on range, duration, damage, saving throw effects]
+    Tactical Note: [1 sentence on when/why to use this spell]
+    ---
+    {spells}
+    ---
+
+chunking:
+  max_chars: 800
+  overlap: 200
