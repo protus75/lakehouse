@@ -524,33 +524,42 @@ dbt transformations run (also in Airflow)
 **What It Is**: Natural language query interface to lakehouse data, powered by document ingestion and contextual retrieval
 
 **Components** (All Python):
-- **Docling**: PDF/document parsing to structured markdown (IBM, MIT license)
+- **Marker**: Layout-aware PDF to markdown conversion with multi-column support (Datalab, GPL license)
+- **PyMuPDF**: Raw PDF text extraction for page rendering and VLM input
+- **VLM via Ollama**: Vision language model (MiniCPM-V) for structured content extraction from rendered page images
 - **LangChain**: RAG orchestration framework
 - **ChromaDB**: Vector database for document and metadata embeddings
-- **Sentence Transformers**: Generate embeddings locally
+- **Sentence Transformers**: Generate embeddings locally (all-mpnet-base-v2, 768 dimensions)
 
 **Architecture Pattern — Document-Based RAG (Primary Use Case)**:
 ```
-PDF/document ingestion (batch):
+PDF/document ingestion (two-pass hybrid):
   Source PDFs (rules, policies, specifications)
     ↓
-  Docling parses PDF → structured markdown (preserves tables, headers, sections)
+  Pass 1: Marker parses PDF → layout-aware markdown (multi-column, tables, reading order)
     ↓
-  Chunked by section/heading hierarchy
+  Pass 2: PyMuPDF detects pages with incomplete structured content (stat blocks, key:value fields)
+    → Renders problem pages as images at 300 DPI
+    → VLM (MiniCPM-V via Ollama) extracts missing structured fields from page images
+    → Merges VLM-extracted fields back into Marker markdown
     ↓
-  Embedded via Sentence Transformers → stored in ChromaDB
+  Chapter-aligned chunking: chapter > section > entry (never crosses boundaries)
     ↓
-  Parsed markdown stored in DuckDB (documents table) for full-text search
+  Embedded via Sentence Transformers (all-mpnet-base-v2) → stored in ChromaDB
+    ↓
+  Chunks + chapter/section metadata stored in DuckDB for keyword search
 
 Query time:
   User asks question about rules/policies
     ↓
-  ChromaDB retrieves relevant document chunks (semantic search)
-    + DuckDB full-text search for exact clause matching (keyword search)
+  ChromaDB retrieves relevant document chunks (semantic search, 3x over-fetch)
+    + DuckDB keyword search with OR logic ranked by match count
     ↓
-  LLM generates answer with retrieved context
+  Hybrid deduplication, top N results selected
     ↓
-  Response returned with source citations (document, page, section)
+  LLM generates answer with retrieved context + chapter/section citations
+    ↓
+  Response returned with source citations (document, chapter, section, game system)
 ```
 
 **Architecture Pattern — Data Query RAG**:

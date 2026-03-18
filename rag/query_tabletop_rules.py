@@ -78,6 +78,7 @@ def search_chromadb(
             {
                 "content": results["documents"][0][i],
                 "source_file": meta.get("source_file", ""),
+                "chapter_title": meta.get("chapter_title", ""),
                 "section_title": meta.get("section_title", ""),
                 "document_title": meta.get("document_title", ""),
                 "game_system": meta.get("game_system", ""),
@@ -138,7 +139,8 @@ def search_duckdb(
     sql = f"""
         SELECT c.source_file, c.section_title, c.content,
                f.document_title, f.game_system, f.content_type, f.tags,
-               ({match_score_expr}) as match_score
+               ({match_score_expr}) as match_score,
+               c.chapter_title
         FROM documents_tabletop_rules.chunks c
         LEFT JOIN documents_tabletop_rules.files f ON c.source_file = f.source_file
         {where}
@@ -157,6 +159,7 @@ def search_duckdb(
         {
             "content": r[2],
             "source_file": r[0],
+            "chapter_title": r[8] or "",
             "section_title": r[1] or "",
             "document_title": r[3] or "",
             "game_system": r[4] or "",
@@ -236,10 +239,12 @@ def ask(
             "Please ingest PDFs first: run load_tabletop_rules_docs.py and embed_tabletop_rules.py"
         )
 
-    # Build context with metadata
+    # Build context with metadata including chapter location
     context_parts = []
     for c in chunks:
         source_info = f"[{c['source_file']}"
+        if c.get("chapter_title"):
+            source_info += f" | Chapter: {c['chapter_title']}"
         if c.get("section_title"):
             source_info += f" | {c['section_title']}"
         if c.get("game_system"):

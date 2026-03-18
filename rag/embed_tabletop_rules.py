@@ -35,7 +35,8 @@ def embed_all() -> None:
             f.document_title,
             f.game_system,
             f.content_type,
-            f.tags
+            f.tags,
+            c.chapter_title
         FROM documents_tabletop_rules.chunks c
         LEFT JOIN documents_tabletop_rules.files f ON c.source_file = f.source_file
         ORDER BY c.chunk_id
@@ -78,6 +79,7 @@ def embed_all() -> None:
             "game_system": r[5] or "",
             "content_type": r[6] or "",
             "tags": r[7] or "",
+            "chapter_title": r[8] or "",
         }
         for r in rows
     ]
