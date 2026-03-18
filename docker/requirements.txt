@@ -29,6 +29,7 @@ s3fs==2026.2.0
 
 # PDF parsing
 docling==2.31.0
+pymupdf==1.25.4
 
 # RAG layer
 langchain==1.2.10

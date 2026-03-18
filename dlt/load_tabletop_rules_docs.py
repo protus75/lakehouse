@@ -19,6 +19,7 @@ import multiprocessing as mp
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import duckdb
+import fitz  # pymupdf
 from docling.document_converter import DocumentConverter
 
 
@@ -58,48 +59,59 @@ def init_schema(conn: duckdb.DuckDBPyConnection) -> None:
     """)
 
 
-def _find_plain_text_supplement(title: str, plain_text: str) -> str:
-    """
-    Find the section in plain text that matches a markdown heading title.
-    Returns lines from plain text that aren't already in the markdown section,
-    capturing structured fields (e.g. spell stats) that markdown export drops.
-    """
-    if not title or not plain_text:
+def extract_raw_text(filepath: Path) -> str:
+    """Extract all text from a PDF using pymupdf, preserving positional layout.
+    This catches multi-column fields that Docling's layout analysis may drop."""
+    doc = fitz.open(str(filepath))
+    pages = []
+    for page in doc:
+        pages.append(page.get_text("text"))
+    doc.close()
+    return "\n".join(pages)
+
+
+def _find_raw_supplement(title: str, raw_text: str) -> str:
+    """Find the section matching a heading in pymupdf raw text and return
+    nearby lines that contain structured fields (key: value patterns)
+    like 'Casting Time:', 'Components:', 'Saving Throw:', etc."""
+    if not title or not raw_text:
         return ""
 
-    # Find the title in plain text and grab the lines immediately following it
     pattern = re.compile(re.escape(title), re.IGNORECASE)
-    match = pattern.search(plain_text)
+    match = pattern.search(raw_text)
     if not match:
         return ""
 
-    # Grab up to 500 chars after the title match for the structured header block
-    start = match.end()
-    block = plain_text[start:start + 500]
+    block = raw_text[match.end():match.end() + 800]
 
-    # Take lines until we hit a blank line gap (end of the header block)
-    header_lines = []
+    field_pattern = re.compile(
+        r"(Range|Components|Duration|Casting Time|Area of Effect|Saving Throw|Sphere|Level)"
+        r"\s*:\s*.+",
+        re.IGNORECASE,
+    )
+
+    fields = []
     for line in block.split("\n"):
         stripped = line.strip()
-        if not stripped and header_lines:
+        if field_pattern.match(stripped):
+            fields.append(stripped)
+        if len(fields) >= 8:
             break
-        if stripped:
-            header_lines.append(stripped)
 
-    return "\n".join(header_lines)
+    return "\n".join(fields)
 
 
 def chunk_markdown(
     markdown: str,
     max_chars: int = 800,
     overlap: int = 200,
-    plain_text: str = "",
+    raw_text: str = "",
 ) -> list[dict]:
     """
     Split markdown by headings (H1-H4), then by paragraphs if sections exceed max_chars.
     Adds overlap between consecutive chunks within a section for better retrieval.
-    Supplements the first chunk of each section with structured fields from plain_text
-    export that markdown export may have dropped (e.g. spell stats, table rows).
+    Supplements the first chunk of each section with structured fields extracted by
+    pymupdf that Docling may have dropped (e.g. multi-column spell stat blocks).
     Returns list of dicts with keys: section_title, content
     """
     # Split on markdown headings (# ## ### ####)
@@ -115,14 +127,12 @@ def chunk_markdown(
         lines = section.split("\n", 1)
         title = lines[0].lstrip("#").strip() if lines[0].startswith("#") else None
 
-        # Supplement with structured fields from plain text that markdown may have lost
-        if title and plain_text:
-            supplement = _find_plain_text_supplement(title, plain_text)
+        # Supplement with structured fields from pymupdf raw text
+        if title and raw_text:
+            supplement = _find_raw_supplement(title, raw_text)
             if supplement:
-                # Insert the plain text fields right after the heading
                 heading_line = lines[0]
                 body = lines[1].strip() if len(lines) > 1 else ""
-                # Only add lines that aren't already present in the markdown
                 new_lines = [
                     ln for ln in supplement.split("\n")
                     if ln.strip() and ln.strip().lower() not in section.lower()
@@ -141,7 +151,6 @@ def chunk_markdown(
             for para in paragraphs:
                 if len(current) + len(para) + 2 > max_chars and current:
                     section_chunks.append(current.strip())
-                    # Keep trailing paragraphs as overlap for next chunk
                     overlap_text = current.strip()[-overlap:] if overlap > 0 else ""
                     current = overlap_text + "\n\n" + para if overlap_text else para
                 else:
@@ -166,8 +175,8 @@ def parse_pdf(filepath: Path) -> tuple[str, list[dict]] | None:
         converter = DocumentConverter()
         result = converter.convert(str(filepath))
         markdown = result.document.export_to_markdown()
-        plain_text = result.document.export_to_text()
-        chunks = chunk_markdown(markdown, plain_text=plain_text)
+        raw_text = extract_raw_text(filepath)
+        chunks = chunk_markdown(markdown, raw_text=raw_text)
 
         elapsed = time.time() - start
         print(f"    ✓ Done in {elapsed:.1f}s → {len(chunks)} chunks")
