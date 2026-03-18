@@ -134,6 +134,7 @@ services:
       - ../chroma_db:/workspace/chroma_db
       - ../db/duckdb:/workspace/db
       - ../cache/huggingface:/workspace/.cache/huggingface
+      - ../cache/datalab:/root/.cache/datalab
     environment:
       HF_HOME: /workspace/.cache/huggingface
       S3_ENDPOINT: http://seaweedfs-s3:8333

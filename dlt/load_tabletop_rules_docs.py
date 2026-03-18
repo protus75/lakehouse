@@ -67,14 +67,24 @@ def init_schema(conn: duckdb.DuckDBPyConnection) -> None:
 
 # ── Pass 1: Marker extraction ───────────────────────────────────
 
+_marker_models = None
+
+def _get_marker_models():
+    """Lazy-load Marker models once and reuse across files."""
+    global _marker_models
+    if _marker_models is None:
+        from marker.models import create_model_dict
+        _marker_models = create_model_dict()
+    return _marker_models
+
+
 def extract_with_marker(filepath: Path) -> str:
     """Use Marker for layout-aware PDF to markdown conversion.
     Marker handles multi-column layouts, reading order, and tables."""
     from marker.converters.pdf import PdfConverter
-    from marker.config.parser import ConfigParser
 
-    config = ConfigParser({"output_format": "markdown"})
-    converter = PdfConverter(config=config)
+    models = _get_marker_models()
+    converter = PdfConverter(artifact_dict=models)
     rendered = converter(str(filepath))
     return rendered.markdown
 

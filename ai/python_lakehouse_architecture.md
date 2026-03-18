@@ -1550,7 +1550,15 @@ winget install Ollama.Ollama
 
 Close and reopen PowerShell after install.
 
-**Start Ollama and bind to all interfaces** so Docker containers can reach it:
+**Move model storage to D drive** (PowerShell as Administrator) — Ollama defaults to `C:\Users\<user>\.ollama\models` which fills the OS drive. Set the system environment variable so all models are stored on D:
+
+```powershell
+[System.Environment]::SetEnvironmentVariable("OLLAMA_MODELS", "D:\ollama\models", "Machine")
+```
+
+Close and reopen PowerShell after setting this.
+
+**Start Ollama and bind to all interfaces** so Docker containers can reach it (PowerShell):
 
 ```powershell
 $env:OLLAMA_HOST = "0.0.0.0:11434"
@@ -1560,12 +1568,13 @@ ollama serve
 **Pull the model** (open a second PowerShell tab):
 
 ```powershell
-# Llama 3 70B at Q4 quantization — fits in 24 GB VRAM
 ollama pull llama3:70b
+```
 
-# Verify GPU is being used
+**Verify GPU is being used** (same PowerShell tab):
+
+```powershell
 ollama run llama3:70b "Say hello"
-# Check GPU utilization: nvidia-smi (should show GPU memory in use)
 ```
 
 > **RTX 4090 performance:** Llama 3 70B at Q4 runs at ~50–80 tokens/second — fast enough for interactive RAG queries with no per-call API costs.
