@@ -249,10 +249,54 @@ def merge_vlm_into_markdown(
 
 # ── Chapter-aligned chunking ────────────────────────────────────
 
-def parse_book_structure(markdown: str) -> list[dict]:
-    """Parse markdown into a hierarchical book structure:
-    chapter (H1) > section (H2) > entry (H3/H4).
-    Returns a flat list of entries with their chapter/section context."""
+def extract_toc_chapters(filepath: Path) -> list[str]:
+    """Extract chapter titles from the PDF table of contents using pymupdf.
+    Looks for lines matching 'Chapter N: Title' or 'Appendix N: Title' patterns
+    in the first 15 pages of the PDF."""
+    doc = fitz.open(str(filepath))
+    chapters = []
+    for page_num in range(min(15, len(doc))):
+        text = doc[page_num].get_text("text")
+        for match in re.finditer(
+            r"(Chapter\s+\d+\s*:\s*[^\n.]+|Appendix\s+\d*\s*:?\s*[^\n.]+)",
+            text,
+            re.IGNORECASE,
+        ):
+            title = match.group(1).strip()
+            # Clean up dots and trailing whitespace from ToC formatting
+            title = re.sub(r"\s*\.{2,}.*", "", title).strip()
+            if title and title not in chapters:
+                chapters.append(title)
+    doc.close()
+    print(f"    ToC: found {len(chapters)} chapters")
+    return chapters
+
+
+def _clean_heading(text: str) -> str:
+    """Strip markdown bold markers and extra whitespace from a heading."""
+    return re.sub(r"\*+", "", text).strip()
+
+
+def _match_chapter(heading: str, toc_chapters: list[str]) -> str | None:
+    """Match a markdown heading against ToC chapter titles.
+    Returns the matched chapter title or None."""
+    clean = _clean_heading(heading).lower()
+    for chapter in toc_chapters:
+        # Check if the chapter title appears in the heading or vice versa
+        chapter_lower = chapter.lower()
+        # Extract just the name part after "Chapter N:"
+        chapter_name = re.sub(r"^(chapter|appendix)\s+\d+\s*:?\s*", "", chapter_lower).strip()
+        if chapter_name and (chapter_name in clean or clean in chapter_name):
+            return chapter
+        if chapter_lower in clean or clean in chapter_lower:
+            return chapter
+    return None
+
+
+def parse_book_structure(markdown: str, toc_chapters: list[str]) -> list[dict]:
+    """Parse markdown into a hierarchical book structure using ToC chapter titles
+    extracted from the PDF for accurate chapter assignment.
+    Returns a flat list of entries with chapter/section/entry context."""
     entries = []
     current_chapter = None
     current_section = None
@@ -260,7 +304,6 @@ def parse_book_structure(markdown: str) -> list[dict]:
     lines = markdown.split("\n")
     current_content = []
     current_entry_title = None
-    current_level = 0
 
     def flush_entry():
         if current_content:
@@ -280,22 +323,41 @@ def parse_book_structure(markdown: str) -> list[dict]:
 
         if h1:
             flush_entry()
-            current_chapter = h1.group(1).strip()
-            current_section = None
-            current_entry_title = None
+            heading_text = h1.group(1).strip()
+            matched = _match_chapter(heading_text, toc_chapters)
+            if matched:
+                current_chapter = matched
+                current_section = None
+                current_entry_title = None
+            else:
+                # H1 that doesn't match a chapter becomes a section
+                current_section = _clean_heading(heading_text)
+                current_entry_title = None
             current_content = [line]
-            current_level = 1
         elif h2:
             flush_entry()
-            current_section = h2.group(1).strip()
-            current_entry_title = None
+            heading_text = h2.group(1).strip()
+            matched = _match_chapter(heading_text, toc_chapters)
+            if matched:
+                # Sometimes chapters appear as H2 in Marker output
+                current_chapter = matched
+                current_section = None
+                current_entry_title = None
+            else:
+                current_section = _clean_heading(heading_text)
+                current_entry_title = None
             current_content = [line]
-            current_level = 2
         elif h3_h4:
             flush_entry()
-            current_entry_title = h3_h4.group(1).strip()
+            heading_text = h3_h4.group(1).strip()
+            matched = _match_chapter(heading_text, toc_chapters)
+            if matched:
+                current_chapter = matched
+                current_section = None
+                current_entry_title = None
+            else:
+                current_entry_title = _clean_heading(heading_text)
             current_content = [line]
-            current_level = 3
         else:
             current_content.append(line)
 
@@ -388,7 +450,9 @@ def parse_pdf(filepath: Path, use_vlm: bool = True) -> tuple[str, list[dict]] | 
             else:
                 print(f"    Pass 2: No incomplete pages detected, skipping VLM")
 
-        entries = parse_book_structure(markdown)
+        print(f"    Extracting table of contents...")
+        toc_chapters = extract_toc_chapters(filepath)
+        entries = parse_book_structure(markdown, toc_chapters)
         chunks = chunk_entries(entries)
 
         elapsed = time.time() - start

@@ -271,7 +271,7 @@ ANSWER:"""
         response = requests.post(
             f"{OLLAMA_URL}/api/generate",
             json={"model": model, "prompt": prompt, "stream": False},
-            timeout=120,
+            timeout=600,
         )
         response.raise_for_status()
         answer = response.json()["response"]
