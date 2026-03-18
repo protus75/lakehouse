@@ -249,12 +249,12 @@ def merge_vlm_into_markdown(
 
 # ── Chapter-aligned chunking ────────────────────────────────────
 
-def extract_toc_chapters(filepath: Path) -> list[str]:
-    """Extract chapter titles from the PDF table of contents using pymupdf.
-    Looks for lines matching 'Chapter N: Title' or 'Appendix N: Title' patterns
-    in the first 15 pages of the PDF."""
+def extract_toc_entries(filepath: Path) -> dict:
+    """Extract chapter and table titles from the PDF table of contents using pymupdf.
+    Returns a dict with 'chapters' and 'tables' lists."""
     doc = fitz.open(str(filepath))
     chapters = []
+    tables = []
     for page_num in range(min(15, len(doc))):
         text = doc[page_num].get_text("text")
         for match in re.finditer(
@@ -263,13 +263,21 @@ def extract_toc_chapters(filepath: Path) -> list[str]:
             re.IGNORECASE,
         ):
             title = match.group(1).strip()
-            # Clean up dots and trailing whitespace from ToC formatting
             title = re.sub(r"\s*\.{2,}.*", "", title).strip()
             if title and title not in chapters:
                 chapters.append(title)
+        for match in re.finditer(
+            r"(Table\s+\d+\s*:\s*[^\n.]+)",
+            text,
+            re.IGNORECASE,
+        ):
+            title = match.group(1).strip()
+            title = re.sub(r"\s*\.{2,}.*", "", title).strip()
+            if title and title not in tables:
+                tables.append(title)
     doc.close()
-    print(f"    ToC: found {len(chapters)} chapters")
-    return chapters
+    print(f"    ToC: found {len(chapters)} chapters, {len(tables)} tables")
+    return {"chapters": chapters, "tables": tables}
 
 
 def _clean_heading(text: str) -> str:
@@ -277,26 +285,52 @@ def _clean_heading(text: str) -> str:
     return re.sub(r"\*+", "", text).strip()
 
 
-def _match_chapter(heading: str, toc_chapters: list[str]) -> str | None:
-    """Match a markdown heading against ToC chapter titles.
-    Returns the matched chapter title or None."""
+INDEX_HEADINGS = {
+    "index",
+    "alphabetical index",
+    "general index",
+    "spell index",
+    "priest spell index",
+    "wizard spell index",
+    "spell list",
+    "priest spell list",
+    "wizard spell list",
+}
+
+
+def _match_toc_entry(heading: str, toc_list: list[str]) -> str | None:
+    """Match a markdown heading against a list of ToC titles.
+    Returns the matched title or None."""
     clean = _clean_heading(heading).lower()
-    for chapter in toc_chapters:
-        # Check if the chapter title appears in the heading or vice versa
-        chapter_lower = chapter.lower()
-        # Extract just the name part after "Chapter N:"
-        chapter_name = re.sub(r"^(chapter|appendix)\s+\d+\s*:?\s*", "", chapter_lower).strip()
-        if chapter_name and (chapter_name in clean or clean in chapter_name):
-            return chapter
-        if chapter_lower in clean or clean in chapter_lower:
-            return chapter
+    for entry in toc_list:
+        entry_lower = entry.lower()
+        # Extract just the name part after "Chapter N:" / "Table N:" / "Appendix N:"
+        name = re.sub(
+            r"^(chapter|appendix|table)\s+\d+\s*:?\s*", "", entry_lower
+        ).strip()
+        if name and (name in clean or clean in name):
+            return entry
+        if entry_lower in clean or clean in entry_lower:
+            return entry
     return None
 
 
-def parse_book_structure(markdown: str, toc_chapters: list[str]) -> list[dict]:
-    """Parse markdown into a hierarchical book structure using ToC chapter titles
-    extracted from the PDF for accurate chapter assignment.
+def _is_index_heading(heading: str) -> bool:
+    """Check if a heading marks the start of a book index or spell index."""
+    clean = _clean_heading(heading).lower()
+    if clean in INDEX_HEADINGS:
+        return True
+    return "index" in clean and ("spell" in clean or clean.endswith("index"))
+
+
+def parse_book_structure(markdown: str, toc_entries: dict) -> list[dict]:
+    """Parse markdown into a hierarchical book structure using ToC entries
+    extracted from the PDF for accurate chapter and table assignment.
+    Stops processing when it hits the Index section.
     Returns a flat list of entries with chapter/section/entry context."""
+    toc_chapters = toc_entries["chapters"]
+    toc_tables = toc_entries["tables"]
+
     entries = []
     current_chapter = None
     current_section = None
@@ -304,6 +338,7 @@ def parse_book_structure(markdown: str, toc_chapters: list[str]) -> list[dict]:
     lines = markdown.split("\n")
     current_content = []
     current_entry_title = None
+    in_index = False
 
     def flush_entry():
         if current_content:
@@ -321,28 +356,47 @@ def parse_book_structure(markdown: str, toc_chapters: list[str]) -> list[dict]:
         h2 = re.match(r"^##\s+(.+)", line)
         h3_h4 = re.match(r"^#{3,4}\s+(.+)", line)
 
+        heading_match = h1 or h2 or h3_h4
+        if heading_match:
+            heading_text = heading_match.group(1).strip()
+
+            # Stop processing at the Index
+            if _is_index_heading(heading_text):
+                flush_entry()
+                in_index = True
+                print(f"    Skipping index section: '{_clean_heading(heading_text)}'")
+                break
+
+            # Check if this heading matches a named table from the ToC
+            table_match = _match_toc_entry(heading_text, toc_tables)
+
+        if in_index:
+            continue
+
         if h1:
             flush_entry()
             heading_text = h1.group(1).strip()
-            matched = _match_chapter(heading_text, toc_chapters)
+            matched = _match_toc_entry(heading_text, toc_chapters)
             if matched:
                 current_chapter = matched
                 current_section = None
                 current_entry_title = None
+            elif table_match:
+                current_entry_title = table_match
             else:
-                # H1 that doesn't match a chapter becomes a section
                 current_section = _clean_heading(heading_text)
                 current_entry_title = None
             current_content = [line]
         elif h2:
             flush_entry()
             heading_text = h2.group(1).strip()
-            matched = _match_chapter(heading_text, toc_chapters)
+            matched = _match_toc_entry(heading_text, toc_chapters)
             if matched:
-                # Sometimes chapters appear as H2 in Marker output
                 current_chapter = matched
                 current_section = None
                 current_entry_title = None
+            elif table_match:
+                current_entry_title = table_match
             else:
                 current_section = _clean_heading(heading_text)
                 current_entry_title = None
@@ -350,18 +404,21 @@ def parse_book_structure(markdown: str, toc_chapters: list[str]) -> list[dict]:
         elif h3_h4:
             flush_entry()
             heading_text = h3_h4.group(1).strip()
-            matched = _match_chapter(heading_text, toc_chapters)
+            matched = _match_toc_entry(heading_text, toc_chapters)
             if matched:
                 current_chapter = matched
                 current_section = None
                 current_entry_title = None
+            elif table_match:
+                current_entry_title = table_match
             else:
                 current_entry_title = _clean_heading(heading_text)
             current_content = [line]
         else:
             current_content.append(line)
 
-    flush_entry()
+    if not in_index:
+        flush_entry()
     return entries
 
 
@@ -451,8 +508,8 @@ def parse_pdf(filepath: Path, use_vlm: bool = True) -> tuple[str, list[dict]] | 
                 print(f"    Pass 2: No incomplete pages detected, skipping VLM")
 
         print(f"    Extracting table of contents...")
-        toc_chapters = extract_toc_chapters(filepath)
-        entries = parse_book_structure(markdown, toc_chapters)
+        toc_entries = extract_toc_entries(filepath)
+        entries = parse_book_structure(markdown, toc_entries)
         chunks = chunk_entries(entries)
 
         elapsed = time.time() - start
