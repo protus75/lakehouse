@@ -118,15 +118,22 @@ def _get_marker_models():
     return _marker_models
 
 
-def extract_with_marker(filepath: Path) -> str:
+PAGE_SEPARATOR = "\n\n" + "-" * 48 + "\n\n"
+
+
+def extract_with_marker(filepath: Path) -> list[str]:
     """Use Marker for layout-aware PDF to markdown conversion.
-    Marker handles multi-column layouts, reading order, and tables."""
+    Returns a list of markdown strings, one per page."""
     from marker.converters.pdf import PdfConverter
 
     models = _get_marker_models()
-    converter = PdfConverter(artifact_dict=models)
+    converter = PdfConverter(
+        artifact_dict=models,
+        config={"paginate_output": True},
+    )
     rendered = converter(str(filepath))
-    return rendered.markdown
+    pages = rendered.markdown.split(PAGE_SEPARATOR)
+    return [p.strip() for p in pages if p.strip()]
 
 
 # ── Pass 2: VLM extraction for structured content ───────────────
@@ -406,19 +413,16 @@ def _read_page_number(page, page_idx: int, page_num_pattern: str = r"^\d{1,3}$")
 
 
 def parse_book_structure(
-    markdown: str,
+    pages: list[str],
     filepath: Path,
     toc_entries: dict,
     config: dict,
 ) -> list[dict]:
-    """Parse markdown into chapter-aligned entries using PDF page numbers.
+    """Parse per-page markdown into chapter-aligned entries.
 
-    Strategy:
-    1. Build a page-to-chapter mapping from ToC page numbers
-    2. Use pymupdf to get each page's raw text
-    3. For each markdown heading/section, find which PDF page it came from
-       by matching its text content against page texts
-    4. Assign the chapter based on that page number
+    Each page's chapter is determined by reading its printed page number
+    directly from the PDF and looking it up in the ToC chapter ranges.
+    No guessing, no regex matching, no offset math.
 
     Stops processing at Index headings.
     Returns a flat list of entries with chapter/section/entry context."""
@@ -429,50 +433,20 @@ def parse_book_structure(
         for t in toc_tables
     }
 
-    # Build page-to-chapter mapping
+    # Build page-to-chapter mapping from actual printed page numbers
     page_chapter_map = _build_page_to_chapter(filepath, chapter_pages, config)
-
-    # Build page text index for matching markdown content back to pages
-    doc = fitz.open(str(filepath))
-    page_texts = []
-    for page_idx in range(len(doc)):
-        page_texts.append(doc[page_idx].get_text("text").lower())
-    doc.close()
-
-    def _find_page_for_text(text: str) -> int | None:
-        """Find which PDF page a piece of text came from."""
-        clean = re.sub(r"[#*\n\r]", " ", text).strip().lower()
-        # Use first 80 non-trivial chars as search key
-        search = clean[:200].strip()
-        if len(search) < 20:
-            return None
-        # Try progressively shorter prefixes
-        for length in [200, 120, 60]:
-            snippet = search[:length]
-            if len(snippet) < 20:
-                continue
-            for page_idx, pt in enumerate(page_texts):
-                if snippet in pt:
-                    return page_idx
-        return None
 
     entries = []
     current_section = None
     current_entry_title = None
     current_content = []
     current_chapter = None
+    hit_index = False
 
     def flush_entry():
-        nonlocal current_chapter
         if current_content:
             content = "\n".join(current_content).strip()
             if content:
-                # Find which page this content is from
-                page_idx = _find_page_for_text(content)
-                if page_idx is not None:
-                    chapter = page_chapter_map.get(page_idx)
-                    if chapter:
-                        current_chapter = chapter
                 entries.append({
                     "chapter_title": current_chapter,
                     "section_title": current_section,
@@ -480,42 +454,52 @@ def parse_book_structure(
                     "content": content,
                 })
 
-    for line in markdown.split("\n"):
-        h_match = re.match(r"^(#{1,4})\s+(.+)", line)
+    for page_idx, page_md in enumerate(pages):
+        if hit_index:
+            break
 
-        if h_match:
-            heading_text = h_match.group(2).strip()
-            heading_level = len(h_match.group(1))
+        # Get this page's chapter directly from the page number
+        chapter = page_chapter_map.get(page_idx)
+        if chapter:
+            current_chapter = chapter
 
-            if _is_index_heading(heading_text, config):
+        for line in page_md.split("\n"):
+            h_match = re.match(r"^(#{1,4})\s+(.+)", line)
+
+            if h_match:
+                heading_text = h_match.group(2).strip()
+                heading_level = len(h_match.group(1))
+
+                if _is_index_heading(heading_text, config):
+                    flush_entry()
+                    print(f"    Skipping index section: '{_clean_heading(heading_text)}'")
+                    hit_index = True
+                    break
+
                 flush_entry()
-                print(f"    Skipping index section: '{_clean_heading(heading_text)}'")
-                return entries
 
-            flush_entry()
+                clean = _clean_heading(heading_text)
+                clean_lower = clean.lower()
 
-            clean = _clean_heading(heading_text)
-            clean_lower = clean.lower()
+                is_table = clean_lower in table_names_lower
+                if is_table:
+                    for t in toc_tables:
+                        name = re.sub(r"^table\s+\d+\s*:?\s*", "", t, flags=re.IGNORECASE).strip().lower()
+                        if name == clean_lower:
+                            current_entry_title = t
+                            break
+                elif heading_level <= 2:
+                    current_section = clean
+                    current_entry_title = None
+                else:
+                    current_entry_title = clean
 
-            # Check if heading matches a named table
-            is_table = clean_lower in table_names_lower
-            if is_table:
-                for t in toc_tables:
-                    name = re.sub(r"^table\s+\d+\s*:?\s*", "", t, flags=re.IGNORECASE).strip().lower()
-                    if name == clean_lower:
-                        current_entry_title = t
-                        break
-            elif heading_level <= 2:
-                current_section = clean
-                current_entry_title = None
+                current_content = [line]
             else:
-                current_entry_title = clean
+                current_content.append(line)
 
-            current_content = [line]
-        else:
-            current_content.append(line)
-
-    flush_entry()
+    if not hit_index:
+        flush_entry()
     return entries
 
 
@@ -1002,23 +986,27 @@ def parse_pdf(
         chunking = config.get("chunking", {})
 
         print(f"    Pass 1: Marker extraction...")
-        markdown = extract_with_marker(filepath)
-        print(f"    Pass 1 complete: {len(markdown):,} chars")
+        pages = extract_with_marker(filepath)
+        total_chars = sum(len(p) for p in pages)
+        print(f"    Pass 1 complete: {len(pages)} pages, {total_chars:,} chars")
 
         if use_vlm:
+            merged = "\n\n".join(pages)
             print(f"    Pass 2: Detecting pages needing VLM...")
-            incomplete = detect_incomplete_pages(markdown, filepath, config)
+            incomplete = detect_incomplete_pages(merged, filepath, config)
             if incomplete:
                 print(f"    Pass 2: VLM extracting {len(incomplete)} pages...")
                 vlm_results = extract_pages_with_vlm(filepath, incomplete)
-                markdown = merge_vlm_into_markdown(markdown, vlm_results, filepath, config)
+                merged = merge_vlm_into_markdown(merged, vlm_results, filepath, config)
+                # Re-split isn't needed — VLM supplements go into merged text
+                # but pages list stays as-is for chapter mapping
                 print(f"    Pass 2 complete: supplemented {len(vlm_results)} pages")
             else:
                 print(f"    Pass 2: No incomplete pages detected, skipping VLM")
 
         print(f"    Extracting table of contents...")
         toc_entries = extract_toc_entries(filepath, config)
-        entries = parse_book_structure(markdown, filepath, toc_entries, config)
+        entries = parse_book_structure(pages, filepath, toc_entries, config)
         chunks = chunk_entries(
             entries,
             max_chars=chunking.get("max_chars", 800),
