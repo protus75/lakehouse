@@ -305,13 +305,13 @@ def extract_toc_entries(filepath: Path, config: dict) -> dict:
         for line in text.split("\n"):
             for chap_pat in chapter_patterns:
                 m = re.match(
-                    r"(" + chap_pat + r")\s*\.{2,}\s*\.?\s*(\d+)\s*$",
+                    r"(" + chap_pat + r")\s*(?:\.[\s.]*){2,}\s*(\d+)\s*$",
                     line.strip(),
                     re.IGNORECASE,
                 )
                 if m:
                     title = m.group(1).strip()
-                    title = re.sub(r"\s*\.{2,}.*", "", title).strip()
+                    title = re.sub(r"\s*(?:\.[\s.]*){2,}.*", "", title).strip()
                     pg = int(m.group(2))
                     if title not in seen_chapters:
                         seen_chapters.add(title)
@@ -319,13 +319,13 @@ def extract_toc_entries(filepath: Path, config: dict) -> dict:
 
             if table_pattern:
                 m = re.match(
-                    r"(" + table_pattern + r")\s*\.{2,}\s*\.?\s*(\d+)\s*$",
+                    r"(" + table_pattern + r")\s*(?:\.[\s.]*){2,}\s*(\d+)\s*$",
                     line.strip(),
                     re.IGNORECASE,
                 )
                 if m:
                     title = m.group(1).strip()
-                    title = re.sub(r"\s*\.{2,}.*", "", title).strip()
+                    title = re.sub(r"\s*(?:\.[\s.]*){2,}.*", "", title).strip()
                     if title not in seen_tables:
                         seen_tables.add(title)
                         tables.append(title)
@@ -352,67 +352,57 @@ def _is_index_heading(heading: str, config: dict) -> bool:
     return "index" in clean and clean.endswith("index")
 
 
-def _chapter_for_page(pdf_page: int, chapter_pages: list[tuple[str, int]]) -> str | None:
-    """Given a PDF page number, return which chapter it belongs to.
+def _chapter_for_page(page_num: int, chapter_pages: list[tuple[str, int]]) -> str | None:
+    """Given a page number, return which chapter it belongs to.
     chapter_pages is sorted by page number ascending."""
     current = None
     for title, start_page in chapter_pages:
-        if start_page > pdf_page:
+        if start_page > page_num:
             break
         current = title
     return current
 
 
-def _build_page_to_chapter(filepath: Path, chapter_pages: list[tuple[str, int]]) -> dict[int, str]:
-    """Build a mapping of PDF page index (0-based) to chapter title.
-    chapter_pages contains (title, page_number) where page_number is the
-    printed page number from the ToC."""
+def _build_page_to_chapter(
+    filepath: Path,
+    chapter_pages: list[tuple[str, int]],
+    config: dict,
+) -> dict[int, str]:
+    """Build a mapping of PDF page index to chapter title.
+    Reads the printed page number directly from each page's text content,
+    then maps it to the chapter range from the ToC."""
+    page_num_pattern = config.get("toc", {}).get("page_number_pattern", r"^\d{1,3}$")
     doc = fitz.open(str(filepath))
-    total_pages = len(doc)
-    doc.close()
-
-    # The ToC page numbers are printed page numbers. PDF page indices are 0-based.
-    # We need to find the offset between them.
-    # Typically the first few pages (cover, ToC) aren't numbered, so printed page 1
-    # might be PDF page index 4 or 5. We detect this by finding the first chapter's
-    # page number in the ToC and searching for its title in the PDF.
-    offset = _detect_page_offset(filepath, chapter_pages)
-
     mapping = {}
-    for page_idx in range(total_pages):
-        printed_page = page_idx - offset + 1
+
+    for page_idx in range(len(doc)):
+        printed_page = _read_page_number(doc[page_idx], page_idx, page_num_pattern)
         mapping[page_idx] = _chapter_for_page(printed_page, chapter_pages)
 
+    doc.close()
     return mapping
 
 
-def _detect_page_offset(filepath: Path, chapter_pages: list[tuple[str, int]]) -> int:
-    """Detect the offset between PDF page index (0-based) and printed page numbers.
-    Searches for the first chapter's title text near its expected page."""
-    if not chapter_pages:
-        return 0
+def _read_page_number(page, page_idx: int, page_num_pattern: str = r"^\d{1,3}$") -> int:
+    """Read the printed page number from a PDF page's text.
+    Searches near the end of the text first (bottom of page), then the top.
+    Falls back to the PDF page index if no printed number is found."""
+    text = page.get_text("text")
+    lines = text.split("\n")
 
-    first_title, first_page = chapter_pages[0]
-    # Extract just the name part for searching
-    name = re.sub(r"^(chapter|appendix)\s+\d+\s*:?\s*", "", first_title, flags=re.IGNORECASE).strip()
-    if not name:
-        name = first_title
+    # Search from the end — page numbers are typically near the bottom
+    for line in reversed(lines):
+        stripped = line.strip()
+        if stripped and re.match(page_num_pattern, stripped):
+            return int(re.search(r"\d+", stripped).group())
 
-    doc = fitz.open(str(filepath))
-    # Search pages around the expected location
-    for test_offset in range(-2, 10):
-        page_idx = first_page - 1 + test_offset
-        if 0 <= page_idx < len(doc):
-            text = doc[page_idx].get_text("text")
-            if name.lower() in text.lower():
-                doc.close()
-                offset = page_idx - first_page + 1
-                print(f"    Page offset detected: {offset} ('{name}' found on PDF page {page_idx + 1})")
-                return offset
+    # Fallback: also check the first few lines (some layouts put page number at top)
+    for line in lines[:5]:
+        stripped = line.strip()
+        if stripped and re.match(page_num_pattern, stripped):
+            return int(re.search(r"\d+", stripped).group())
 
-    doc.close()
-    print(f"    Page offset: using default 0 (could not detect)")
-    return 0
+    return page_idx
 
 
 def parse_book_structure(
@@ -440,7 +430,7 @@ def parse_book_structure(
     }
 
     # Build page-to-chapter mapping
-    page_chapter_map = _build_page_to_chapter(filepath, chapter_pages)
+    page_chapter_map = _build_page_to_chapter(filepath, chapter_pages, config)
 
     # Build page text index for matching markdown content back to pages
     doc = fitz.open(str(filepath))

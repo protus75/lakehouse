@@ -11,6 +11,9 @@ toc:
     - '(?:Chapter|Appendix|Part|Section)\s+\d*\s*:?\s*[A-Za-z].*'
   table_pattern: 'Table\s+\d+\s*:?\s*[A-Za-z].*'
   toc_scan_pages: 15
+  # Regex to find the printed page number on each page (standalone 1-3 digit number)
+  # Search order: bottom of page first, then top
+  page_number_pattern: '^\d{1,3}$'
 
 index_headings:
   - "index"

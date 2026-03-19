@@ -1281,8 +1281,11 @@ localhostForwarding=true
 
 [experimental]
 
-# Release WSL2 RAM back to Windows after heavy DuckDB workloads
-autoMemoryReclaim=gradual
+# Release WSL2 RAM back to Windows immediately when idle
+# "dropcache" is more aggressive than "gradual" — drops Linux page cache on idle
+# Critical for ML workloads (Marker, Sentence Transformers) that allocate large
+# amounts of memory then release it, but WSL2 holds onto the pages
+autoMemoryReclaim=dropcache
 
 # Shrink the WSL2 .vhdx automatically when files are deleted (saves NVMe space)
 sparseVhd=true

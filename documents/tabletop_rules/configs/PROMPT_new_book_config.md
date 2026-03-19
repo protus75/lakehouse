@@ -30,13 +30,17 @@ book:
 toc:
   # Regex patterns to match chapter/section headings in the ToC
   # These extract "Title ... page_number" lines from the first N pages
-  # The pattern must match the TITLE portion; the pipeline appends "\.{2,}.*(\d+)$" for page numbers
+  # The pattern must match the TITLE portion; the pipeline appends dot-leader + page number matching
   chapter_patterns:
     - '(?:Chapter|Appendix)\s+\d*\s*:?\s*[A-Za-z].*'
   # Pattern for named tables in the ToC (set to "" if no named tables)
   table_pattern: 'Table\s+\d+\s*:\s*[A-Za-z].*'
   # How many PDF pages to scan for the ToC (front matter pages)
   toc_scan_pages: 15
+  # Regex to find the printed page number on each PDF page
+  # The pipeline reads this from the actual page text (bottom or top) to map content to chapters
+  # Must match a standalone page number. Adjust for books with roman numerals, "Page N", etc.
+  page_number_pattern: '^\d{1,3}$'
 
 # Headings that mark sections to EXCLUDE from parsing (indexes, spell lists with just names+pages)
 # Case-insensitive exact match, plus anything ending in "index" is auto-excluded
@@ -159,6 +163,7 @@ toc:
     - '(?:Chapter|Appendix)\s+\d*\s*:?\s*[A-Za-z].*'
   table_pattern: 'Table\s+\d+\s*:\s*[A-Za-z].*'
   toc_scan_pages: 15
+  page_number_pattern: '^\d{1,3}$'
 
 index_headings:
   - "index"
@@ -262,7 +267,7 @@ chunking:
 Using the table of contents and sample pages I provide below, create a complete YAML config file for my book. Specifically:
 
 1. **book** — fill in the title, game system, and content type
-2. **toc** — look at the ToC format and write regex patterns that match the chapter/section headings. Note whether chapters use "Chapter N:", "Part N:", roman numerals, or other formats
+2. **toc** — look at the ToC format and write regex patterns that match the chapter/section headings. Note whether chapters use "Chapter N:", "Part N:", roman numerals, or other formats. Also check the sample pages for how page numbers are printed (standalone number at bottom, "Page N", roman numerals, etc.) and write the `page_number_pattern` regex to match. The pipeline reads the actual printed page number from each page to map content to the correct chapter — this is critical for accuracy
 3. **index_headings** — identify any index or reference sections at the end that should be excluded
 4. **entry_types** — look at the sample pages for repeating structured entries (stat blocks). Identify:
    - What fields appear in each stat block (the "Key: Value" lines)
