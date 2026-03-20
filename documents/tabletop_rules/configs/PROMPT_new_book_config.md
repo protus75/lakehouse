@@ -49,6 +49,15 @@ index_headings:
   - "alphabetical index"
   # Add book-specific ones like "spell index", "monster index", etc.
 
+# ToC entries to exclude entirely from parsing — indexes, reference lists,
+# compiled tables, cross-reference sections, etc. Any chapter, appendix,
+# section, or table that lists entry names without actual content.
+# CRITICAL: these MUST be listed or the parser will match entry names in
+# reference pages instead of in actual content pages.
+exclude_chapters: []
+  # Examples: ["Appendix 7: Spell Index", "Chapter 15: Monster Index",
+  #            "Table of Weapons", "Quick Reference Charts"]
+
 # Entry types define structured content the book contains.
 # Each type has detection rules and metadata extraction patterns.
 # You can define multiple types (spell, monster, magic_item, feat, class_feature, etc.)
@@ -268,16 +277,17 @@ Using the table of contents and sample pages I provide below, create a complete 
 
 1. **book** — fill in the title, game system, and content type
 2. **toc** — look at the ToC format and write regex patterns that match the chapter/section headings. Note whether chapters use "Chapter N:", "Part N:", roman numerals, or other formats. Also check the sample pages for how page numbers are printed (standalone number at bottom, "Page N", roman numerals, etc.) and write the `page_number_pattern` regex to match. The pipeline reads the actual printed page number from each page to map content to the correct chapter — this is critical for accuracy
-3. **index_headings** — identify any index or reference sections at the end that should be excluded
-4. **entry_types** — look at the sample pages for repeating structured entries (stat blocks). Identify:
+3. **index_headings** — identify heading text within pages that marks an index section (e.g. "Index", "Spell Index")
+4. **exclude_chapters** — CRITICAL: list every ToC entry (chapter, appendix, section, table) that is a reference list, index, or compiled table rather than actual content. These contain entry names that would cause incorrect matching. Look for: spell lists, monster indexes, equipment tables, cross-reference appendices, compiled charts
+5. **entry_types** — look at the sample pages for repeating structured entries (stat blocks). Identify:
    - What fields appear in each stat block (the "Key: Value" lines)
    - Which fields distinguish entry categories (e.g. School vs Sphere for D&D spell types)
    - How entries are organized by chapter (which chapter keywords signal this entry type)
    - What level/tier system exists and how it appears in section titles
-5. **cross_references** — identify any existing index appendices in the ToC, and what groupings would be useful
-6. **vlm_detection_patterns** — combine all the stat block field patterns
-7. **prompts** — adapt the summary prompts to use terminology appropriate for this game system
-8. **chunking** — 800/200 is good for most books, but if entries are very short or very long, adjust
+6. **cross_references** — identify any existing index appendices in the ToC, and what groupings would be useful
+7. **vlm_detection_patterns** — combine all the stat block field patterns
+8. **prompts** — adapt the summary prompts to use terminology appropriate for this game system
+9. **chunking** — 800/200 is good for most books, but if entries are very short or very long, adjust
 
 Output ONLY the YAML config file with comments explaining your choices.
 

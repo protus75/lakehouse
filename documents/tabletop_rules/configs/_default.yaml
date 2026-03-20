@@ -20,6 +20,9 @@ index_headings:
   - "alphabetical index"
   - "general index"
 
+# Chapters to exclude entirely from page mapping and content
+exclude_chapters: []
+
 # No entry types defined — generic parsing only
 entry_types: {}
 

@@ -118,22 +118,15 @@ def _get_marker_models():
     return _marker_models
 
 
-PAGE_SEPARATOR = "\n\n" + "-" * 48 + "\n\n"
-
-
-def extract_with_marker(filepath: Path) -> list[str]:
+def extract_with_marker(filepath: Path) -> str:
     """Use Marker for layout-aware PDF to markdown conversion.
-    Returns a list of markdown strings, one per page."""
+    Returns the full markdown string."""
     from marker.converters.pdf import PdfConverter
 
     models = _get_marker_models()
-    converter = PdfConverter(
-        artifact_dict=models,
-        config={"paginate_output": True},
-    )
+    converter = PdfConverter(artifact_dict=models)
     rendered = converter(str(filepath))
-    pages = rendered.markdown.split(PAGE_SEPARATOR)
-    return [p.strip() for p in pages if p.strip()]
+    return rendered.markdown
 
 
 # ── Pass 2: VLM extraction for structured content ───────────────
@@ -377,14 +370,25 @@ def _build_page_to_chapter(
 ) -> dict[int, str]:
     """Build a mapping of PDF page index to chapter title.
     Reads the printed page number directly from each page's text content,
-    then maps it to the chapter range from the ToC."""
+    then maps it to the chapter range from the ToC.
+    Excludes index chapters so their pages map to None."""
     page_num_pattern = config.get("toc", {}).get("page_number_pattern", r"^\d{1,3}$")
+
+    # Exclude chapters listed in config — reference appendices, indexes, etc.
+    exclude_set = set(t.lower() for t in config.get("exclude_chapters", []))
+    filtered_chapters = []
+    for title, page in chapter_pages:
+        if title.lower() in exclude_set:
+            print(f"    Excluding chapter from page map: {title} (page {page})")
+        else:
+            filtered_chapters.append((title, page))
+
     doc = fitz.open(str(filepath))
     mapping = {}
 
     for page_idx in range(len(doc)):
         printed_page = _read_page_number(doc[page_idx], page_idx, page_num_pattern)
-        mapping[page_idx] = _chapter_for_page(printed_page, chapter_pages)
+        mapping[page_idx] = _chapter_for_page(printed_page, filtered_chapters)
 
     doc.close()
     return mapping
@@ -413,35 +417,70 @@ def _read_page_number(page, page_idx: int, page_num_pattern: str = r"^\d{1,3}$")
 
 
 def parse_book_structure(
-    pages: list[str],
+    markdown: str,
     filepath: Path,
     toc_entries: dict,
     config: dict,
 ) -> list[dict]:
-    """Parse per-page markdown into chapter-aligned entries.
+    """Parse Marker markdown for structure (headings, content, formatting).
+    Assign chapters by finding each heading in pymupdf page text in document order.
 
-    Each page's chapter is determined by reading its printed page number
-    directly from the PDF and looking it up in the ToC chapter ranges.
-    No guessing, no regex matching, no offset math.
+    - Marker markdown: headings, sections, entries, content (good formatting)
+    - pymupdf pages: chapter assignment via page numbers (always correct)
 
-    Stops processing at Index headings.
-    Returns a flat list of entries with chapter/section/entry context."""
+    For each heading in the markdown, search pymupdf pages forward from the
+    last match to find which page it's on. That page's chapter (from its
+    printed page number + ToC) becomes the heading's chapter. Forward-only
+    search handles duplicate headings (e.g. Bless in both Wizard and Priest)
+    correctly because Marker preserves document order."""
     chapter_pages = toc_entries["chapters"]
+    page_chapter_map = _build_page_to_chapter(filepath, chapter_pages, config)
+
     toc_tables = toc_entries["tables"]
     table_names_lower = {
         re.sub(r"^table\s+\d+\s*:?\s*", "", t, flags=re.IGNORECASE).strip().lower()
         for t in toc_tables
     }
 
-    # Build page-to-chapter mapping from actual printed page numbers
-    page_chapter_map = _build_page_to_chapter(filepath, chapter_pages, config)
+    # Load all pymupdf page texts for heading lookup
+    doc = fitz.open(str(filepath))
+    page_texts = [doc[i].get_text("text").lower() for i in range(len(doc))]
+    total_pages = len(doc)
+    doc.close()
+
+    # Pages that map to None (index/excluded chapters) — headings shouldn't match these
+    excluded_pages = {idx for idx, ch in page_chapter_map.items() if ch is None}
+
+    # Track which page we're on as we iterate through headings in order
+    last_matched_page = 0
+
+    def _find_heading_page(heading: str) -> int:
+        """Find which PDF page contains this heading text.
+        Searches forward only from last_matched_page — never wraps around.
+        This ensures duplicate headings (e.g. Bless in Wizard and Priest)
+        are matched in document order."""
+        nonlocal last_matched_page
+        h_lower = _clean_heading(heading).lower()
+        if len(h_lower) < 3:
+            return last_matched_page
+
+        # Search forward only from current position — no wrapping
+        # Skip excluded pages (index chapters)
+        for page_idx in range(last_matched_page, total_pages):
+            if page_idx in excluded_pages:
+                continue
+            if h_lower in page_texts[page_idx]:
+                last_matched_page = page_idx
+                return page_idx
+
+        # Not found ahead — don't go backwards, keep current position
+        return last_matched_page
 
     entries = []
+    current_chapter = None
     current_section = None
     current_entry_title = None
     current_content = []
-    current_chapter = None
-    hit_index = False
 
     def flush_entry():
         if current_content:
@@ -454,52 +493,54 @@ def parse_book_structure(
                     "content": content,
                 })
 
-    for page_idx, page_md in enumerate(pages):
-        if hit_index:
-            break
+    for line in markdown.split("\n"):
+        h_match = re.match(r"^(#{1,4})\s+(.+)", line)
 
-        # Get this page's chapter directly from the page number
-        chapter = page_chapter_map.get(page_idx)
-        if chapter:
-            current_chapter = chapter
+        if h_match:
+            heading_text = h_match.group(2).strip()
+            heading_level = len(h_match.group(1))
 
-        for line in page_md.split("\n"):
-            h_match = re.match(r"^(#{1,4})\s+(.+)", line)
-
-            if h_match:
-                heading_text = h_match.group(2).strip()
-                heading_level = len(h_match.group(1))
-
-                if _is_index_heading(heading_text, config):
-                    flush_entry()
-                    print(f"    Skipping index section: '{_clean_heading(heading_text)}'")
-                    hit_index = True
-                    break
-
+            if _is_index_heading(heading_text, config):
                 flush_entry()
+                print(f"    Skipping index section: '{_clean_heading(heading_text)}'")
+                return entries
 
-                clean = _clean_heading(heading_text)
-                clean_lower = clean.lower()
+            flush_entry()
 
-                is_table = clean_lower in table_names_lower
-                if is_table:
-                    for t in toc_tables:
-                        name = re.sub(r"^table\s+\d+\s*:?\s*", "", t, flags=re.IGNORECASE).strip().lower()
-                        if name == clean_lower:
-                            current_entry_title = t
-                            break
-                elif heading_level <= 2:
-                    current_section = clean
-                    current_entry_title = None
-                else:
-                    current_entry_title = clean
+            clean = _clean_heading(heading_text)
+            clean_lower = clean.lower()
 
-                current_content = [line]
+            # Find which page this heading is on and get its chapter
+            page_idx = _find_heading_page(heading_text)
+            chapter = page_chapter_map.get(page_idx)
+            if chapter and chapter != current_chapter:
+                current_chapter = chapter
+                # Reset section and entry when chapter changes —
+                # prevents stale section names from previous chapters
+                current_section = None
+                current_entry_title = None
+            # Also reset section when we cross a significant page boundary
+            # even within the same chapter (prevents section bleed across
+            # large gaps in page numbers)
+
+            is_table = clean_lower in table_names_lower
+            if is_table:
+                for t in toc_tables:
+                    name = re.sub(r"^table\s+\d+\s*:?\s*", "", t, flags=re.IGNORECASE).strip().lower()
+                    if name == clean_lower:
+                        current_entry_title = t
+                        break
+            elif heading_level <= 2:
+                current_section = clean
+                current_entry_title = None
             else:
-                current_content.append(line)
+                current_entry_title = clean
 
-    if not hit_index:
-        flush_entry()
+            current_content = [line]
+        else:
+            current_content.append(line)
+
+    flush_entry()
     return entries
 
 
@@ -986,27 +1027,23 @@ def parse_pdf(
         chunking = config.get("chunking", {})
 
         print(f"    Pass 1: Marker extraction...")
-        pages = extract_with_marker(filepath)
-        total_chars = sum(len(p) for p in pages)
-        print(f"    Pass 1 complete: {len(pages)} pages, {total_chars:,} chars")
+        markdown = extract_with_marker(filepath)
+        print(f"    Pass 1 complete: {len(markdown):,} chars")
 
         if use_vlm:
-            merged = "\n\n".join(pages)
             print(f"    Pass 2: Detecting pages needing VLM...")
-            incomplete = detect_incomplete_pages(merged, filepath, config)
+            incomplete = detect_incomplete_pages(markdown, filepath, config)
             if incomplete:
                 print(f"    Pass 2: VLM extracting {len(incomplete)} pages...")
                 vlm_results = extract_pages_with_vlm(filepath, incomplete)
-                merged = merge_vlm_into_markdown(merged, vlm_results, filepath, config)
-                # Re-split isn't needed — VLM supplements go into merged text
-                # but pages list stays as-is for chapter mapping
+                markdown = merge_vlm_into_markdown(markdown, vlm_results, filepath, config)
                 print(f"    Pass 2 complete: supplemented {len(vlm_results)} pages")
             else:
                 print(f"    Pass 2: No incomplete pages detected, skipping VLM")
 
         print(f"    Extracting table of contents...")
         toc_entries = extract_toc_entries(filepath, config)
-        entries = parse_book_structure(pages, filepath, toc_entries, config)
+        entries = parse_book_structure(markdown, filepath, toc_entries, config)
         chunks = chunk_entries(
             entries,
             max_chars=chunking.get("max_chars", 800),

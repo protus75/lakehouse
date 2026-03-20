@@ -208,7 +208,132 @@ def retrieve_context(
             seen.add(key)
             combined.append(chunk)
 
+    # Rerank: boost chunks that match the query type
+    combined = _rerank_results(query, combined)
+
     return combined[:n_results]
+
+
+# Fields that indicate a chunk is a spell/ability stat block
+_STAT_BLOCK_INDICATORS = [
+    "casting time:", "components:", "duration:", "range:",
+    "area of effect:", "saving throw:", "sphere:", "school:",
+    "power score:", "psp cost:",
+]
+
+# Words in a query that suggest the user is asking about a spell/ability
+_SPELL_QUERY_WORDS = {
+    "spell", "spells", "cast", "casting", "cantrip",
+    "level", "wizard", "priest", "cleric", "mage",
+    "school", "sphere", "component", "duration", "range",
+    "saving throw", "area of effect",
+}
+
+
+def _rerank_results(query: str, chunks: list[dict]) -> list[dict]:
+    """Rerank results with multiple relevance signals."""
+    query_lower = query.lower()
+    query_words = set(query_lower.split())
+    # Words longer than 2 chars for matching
+    query_terms = [w for w in query_words if len(w) > 2]
+
+    is_spell_query = bool(query_words & _SPELL_QUERY_WORDS)
+    is_list_query = any(w in query_lower for w in ["list", "all", "every", "which", "what are the"])
+
+    # Extract entity names from query — words that aren't common query words
+    entity_names = [w for w in query_terms if w not in _SPELL_QUERY_WORDS
+                    and w not in {"how", "many", "what", "does", "the", "for", "can", "you"}]
+
+    # Check for class/type keywords in query
+    query_class_words = {w for w in query_words if w in {
+        "priest", "cleric", "wizard", "mage", "druid", "paladin", "ranger",
+        "bard", "thief", "rogue", "fighter", "warrior",
+    }}
+
+    scored = []
+    for chunk in chunks:
+        score = 0.0
+        content_lower = chunk["content"].lower()
+        entry_title = (chunk.get("entry_title") or "").lower()
+        chapter_lower = (chunk.get("chapter_title") or "").lower()
+        section_lower = (chunk.get("section_title") or "").lower()
+        chunk_type = chunk.get("chunk_type", "content")
+
+        # 1. Entry title match — strongest signal (+5)
+        for name in entity_names:
+            if name in entry_title:
+                score += 5.0
+                break
+
+        # 2. Stat block fields boost for spell queries (+0.5 per field, max +4)
+        if is_spell_query:
+            stat_field_count = sum(1 for f in _STAT_BLOCK_INDICATORS if f in content_lower)
+            score += min(stat_field_count * 0.5, 4.0)
+
+        # 3. Chapter/section matches query class words (+2)
+        if query_class_words:
+            for cw in query_class_words:
+                if cw in chapter_lower:
+                    score += 2.0
+                    break
+                if cw in section_lower:
+                    score += 1.5
+                    break
+
+        # 4. Content density — query terms per 100 chars (+0-2)
+        if query_terms and content_lower:
+            hits = sum(1 for t in query_terms if t in content_lower)
+            density = hits / max(len(content_lower) / 100, 1)
+            score += min(density, 2.0)
+
+        # 5. Exact phrase match — consecutive query words in content (+2)
+        if len(query_terms) >= 2:
+            for i in range(len(query_terms) - 1):
+                phrase = f"{query_terms[i]} {query_terms[i+1]}"
+                if phrase in content_lower:
+                    score += 2.0
+                    break
+
+        # 6. Summary chunks get small boost for direct questions (+0.5)
+        if chunk_type == "summary" and not is_list_query:
+            score += 0.5
+
+        # 7. Cross-reference chunks — boost for list queries, penalize for direct
+        if chunk_type == "cross_reference":
+            if is_list_query:
+                score += 2.0
+            else:
+                score -= 1.0
+
+        # 8. Penalize chunks with no chapter (orphaned/index content)
+        if not chunk.get("chapter_title"):
+            score -= 3.0
+
+        # 9. Penalize chapter mismatch — if query says "priest" but chunk is in wizard chapter
+        if query_class_words and chapter_lower:
+            chapter_has_match = any(cw in chapter_lower for cw in query_class_words)
+            chapter_has_conflict = any(
+                conflict in chapter_lower
+                for cw in query_class_words
+                for conflict in _CLASS_CONFLICTS.get(cw, [])
+            )
+            if chapter_has_conflict and not chapter_has_match:
+                score -= 2.0
+
+        scored.append((score, chunk))
+
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return [chunk for _, chunk in scored]
+
+
+# Class word conflicts — if query says "priest", penalize "wizard" chapters
+_CLASS_CONFLICTS = {
+    "priest": ["wizard", "mage"],
+    "cleric": ["wizard", "mage"],
+    "druid": ["wizard", "mage"],
+    "wizard": ["priest", "cleric", "druid"],
+    "mage": ["priest", "cleric", "druid"],
+}
 
 
 def ask(

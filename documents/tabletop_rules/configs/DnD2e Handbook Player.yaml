@@ -24,6 +24,17 @@ index_headings:
   - "priest spell list"
   - "wizard spell list"
 
+# ToC entries to exclude — indexes, reference lists, compiled tables, etc.
+# Any chapter, appendix, section, or table that lists entry names without
+# actual content. These pages are excluded from the page-to-chapter map
+# so the parser never matches headings against them.
+exclude_chapters:
+  - "Appendix 1: Spell Lists"
+  - "Appendix 5: Wizard Spells by School"
+  - "Appendix 6: Priest Spells by Sphere"
+  - "Appendix 7: Spell Index"
+  - "Appendix 8: Compiled Character Generation Tables"
+
 entry_types:
   spell:
     detect_fields:
