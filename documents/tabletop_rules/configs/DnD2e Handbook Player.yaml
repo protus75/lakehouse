@@ -24,10 +24,6 @@ index_headings:
   - "priest spell list"
   - "wizard spell list"
 
-# ToC entries to exclude — indexes, reference lists, compiled tables, etc.
-# Any chapter, appendix, section, or table that lists entry names without
-# actual content. These pages are excluded from the page-to-chapter map
-# so the parser never matches headings against them.
 exclude_chapters:
   - "Appendix 1: Spell Lists"
   - "Appendix 5: Wizard Spells by School"
@@ -35,94 +31,88 @@ exclude_chapters:
   - "Appendix 7: Spell Index"
   - "Appendix 8: Compiled Character Generation Tables"
 
-entry_types:
-  spell:
-    detect_fields:
+# Default parsing rules for all sections
+parsing_defaults:
+  # A heading is a short line that starts an entry
+  heading_rules:
+    min_length: 3
+    max_length: 50
+    must_start_upper: true
+    no_trailing_period: true
+    no_trailing_comma: true
+    no_colon: true
+    min_alpha_ratio: 0.7
+
+# Per-section parsing overrides — matched by substring in the ToC title
+# Each section can define its own heading rules, metadata fields to extract,
+# sub-section delimiters, and entry structure
+section_parsing:
+  "Wizard Spells":
+    # Spell sections have level sub-headers, then spell entries with stat blocks
+    sub_section_pattern: '(?:First|Second|Third|Fourth|Fifth|Sixth|Seventh|Eighth|Ninth)-Level Spells'
+    # A spell entry heading: name only, no colon, short
+    heading_rules:
+      min_length: 3
+      max_length: 40
+      must_start_upper: true
+      no_trailing_period: true
+      no_trailing_comma: true
+      no_colon: true
+      min_alpha_ratio: 0.7
+    # Lines matching these patterns are metadata, NOT headings — keep with parent entry
+    metadata_fields:
       - 'Range\s*:'
       - 'Components\s*:'
       - 'Duration\s*:'
       - 'Casting Time\s*:'
       - 'Area of Effect\s*:'
       - 'Saving Throw\s*:'
-    detect_min_fields: 3
-    detect_class_fields:
       - 'School\s*:'
       - 'Sphere\s*:'
-    chapter_keywords:
-      - "spell"
-      - "appendix"
-    metadata:
-      school: 'School\s*:\s*(.+?)(?:\n|$)'
-      sphere: 'Sphere\s*:\s*(.+?)(?:\n|$)'
-      range: 'Range\s*:\s*(.+?)(?:\n|$)'
-      components: 'Components\s*:\s*(.+?)(?:\n|$)'
-      duration: 'Duration\s*:\s*(.+?)(?:\n|$)'
-      casting_time: 'Casting Time\s*:\s*(.+?)(?:\n|$)'
-      area_of_effect: 'Area of Effect\s*:\s*(.+?)(?:\n|$)'
-      saving_throw: 'Saving Throw\s*:\s*(.+?)(?:\n|$)'
-    class_rules:
-      - chapter_contains: "priest"
-        value: "Priest"
-      - chapter_contains: "wizard"
-        value: "Wizard"
-      - has_field: "sphere"
-        value: "Priest"
-      - default: "Wizard"
-    level_patterns:
-      "first": 1
-      "second": 2
-      "third": 3
-      "fourth": 4
-      "fifth": 5
-      "sixth": 6
-      "seventh": 7
-      "eighth": 8
-      "ninth": 9
+      - 'Level\s*:'
+    # Also keep these short standalone lines as part of the entry (not headings)
+    keep_with_entry:
+      - 'Reversible'
+      - '(Conjuration.*)'
+      - '(Alteration.*)'
+      - '(Abjuration.*)'
+      - '(Divination.*)'
+      - '(Enchantment.*)'
+      - '(Evocation.*)'
+      - '(Illusion.*)'
+      - '(Necromancy.*)'
+      - '(Invocation.*)'
 
-cross_references:
-  appendix_indexes:
-    - chapter_contains: "school"
-      label_template: "Spell Index: Wizard School - {section}"
-    - chapter_contains: "sphere"
-      label_template: "Spell Index: Priest Sphere - {section}"
-  generated_indexes:
-    - group_by: ["class", "level"]
-      label_template: "{class} Spells - Level {level}"
-      chapter_template: "Cross-Reference: {class} Spells"
-    - group_by: ["alpha"]
-      label_template: "Spell Index: {letter}"
-      chapter_template: "Cross-Reference: Alphabetical Spell Index"
-
-vlm_detection_patterns:
-  - '(?:Range|Components|Duration|Casting Time|Area of Effect|Saving Throw)\s*:'
-  - '(?:Power Score|PSP Cost|Initial Cost|Maintenance Cost)\s*:'
-  - '(?:AC|THAC0|Hit Dice|No\. of Attacks|Damage/Attack|Movement)\s*:'
-  - '(?:XP Value|GP Value|Charges)\s*:'
-
-prompts:
-  section_summary: |
-    You are summarizing a section from the {book_title} for a rules reference.
-    Write a concise 2-4 sentence summary of this section that captures:
-    - What this section covers
-    - The key rules or mechanics described
-    - Any important numbers, thresholds, or exceptions
-    SECTION: {section}
-    CHAPTER: {chapter}
-    CONTENT:
-    {content}
-    SUMMARY:
-  entry_summary: |
-    You are creating concise structured summaries of {game_system} spells for a rules reference.
-    For each spell below, produce a summary in this exact format:
-    SPELL: [Name]
-    Type: [Wizard/Priest] Level [N]
-    School: [school] | Sphere: [sphere if priest]
-    Key Effect: [1 sentence describing what the spell does]
-    Important Details: [1-2 sentences on range, duration, damage, saving throw effects]
-    Tactical Note: [1 sentence on when/why to use this spell]
-    ---
-    {spells}
-    ---
+  "Priest Spells":
+    sub_section_pattern: '(?:First|Second|Third|Fourth|Fifth|Sixth|Seventh)-Level Spells'
+    heading_rules:
+      min_length: 3
+      max_length: 40
+      must_start_upper: true
+      no_trailing_period: true
+      no_trailing_comma: true
+      no_colon: true
+      min_alpha_ratio: 0.7
+    metadata_fields:
+      - 'Range\s*:'
+      - 'Components\s*:'
+      - 'Duration\s*:'
+      - 'Casting Time\s*:'
+      - 'Area of Effect\s*:'
+      - 'Saving Throw\s*:'
+      - 'Sphere\s*:'
+      - 'Level\s*:'
+    keep_with_entry:
+      - 'Reversible'
+      - '(Conjuration.*)'
+      - '(Alteration.*)'
+      - '(Abjuration.*)'
+      - '(Divination.*)'
+      - '(Enchantment.*)'
+      - '(Evocation.*)'
+      - '(Illusion.*)'
+      - '(Necromancy.*)'
+      - '(Invocation.*)'
 
 chunking:
   max_chars: 800

@@ -1,10 +1,6 @@
 """
-Embed tabletop_rules document chunks from DuckDB into ChromaDB for semantic search.
-Creates and maintains a dedicated collection: 'tabletop_rules_chunks'
-
-Run from Jupyter:
-  from rag.embed_tabletop_rules import embed_all
-  embed_all()
+Embed tabletop_rules document chunks from DuckDB into ChromaDB.
+Includes toc_id in metadata for filtered section-level search.
 """
 
 import duckdb
@@ -19,94 +15,74 @@ EMBEDDING_MODEL = "all-mpnet-base-v2"
 
 
 def embed_all() -> None:
-    """Read chunks from documents_tabletop_rules schema and upsert into ChromaDB."""
+    """Read chunks from DuckDB and upsert into ChromaDB with toc metadata."""
     import time
     start = time.time()
 
     conn = duckdb.connect(DB_PATH, read_only=True)
-
-    # Query all chunks with their metadata
     rows = conn.execute("""
         SELECT
             c.chunk_id,
             c.source_file,
+            c.toc_id,
             c.section_title,
-            c.content,
-            f.document_title,
-            f.game_system,
-            f.content_type,
-            f.tags,
-            c.chapter_title,
             c.entry_title,
-            c.chunk_type
+            c.content,
+            c.page_numbers,
+            c.chunk_type,
+            t.title as toc_title,
+            f.game_system,
+            f.content_type
         FROM documents_tabletop_rules.chunks c
+        LEFT JOIN documents_tabletop_rules.toc t ON c.toc_id = t.toc_id
         LEFT JOIN documents_tabletop_rules.files f ON c.source_file = f.source_file
         ORDER BY c.chunk_id
     """).fetchall()
     conn.close()
 
     if not rows:
-        print("No chunks found in documents_tabletop_rules schema.")
-        print("Run: from dlt.load_tabletop_rules_docs import run; run()")
+        print("No chunks found. Run ingestion first.")
         return
 
     print(f"Embedding {len(rows)} chunks into ChromaDB...")
-    print()
 
-    # Initialize ChromaDB client
     client = chromadb.PersistentClient(
-        path=CHROMA_PATH,
-        settings=Settings(anonymized_telemetry=False),
+        path=CHROMA_PATH, settings=Settings(anonymized_telemetry=False),
     )
-
-    # Use a stronger embedding model for better retrieval accuracy
     embedding_fn = SentenceTransformerEmbeddingFunction(model_name=EMBEDDING_MODEL)
-
-    # Get or create dedicated collection for tabletop_rules
     collection = client.get_or_create_collection(
         name=COLLECTION_NAME,
         metadata={"hnsw:space": "cosine", "project": "tabletop_rules"},
         embedding_function=embedding_fn,
     )
 
-    # Prepare batch data
     ids = [str(r[0]) for r in rows]
-    documents = [r[3] for r in rows]
-    metadatas = [
-        {
-            "source_file": r[1],
-            "section_title": r[2] or "",
-            "chunk_id": str(r[0]),
-            "document_title": r[4] or "",
-            "game_system": r[5] or "",
-            "content_type": r[6] or "",
-            "tags": r[7] or "",
-            "chapter_title": r[8] or "",
-            "entry_title": r[9] or "",
-            "chunk_type": r[10] or "content",
-        }
-        for r in rows
-    ]
+    documents = [r[5] for r in rows]
+    metadatas = [{
+        "source_file": r[1],
+        "toc_id": str(r[2] or ""),
+        "section_title": r[3] or "",
+        "entry_title": r[4] or "",
+        "page_numbers": r[6] or "",
+        "chunk_type": r[7] or "content",
+        "toc_title": r[8] or "",
+        "game_system": r[9] or "",
+        "content_type": r[10] or "",
+    } for r in rows]
 
-    # Upsert in batches
     batch_size = 100
     embed_start = time.time()
     for i in range(0, len(ids), batch_size):
-        batch_end = min(i + batch_size, len(ids))
+        end = min(i + batch_size, len(ids))
         collection.upsert(
-            ids=ids[i:batch_end],
-            documents=documents[i:batch_end],
-            metadatas=metadatas[i:batch_end],
+            ids=ids[i:end],
+            documents=documents[i:end],
+            metadatas=metadatas[i:end],
         )
-        print(f"  Embedded {batch_end}/{len(ids)} chunks")
+        print(f"  Embedded {end}/{len(ids)} chunks")
 
-    embed_elapsed = time.time() - embed_start
-    total_elapsed = time.time() - start
-
-    print(f"\n✅ Done in {total_elapsed:.1f}s:")
-    print(f"   {len(ids)} chunks embedded")
-    print(f"   {len(ids) / embed_elapsed:.0f} chunks/sec")
-    print(f"   Collection: '{COLLECTION_NAME}'")
+    elapsed = time.time() - start
+    print(f"\nDone in {elapsed:.1f}s: {len(ids)} chunks embedded")
 
 
 if __name__ == "__main__":

@@ -1,44 +1,35 @@
 """
-dlt pipeline: loads tabletop RPG/board game PDFs into DuckDB (documents_tabletop_rules schema).
+ToC-first PDF ingestion for tabletop RPG rule books.
 
-Two-pass hybrid PDF extraction:
-  Pass 1: Marker (layout-aware markdown with multi-column support)
-  Pass 2: VLM via Ollama (vision model renders problem pages as images for structured extraction)
+The Table of Contents is the structural authority. Every page is mapped to its
+ToC section by reading the printed page number. Every chunk inherits its ToC
+section. No guessing, no matching, no offset math.
 
-Chapter-aligned chunking preserves book structure: chapter > section > entry.
-
-Run from CLI:
-  python -c "from dlt.load_tabletop_rules_docs import run; run(game_system='D&D 2e', content_type='rules')"
-
-Or with custom worker count:
-  python -c "from dlt.load_tabletop_rules_docs import run; run(game_system='D&D 2e', max_workers=8)"
+Flow:
+  1. Parse ToC → (title, page_number) pairs
+  2. Read each PDF page → printed page number → ToC section
+  3. Extract text per page (pymupdf) + full markdown (Marker)
+  4. Group pages by ToC section → build entries within each section
+  5. Chunk entries → store in DuckDB + ChromaDB
 """
 
 import re
-import base64
 from pathlib import Path
 from datetime import datetime, timezone
-import multiprocessing as mp
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import duckdb
-import fitz  # pymupdf — used for page rendering to images for VLM pass
-import requests
+import fitz  # pymupdf
 import yaml
 
 DB_PATH = "/workspace/db/lakehouse.duckdb"
 DOCUMENTS_DIR = Path("/workspace/documents/tabletop_rules/raw")
 CONFIGS_DIR = Path("/workspace/documents/tabletop_rules/configs")
-OLLAMA_URL = "http://host.docker.internal:11434"
-VLM_MODEL = "minicpm-v"
 
 
-# ── Config loading ───────────────────────────────────────────────
+# ── Config ───────────────────────────────────────────────────────
 
-def load_book_config(filepath: Path) -> dict:
-    """Load the YAML config for a specific PDF.
-    Looks for configs/{pdf_stem}.yaml, falls back to configs/_default.yaml.
-    Merges book-specific config over defaults."""
+def load_config(filepath: Path) -> dict:
+    """Load YAML config for a PDF. Falls back to _default.yaml."""
     default_path = CONFIGS_DIR / "_default.yaml"
     book_path = CONFIGS_DIR / f"{filepath.stem}.yaml"
 
@@ -49,43 +40,56 @@ def load_book_config(filepath: Path) -> dict:
 
     if book_path.exists():
         with open(book_path) as f:
-            book_config = yaml.safe_load(f) or {}
-        config = _deep_merge(config, book_config)
-        print(f"    Config loaded: {book_path.name}")
+            book = yaml.safe_load(f) or {}
+        config = _deep_merge(config, book)
+        print(f"  Config: {book_path.name}")
     else:
-        print(f"    Config: using defaults (no {filepath.stem}.yaml found)")
+        print(f"  Config: defaults (no {filepath.stem}.yaml)")
 
     return config
 
 
 def _deep_merge(base: dict, override: dict) -> dict:
-    """Recursively merge override dict into base dict. Override wins."""
     result = dict(base)
-    for key, value in override.items():
-        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
-            result[key] = _deep_merge(result[key], value)
+    for k, v in override.items():
+        if k in result and isinstance(result[k], dict) and isinstance(v, dict):
+            result[k] = _deep_merge(result[k], v)
         else:
-            result[key] = value
+            result[k] = v
     return result
 
 
 # ── Schema ───────────────────────────────────────────────────────
 
 def init_schema(conn: duckdb.DuckDBPyConnection) -> None:
-    """Create documents_tabletop_rules schema with chunks and metadata tables."""
     conn.execute("CREATE SCHEMA IF NOT EXISTS documents_tabletop_rules")
+
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS documents_tabletop_rules.toc (
+            toc_id          INTEGER PRIMARY KEY,
+            source_file     VARCHAR NOT NULL,
+            title           VARCHAR NOT NULL,
+            page_start      INTEGER NOT NULL,
+            page_end        INTEGER,
+            parent_toc_id   INTEGER,
+            depth           INTEGER DEFAULT 0,
+            is_excluded     BOOLEAN DEFAULT FALSE,
+            sub_headings    VARCHAR,
+            tables          VARCHAR
+        )
+    """)
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS documents_tabletop_rules.chunks (
             chunk_id        INTEGER PRIMARY KEY,
             source_file     VARCHAR NOT NULL,
-            chapter_title   VARCHAR,
+            toc_id          INTEGER,
             section_title   VARCHAR,
             entry_title     VARCHAR,
             content         VARCHAR NOT NULL,
+            page_numbers    VARCHAR NOT NULL,
             char_count      INTEGER NOT NULL,
             chunk_type      VARCHAR DEFAULT 'content',
-            page_numbers    VARCHAR,
             parsed_at       TIMESTAMP NOT NULL
         )
     """)
@@ -96,1069 +100,557 @@ def init_schema(conn: duckdb.DuckDBPyConnection) -> None:
             document_title  VARCHAR,
             game_system     VARCHAR,
             content_type    VARCHAR,
-            tags            VARCHAR,
-            rules_version   VARCHAR,
             total_chunks    INTEGER NOT NULL,
-            total_chars     INTEGER NOT NULL,
+            total_toc_entries INTEGER NOT NULL,
             parsed_at       TIMESTAMP NOT NULL
         )
     """)
 
 
-# ── Pass 1: Marker extraction ───────────────────────────────────
+# ── Step 1: Parse ToC ────────────────────────────────────────────
 
-_marker_models = None
-
-def _get_marker_models():
-    """Lazy-load Marker models once and reuse across files."""
-    global _marker_models
-    if _marker_models is None:
-        from marker.models import create_model_dict
-        _marker_models = create_model_dict()
-    return _marker_models
-
-
-def extract_with_marker(filepath: Path) -> str:
-    """Use Marker for layout-aware PDF to markdown conversion.
-    Returns the full markdown string."""
-    from marker.converters.pdf import PdfConverter
-
-    models = _get_marker_models()
-    converter = PdfConverter(artifact_dict=models)
-    rendered = converter(str(filepath))
-    return rendered.markdown
-
-
-# ── Pass 2: VLM extraction for structured content ───────────────
-
-def detect_incomplete_pages(markdown: str, filepath: Path, config: dict) -> list[int]:
-    """Identify pages that likely have structured content Marker may have
-    mangled — stat blocks, ability tables, multi-column key:value pairs.
-    Compares Marker output against pymupdf raw text per page to find
-    pages where structured fields were dropped."""
-    patterns = config.get("vlm_detection_patterns", [])
-    if not patterns:
-        return []
-
-    doc = fitz.open(str(filepath))
-    incomplete_pages = []
-
-    for page_num in range(len(doc)):
-        page = doc[page_num]
-        raw_text = page.get_text("text")
-
-        has_stat_block = any(
-            re.search(pat, raw_text, re.IGNORECASE) for pat in patterns
-        )
-        if not has_stat_block:
-            continue
-
-        fields_in_raw = set()
-        for pat in patterns:
-            for m in re.finditer(pat, raw_text, re.IGNORECASE):
-                fields_in_raw.add(m.group().split(":")[0].strip().lower())
-
-        fields_in_markdown = set()
-        for pat in patterns:
-            for m in re.finditer(pat, markdown, re.IGNORECASE):
-                fields_in_markdown.add(m.group().split(":")[0].strip().lower())
-
-        missing = fields_in_raw - fields_in_markdown
-        if missing:
-            incomplete_pages.append(page_num)
-
-    doc.close()
-    return incomplete_pages
-
-
-def render_page_to_base64(filepath: Path, page_num: int, dpi: int = 300) -> str:
-    """Render a single PDF page to a base64-encoded PNG for VLM input."""
-    doc = fitz.open(str(filepath))
-    page = doc[page_num]
-    mat = fitz.Matrix(dpi / 72, dpi / 72)
-    pix = page.get_pixmap(matrix=mat)
-    img_bytes = pix.tobytes("png")
-    doc.close()
-    return base64.b64encode(img_bytes).decode("utf-8")
-
-
-VLM_PROMPT = """Extract ALL text from this page of a tabletop RPG rulebook.
-
-Preserve the COMPLETE content with exact formatting for:
-- Stat blocks (spells, psionic powers, magic abilities, monster entries, magic items)
-- All key: value fields such as Range, Components, Duration, Casting Time,
-  Area of Effect, Saving Throw, Sphere, School, Level, Power Score, PSP Cost,
-  AC, THAC0, Hit Dice, XP Value, GP Value, and any similar structured fields
-- Tables with all rows and columns
-- Section headings and subheadings
-
-Output clean markdown. Preserve every field exactly as it appears on the page.
-Do not summarize, skip, or paraphrase any content."""
-
-
-def extract_pages_with_vlm(
-    filepath: Path,
-    page_numbers: list[int],
-) -> dict[int, str]:
-    """Send rendered page images to a VLM via Ollama for structured extraction.
-    Returns a dict mapping page_number -> extracted markdown text."""
-    results = {}
-
-    for page_num in page_numbers:
-        img_b64 = render_page_to_base64(filepath, page_num)
-
-        try:
-            response = requests.post(
-                f"{OLLAMA_URL}/api/generate",
-                json={
-                    "model": VLM_MODEL,
-                    "prompt": VLM_PROMPT,
-                    "images": [img_b64],
-                    "stream": False,
-                },
-                timeout=120,
-            )
-            response.raise_for_status()
-            results[page_num] = response.json()["response"]
-            print(f"    VLM extracted page {page_num + 1}")
-        except Exception as e:
-            print(f"    VLM failed on page {page_num + 1}: {e}")
-
-    return results
-
-
-def merge_vlm_into_markdown(
-    markdown: str,
-    vlm_pages: dict[int, str],
-    filepath: Path,
-    config: dict,
-) -> str:
-    """Merge VLM-extracted structured fields into the Marker markdown.
-    For each VLM page, find stat-block fields that are in the VLM output
-    but missing from the corresponding markdown section, and inject them."""
-    if not vlm_pages:
-        return markdown
-
-    patterns = config.get("vlm_detection_patterns", [])
-    doc = fitz.open(str(filepath))
-
-    for page_num, vlm_text in vlm_pages.items():
-        vlm_fields = []
-        for pat in patterns:
-            for m in re.finditer(pat, vlm_text, re.IGNORECASE):
-                line_start = vlm_text.rfind("\n", 0, m.start()) + 1
-                line_end = vlm_text.find("\n", m.end())
-                if line_end == -1:
-                    line_end = len(vlm_text)
-                field_line = vlm_text[line_start:line_end].strip()
-                if field_line and field_line.lower() not in markdown.lower():
-                    vlm_fields.append(field_line)
-
-        if not vlm_fields:
-            continue
-
-        page = doc[page_num]
-        raw_text = page.get_text("text")
-        headings = re.findall(r"^([A-Z][A-Za-z' ]{2,40})$", raw_text, re.MULTILINE)
-
-        injected = False
-        for heading in headings:
-            heading_pat = re.compile(
-                r"(#{1,4}\s*" + re.escape(heading) + r".*?\n)",
-                re.IGNORECASE,
-            )
-            match = heading_pat.search(markdown)
-            if match:
-                insert_point = match.end()
-                field_block = "\n".join(vlm_fields) + "\n\n"
-                markdown = markdown[:insert_point] + field_block + markdown[insert_point:]
-                injected = True
-                break
-
-        if not injected:
-            page_marker = f"\n\n<!-- VLM supplement page {page_num + 1} -->\n"
-            markdown += page_marker + "\n".join(vlm_fields) + "\n"
-
-    doc.close()
-    return markdown
-
-
-# ── Chapter-aligned chunking (page-number based) ────────────────
-
-def extract_toc_entries(filepath: Path, config: dict) -> dict:
-    """Extract chapter/appendix titles with page numbers and table titles
-    from the PDF table of contents using pymupdf.
-    Uses config['toc'] for patterns and scan range."""
+def parse_toc(filepath: Path, config: dict) -> dict:
+    """Extract ToC entries with page numbers from the PDF.
+    Returns dict with:
+      'sections': list of chapter/appendix dicts (title, page_start, page_end, is_excluded)
+      'tables': list of table dicts (title, page_number)
+    Tables are parsed separately so they can be cross-referenced to their parent section."""
     toc_config = config.get("toc", {})
-    chapter_patterns = toc_config.get("chapter_patterns", [r"(?:Chapter|Appendix)\s+\d*\s*:?\s*[A-Za-z].*"])
-    table_pattern = toc_config.get("table_pattern", r"Table\s+\d+\s*:?\s*[A-Za-z].*")
+    chapter_patterns = toc_config.get("chapter_patterns", [])
+    table_pattern = toc_config.get("table_pattern", "")
     scan_pages = toc_config.get("toc_scan_pages", 15)
+    exclude_set = set(t.lower() for t in config.get("exclude_chapters", []))
 
     doc = fitz.open(str(filepath))
-    chapters = []
+    sections = []
     tables = []
-    seen_chapters = set()
-    seen_tables = set()
+    seen = set()
 
-    for page_num in range(min(scan_pages, len(doc))):
-        text = doc[page_num].get_text("text")
+    for page_idx in range(min(scan_pages, len(doc))):
+        text = doc[page_idx].get_text("text")
         for line in text.split("\n"):
-            for chap_pat in chapter_patterns:
+            stripped = line.strip()
+
+            # Match chapters/appendices
+            for pat in chapter_patterns:
                 m = re.match(
-                    r"(" + chap_pat + r")\s*(?:\.[\s.]*){2,}\s*(\d+)\s*$",
-                    line.strip(),
-                    re.IGNORECASE,
+                    r"(" + pat + r")\s*(?:\.[\s.]*){2,}\s*(\d+)\s*$",
+                    stripped, re.IGNORECASE,
                 )
                 if m:
-                    title = m.group(1).strip()
-                    title = re.sub(r"\s*(?:\.[\s.]*){2,}.*", "", title).strip()
-                    pg = int(m.group(2))
-                    if title not in seen_chapters:
-                        seen_chapters.add(title)
-                        chapters.append((title, pg))
+                    title = re.sub(r"\s*(?:\.[\s.]*){2,}.*", "", m.group(1)).strip()
+                    page = int(m.group(2))
+                    if title and title not in seen:
+                        seen.add(title)
+                        sections.append({
+                            "title": title,
+                            "page_start": page,
+                            "is_excluded": title.lower() in exclude_set,
+                            "sub_headings": [],
+                            "tables": [],
+                        })
 
+            # Match tables
             if table_pattern:
                 m = re.match(
                     r"(" + table_pattern + r")\s*(?:\.[\s.]*){2,}\s*(\d+)\s*$",
-                    line.strip(),
-                    re.IGNORECASE,
+                    stripped, re.IGNORECASE,
                 )
                 if m:
-                    title = m.group(1).strip()
-                    title = re.sub(r"\s*(?:\.[\s.]*){2,}.*", "", title).strip()
-                    if title not in seen_tables:
-                        seen_tables.add(title)
-                        tables.append(title)
+                    title = re.sub(r"\s*(?:\.[\s.]*){2,}.*", "", m.group(1)).strip()
+                    page = int(m.group(2))
+                    if title and title not in seen:
+                        seen.add(title)
+                        tables.append({"title": title, "page_number": page})
 
     doc.close()
-    chapters.sort(key=lambda x: x[1])
-    print(f"    ToC: found {len(chapters)} chapters/appendices, {len(tables)} tables")
-    for title, pg in chapters:
-        print(f"      page {pg:>3d}: {title}")
-    return {"chapters": chapters, "tables": tables}
 
-
-def _clean_heading(text: str) -> str:
-    """Strip markdown bold markers and extra whitespace from a heading."""
-    return re.sub(r"\*+", "", text).strip()
-
-
-def _is_index_heading(heading: str, config: dict) -> bool:
-    """Check if a heading marks the start of a book index or spell index."""
-    index_headings = set(h.lower() for h in config.get("index_headings", ["index"]))
-    clean = _clean_heading(heading).lower()
-    if clean in index_headings:
-        return True
-    return "index" in clean and clean.endswith("index")
-
-
-def _chapter_for_page(page_num: int, chapter_pages: list[tuple[str, int]]) -> str | None:
-    """Given a page number, return which chapter it belongs to.
-    chapter_pages is sorted by page number ascending."""
-    current = None
-    for title, start_page in chapter_pages:
-        if start_page > page_num:
-            break
-        current = title
-    return current
-
-
-def _build_page_to_chapter(
-    filepath: Path,
-    chapter_pages: list[tuple[str, int]],
-    config: dict,
-) -> dict[int, str]:
-    """Build a mapping of PDF page index to chapter title.
-    Reads the printed page number directly from each page's text content,
-    then maps it to the chapter range from the ToC.
-    Excludes index chapters so their pages map to None."""
-    page_num_pattern = config.get("toc", {}).get("page_number_pattern", r"^\d{1,3}$")
-
-    # Exclude chapters listed in config — reference appendices, indexes, etc.
-    exclude_set = set(t.lower() for t in config.get("exclude_chapters", []))
-    filtered_chapters = []
-    for title, page in chapter_pages:
-        if title.lower() in exclude_set:
-            print(f"    Excluding chapter from page map: {title} (page {page})")
+    # Sort sections by page and compute page_end
+    sections.sort(key=lambda e: e["page_start"])
+    for i, entry in enumerate(sections):
+        if i + 1 < len(sections):
+            entry["page_end"] = sections[i + 1]["page_start"] - 1
         else:
-            filtered_chapters.append((title, page))
+            entry["page_end"] = 9999
 
-    doc = fitz.open(str(filepath))
-    mapping = {}
+    # Assign each table to its parent ToC section by page number
+    for table in tables:
+        for section in sections:
+            if section["page_start"] <= table["page_number"] <= section["page_end"]:
+                section["tables"].append(table["title"])
+                table["toc_section"] = section["title"]
+                break
 
-    for page_idx in range(len(doc)):
-        printed_page = _read_page_number(doc[page_idx], page_idx, page_num_pattern)
-        mapping[page_idx] = _chapter_for_page(printed_page, filtered_chapters)
-
-    doc.close()
-    return mapping
+    included = sum(1 for e in sections if not e["is_excluded"])
+    excluded = sum(1 for e in sections if e["is_excluded"])
+    print(f"  ToC: {included} sections, {excluded} excluded, {len(tables)} tables")
+    return {"sections": sections, "tables": tables}
 
 
-def _read_page_number(page, page_idx: int, page_num_pattern: str = r"^\d{1,3}$") -> int:
-    """Read the printed page number from a PDF page's text.
-    Searches near the end of the text first (bottom of page), then the top.
-    Falls back to the PDF page index if no printed number is found."""
+# ── Step 2: Map pages to ToC sections ────────────────────────────
+
+def read_page_number(page, page_idx: int, pattern: str = r"^\d{1,3}$") -> int:
+    """Read printed page number from a PDF page. Falls back to page_idx."""
     text = page.get_text("text")
-    lines = text.split("\n")
-
-    # Search from the end — page numbers are typically near the bottom
-    for line in reversed(lines):
+    for line in reversed(text.split("\n")):
         stripped = line.strip()
-        if stripped and re.match(page_num_pattern, stripped):
+        if stripped and re.match(pattern, stripped):
             return int(re.search(r"\d+", stripped).group())
-
-    # Fallback: also check the first few lines (some layouts put page number at top)
-    for line in lines[:5]:
+    for line in text.split("\n")[:5]:
         stripped = line.strip()
-        if stripped and re.match(page_num_pattern, stripped):
+        if stripped and re.match(pattern, stripped):
             return int(re.search(r"\d+", stripped).group())
-
     return page_idx
 
 
-def parse_book_structure(
-    markdown: str,
-    filepath: Path,
-    toc_entries: dict,
-    config: dict,
-) -> list[dict]:
-    """Parse Marker markdown for structure (headings, content, formatting).
-    Assign chapters by finding each heading in pymupdf page text in document order.
+def build_page_map(filepath: Path, toc_entries: list[dict], config: dict) -> dict:
+    """Map each PDF page index to its ToC entry (or None if excluded/unmapped).
+    Returns {page_idx: toc_entry_dict or None}."""
+    page_pattern = config.get("toc", {}).get("page_number_pattern", r"^\d{1,3}$")
 
-    - Marker markdown: headings, sections, entries, content (good formatting)
-    - pymupdf pages: chapter assignment via page numbers (always correct)
+    # Build included ToC ranges only
+    included = [e for e in toc_entries if not e["is_excluded"]]
 
-    For each heading in the markdown, search pymupdf pages forward from the
-    last match to find which page it's on. That page's chapter (from its
-    printed page number + ToC) becomes the heading's chapter. Forward-only
-    search handles duplicate headings (e.g. Bless in both Wizard and Priest)
-    correctly because Marker preserves document order."""
-    chapter_pages = toc_entries["chapters"]
-    page_chapter_map = _build_page_to_chapter(filepath, chapter_pages, config)
-
-    toc_tables = toc_entries["tables"]
-    table_names_lower = {
-        re.sub(r"^table\s+\d+\s*:?\s*", "", t, flags=re.IGNORECASE).strip().lower()
-        for t in toc_tables
-    }
-
-    # Load all pymupdf page texts for heading lookup
     doc = fitz.open(str(filepath))
-    page_texts = [doc[i].get_text("text").lower() for i in range(len(doc))]
+    page_map = {}
+
+    for page_idx in range(len(doc)):
+        printed_page = read_page_number(doc[page_idx], page_idx, page_pattern)
+
+        # Find which ToC section this page belongs to
+        matched = None
+        for entry in included:
+            if entry["page_start"] <= printed_page <= entry["page_end"]:
+                matched = entry
+                break
+
+        page_map[page_idx] = matched
+
+    doc.close()
+    return page_map
+
+
+# ── Step 3: Extract text per page ────────────────────────────────
+
+def detect_watermarks(filepath: Path, threshold: float = 0.3) -> set[str]:
+    """Detect watermark text by finding lines that repeat on many pages.
+    Any line appearing on more than threshold (default 30%) of pages is a watermark."""
+    doc = fitz.open(str(filepath))
     total_pages = len(doc)
+    line_counts = {}
+
+    for page_idx in range(total_pages):
+        text = doc[page_idx].get_text("text")
+        seen_on_page = set()
+        for line in text.split("\n"):
+            stripped = line.strip()
+            if stripped and len(stripped) > 2 and stripped not in seen_on_page:
+                seen_on_page.add(stripped)
+                line_counts[stripped] = line_counts.get(stripped, 0) + 1
+
     doc.close()
 
-    # Pages that map to None (index/excluded chapters) — headings shouldn't match these
-    excluded_pages = {idx for idx, ch in page_chapter_map.items() if ch is None}
+    min_count = int(total_pages * threshold)
+    watermarks = {line for line, count in line_counts.items() if count >= min_count}
+    if watermarks:
+        print(f"  Watermarks: {len(watermarks)} patterns detected (>{threshold*100:.0f}% of pages)")
+    return watermarks
 
-    # Track which page we're on as we iterate through headings in order
-    last_matched_page = 0
 
-    def _find_heading_page(heading: str) -> int:
-        """Find which PDF page contains this heading text.
-        Searches forward only from last_matched_page — never wraps around.
-        This ensures duplicate headings (e.g. Bless in Wizard and Priest)
-        are matched in document order."""
-        nonlocal last_matched_page
-        h_lower = _clean_heading(heading).lower()
-        if len(h_lower) < 3:
-            return last_matched_page
+def extract_pages(filepath: Path, page_map: dict, config: dict,
+                  watermarks: set[str] | None = None) -> list[dict]:
+    """Extract text from each non-excluded page.
+    Strips page numbers and watermarks automatically.
+    Returns list of {page_idx, page_number, toc_entry, text}."""
+    page_pattern = config.get("toc", {}).get("page_number_pattern", r"^\d{1,3}$")
+    if watermarks is None:
+        watermarks = set()
 
-        # Search forward only from current position — no wrapping
-        # Skip excluded pages (index chapters)
-        for page_idx in range(last_matched_page, total_pages):
-            if page_idx in excluded_pages:
+    doc = fitz.open(str(filepath))
+    pages = []
+
+    for page_idx in range(len(doc)):
+        toc_entry = page_map.get(page_idx)
+        if toc_entry is None:
+            continue
+
+        page = doc[page_idx]
+        text = page.get_text("text")
+        printed_page = read_page_number(page, page_idx, page_pattern)
+
+        lines = []
+        for line in text.split("\n"):
+            stripped = line.strip()
+            if stripped and re.match(page_pattern, stripped):
                 continue
-            if h_lower in page_texts[page_idx]:
-                last_matched_page = page_idx
-                return page_idx
+            if stripped in watermarks:
+                continue
+            lines.append(line)
 
-        # Not found ahead — don't go backwards, keep current position
-        return last_matched_page
+        pages.append({
+            "page_idx": page_idx,
+            "page_number": printed_page,
+            "toc_entry": toc_entry,
+            "text": "\n".join(lines),
+        })
 
+    doc.close()
+    print(f"  Pages: {len(pages)} content pages extracted")
+    return pages
+
+
+# ── Step 3b: Collect sub-headings per ToC section ────────────────
+
+def collect_sub_headings(pages: list[dict], toc_sections: list[dict], config: dict) -> None:
+    """Scan extracted pages and collect sub-headings found within each ToC section.
+    Uses section-specific parsing rules. Modifies toc_sections in-place."""
+    section_pages = {}
+    for page in pages:
+        title = page["toc_entry"]["title"]
+        if title not in section_pages:
+            section_pages[title] = []
+        section_pages[title].append(page)
+
+    for section in toc_sections:
+        if section["is_excluded"]:
+            continue
+        rules = _get_section_parsing(section["title"], config)
+        pages_for_section = section_pages.get(section["title"], [])
+        headings = []
+        for page in pages_for_section:
+            for line in page["text"].split("\n"):
+                stripped = line.strip()
+                if not stripped:
+                    continue
+                if _is_metadata_line(stripped, rules):
+                    continue
+                if _is_keep_with_entry(stripped, rules):
+                    continue
+                if _is_heading(stripped, rules) and stripped not in headings:
+                    headings.append(stripped)
+
+        section["sub_headings"] = headings[:50]
+
+    total = sum(len(s["sub_headings"]) for s in toc_sections if not s["is_excluded"])
+    print(f"  Sub-headings: {total} collected across sections")
+
+
+# ── Step 4: Build entries within ToC sections ────────────────────
+
+def _get_section_parsing(toc_title: str, config: dict) -> dict:
+    """Get parsing rules for a specific ToC section.
+    Checks section_parsing for a matching key (substring match on toc_title),
+    falls back to parsing_defaults."""
+    defaults = config.get("parsing_defaults", {})
+    section_overrides = config.get("section_parsing", {})
+
+    # Find matching section override
+    toc_lower = toc_title.lower()
+    for key, rules in section_overrides.items():
+        if key.lower() in toc_lower:
+            # Merge: section rules override defaults
+            merged = dict(defaults)
+            merged.update(rules)
+            return merged
+
+    return defaults
+
+
+def _is_heading(stripped: str, rules: dict) -> bool:
+    """Check if a line is a heading based on parsing rules."""
+    hr = rules.get("heading_rules", {})
+    min_len = hr.get("min_length", 3)
+    max_len = hr.get("max_length", 50)
+
+    if not (min_len <= len(stripped) <= max_len):
+        return False
+    if hr.get("must_start_upper", True) and not stripped[0].isupper():
+        return False
+    if hr.get("no_trailing_period", True) and stripped.endswith("."):
+        return False
+    if hr.get("no_trailing_comma", True) and stripped.endswith(","):
+        return False
+    if hr.get("no_colon", True) and ":" in stripped:
+        return False
+    if "\t" in stripped:
+        return False
+
+    min_alpha = hr.get("min_alpha_ratio", 0.7)
+    alpha_count = sum(1 for c in stripped if c.isalpha() or c in " '-/()")
+    if alpha_count < len(stripped) * min_alpha:
+        return False
+
+    return True
+
+
+def _is_metadata_line(stripped: str, rules: dict) -> bool:
+    """Check if a line is a metadata field (key:value) that should stay with its entry."""
+    metadata_fields = rules.get("metadata_fields", [])
+    for pattern in metadata_fields:
+        if re.search(pattern, stripped, re.IGNORECASE):
+            return True
+    return False
+
+
+def _is_keep_with_entry(stripped: str, rules: dict) -> bool:
+    """Check if a line should be kept with the current entry (not treated as heading)."""
+    keep_patterns = rules.get("keep_with_entry", [])
+    for pattern in keep_patterns:
+        if re.match(pattern, stripped, re.IGNORECASE):
+            return True
+    return False
+
+
+def _is_sub_section(stripped: str, rules: dict) -> bool:
+    """Check if a line is a sub-section delimiter (e.g. 'First-Level Spells')."""
+    pattern = rules.get("sub_section_pattern")
+    if pattern and re.match(pattern, stripped, re.IGNORECASE):
+        return True
+    return False
+
+
+def build_entries(pages: list[dict], config: dict) -> list[dict]:
+    """Group pages by ToC section, detect headings using section-specific rules.
+    Each entry has: toc_entry, section_title, entry_title, content, page_numbers."""
     entries = []
-    current_chapter = None
-    current_section = None
-    current_entry_title = None
-    current_content = []
 
-    def flush_entry():
-        if current_content:
-            content = "\n".join(current_content).strip()
-            if content:
-                entries.append({
-                    "chapter_title": current_chapter,
-                    "section_title": current_section,
-                    "entry_title": current_entry_title,
-                    "content": content,
-                })
+    # Group pages by ToC section
+    sections = {}
+    for page in pages:
+        toc_title = page["toc_entry"]["title"]
+        if toc_title not in sections:
+            sections[toc_title] = []
+        sections[toc_title].append(page)
 
-    for line in markdown.split("\n"):
-        h_match = re.match(r"^(#{1,4})\s+(.+)", line)
+    for toc_title, section_pages in sections.items():
+        toc_entry = section_pages[0]["toc_entry"]
+        rules = _get_section_parsing(toc_title, config)
 
-        if h_match:
-            heading_text = h_match.group(2).strip()
-            heading_level = len(h_match.group(1))
+        current_section = None
+        current_entry_title = None
+        current_content = []
+        current_page_numbers = []
 
-            if _is_index_heading(heading_text, config):
-                flush_entry()
-                print(f"    Skipping index section: '{_clean_heading(heading_text)}'")
-                return entries
+        def flush():
+            nonlocal current_content, current_page_numbers
+            if current_content:
+                content = "\n".join(current_content).strip()
+                if content and len(content) > 20:
+                    entries.append({
+                        "toc_entry": toc_entry,
+                        "section_title": current_section,
+                        "entry_title": current_entry_title,
+                        "content": content,
+                        "page_numbers": sorted(set(current_page_numbers)),
+                    })
+            current_content = []
+            current_page_numbers = []
 
-            flush_entry()
+        for page in section_pages:
+            text = page["text"]
+            page_num = page["page_number"]
 
-            clean = _clean_heading(heading_text)
-            clean_lower = clean.lower()
+            for line in text.split("\n"):
+                stripped = line.strip()
+                if not stripped:
+                    current_content.append("")
+                    continue
 
-            # Find which page this heading is on and get its chapter
-            page_idx = _find_heading_page(heading_text)
-            chapter = page_chapter_map.get(page_idx)
-            if chapter and chapter != current_chapter:
-                current_chapter = chapter
-                # Reset section and entry when chapter changes —
-                # prevents stale section names from previous chapters
-                current_section = None
-                current_entry_title = None
-            # Also reset section when we cross a significant page boundary
-            # even within the same chapter (prevents section bleed across
-            # large gaps in page numbers)
+                # Check in order: sub-section > metadata > keep_with_entry > heading > content
+                if _is_sub_section(stripped, rules):
+                    flush()
+                    current_section = stripped
+                    current_entry_title = None
+                    current_content = [stripped]
+                    current_page_numbers = [page_num]
+                elif _is_metadata_line(stripped, rules):
+                    current_content.append(stripped)
+                    if page_num not in current_page_numbers:
+                        current_page_numbers.append(page_num)
+                elif _is_keep_with_entry(stripped, rules):
+                    current_content.append(stripped)
+                    if page_num not in current_page_numbers:
+                        current_page_numbers.append(page_num)
+                elif _is_heading(stripped, rules):
+                    flush()
+                    current_entry_title = stripped
+                    current_content = [stripped]
+                    current_page_numbers = [page_num]
+                else:
+                    current_content.append(stripped)
+                    if page_num not in current_page_numbers:
+                        current_page_numbers.append(page_num)
 
-            is_table = clean_lower in table_names_lower
-            if is_table:
-                for t in toc_tables:
-                    name = re.sub(r"^table\s+\d+\s*:?\s*", "", t, flags=re.IGNORECASE).strip().lower()
-                    if name == clean_lower:
-                        current_entry_title = t
-                        break
-            elif heading_level <= 2:
-                current_section = clean
-                current_entry_title = None
-            else:
-                current_entry_title = clean
+        flush()
 
-            current_content = [line]
-        else:
-            current_content.append(line)
-
-    flush_entry()
+    print(f"  Entries: {len(entries)} across {len(sections)} ToC sections")
     return entries
 
 
-def chunk_entries(
-    entries: list[dict],
-    max_chars: int = 800,
-    overlap: int = 200,
-) -> list[dict]:
-    """Create chunks from parsed book entries.
+# ── Step 5: Chunk entries ────────────────────────────────────────
 
-    Rules:
-    - Each entry becomes one chunk if it fits within max_chars
-    - Large entries are split by paragraphs with overlap, but never cross
-      into a different entry/section/chapter
-    - Every chunk carries its chapter_title and section_title for context
-    """
+def chunk_entries(entries: list[dict], config: dict) -> list[dict]:
+    """Split entries into chunks. Never crosses ToC section boundaries.
+    Each chunk inherits all metadata from its entry."""
+    chunking = config.get("chunking", {})
+    max_chars = chunking.get("max_chars", 800)
+    overlap = chunking.get("overlap", 200)
+
     chunks = []
-
     for entry in entries:
         content = entry["content"]
-        chapter = entry["chapter_title"]
-        section = entry["section_title"]
-        title = entry["entry_title"] or entry["section_title"] or entry["chapter_title"]
+        toc = entry["toc_entry"]
+        page_nums = entry["page_numbers"]
+        page_str = ",".join(str(p) for p in page_nums)
 
         if len(content) <= max_chars:
             chunks.append({
-                "chapter_title": chapter,
-                "section_title": section,
-                "entry_title": title,
+                "toc_entry": toc,
+                "section_title": entry["section_title"],
+                "entry_title": entry["entry_title"],
                 "content": content,
+                "page_numbers": page_str,
+                "chunk_type": "content",
             })
         else:
             paragraphs = content.split("\n\n")
-            sub_chunks = []
             current = ""
-
             for para in paragraphs:
                 if len(current) + len(para) + 2 > max_chars and current:
-                    sub_chunks.append(current.strip())
+                    chunks.append({
+                        "toc_entry": toc,
+                        "section_title": entry["section_title"],
+                        "entry_title": entry["entry_title"],
+                        "content": current.strip(),
+                        "page_numbers": page_str,
+                        "chunk_type": "content",
+                    })
                     overlap_text = current.strip()[-overlap:] if overlap > 0 else ""
                     current = overlap_text + "\n\n" + para if overlap_text else para
                 else:
                     current = current + "\n\n" + para if current else para
-
             if current.strip():
-                sub_chunks.append(current.strip())
-
-            for sc in sub_chunks:
                 chunks.append({
-                    "chapter_title": chapter,
-                    "section_title": section,
-                    "entry_title": title,
-                    "content": sc,
+                    "toc_entry": toc,
+                    "section_title": entry["section_title"],
+                    "entry_title": entry["entry_title"],
+                    "content": current.strip(),
+                    "page_numbers": page_str,
+                    "chunk_type": "content",
                 })
 
+    print(f"  Chunks: {len(chunks)}")
     return chunks
 
 
-# ── Enrichment: LLM helper ──────────────────────────────────────
+# ── Step 6: Store ────────────────────────────────────────────────
 
-def call_llm(
-    prompt: str,
-    model: str = "llama3:70b",
-    timeout: int = 180,
-    max_retries: int = 2,
-) -> str | None:
-    """Call Ollama LLM with retry. Returns response text or None on failure."""
-    for attempt in range(max_retries + 1):
-        try:
-            response = requests.post(
-                f"{OLLAMA_URL}/api/generate",
-                json={"model": model, "prompt": prompt, "stream": False},
-                timeout=timeout,
-            )
-            response.raise_for_status()
-            return response.json()["response"]
-        except Exception as e:
-            if attempt < max_retries:
-                print(f"      LLM retry {attempt + 1}/{max_retries}: {e}")
-            else:
-                print(f"      LLM failed after {max_retries + 1} attempts: {e}")
-                return None
-
-
-# ── Enrichment: Spell detection (no LLM) ────────────────────────
-
-def detect_spell_entries(entries: list[dict], config: dict) -> list[dict]:
-    """Identify spell entries and parse their stat block metadata using config.
-    Returns only entries that are spells, augmented with spell_meta dict."""
-    entry_types = config.get("entry_types", {})
-    spell_config = entry_types.get("spell")
-    if not spell_config:
-        return []
-
-    detect_fields = [r"\b" + f for f in spell_config.get("detect_fields", [])]
-    detect_min = spell_config.get("detect_min_fields", 3)
-    class_fields = [r"\b" + f for f in spell_config.get("detect_class_fields", [])]
-    chapter_keywords = spell_config.get("chapter_keywords", [])
-    meta_patterns = {k: re.compile(r"\b" + v, re.IGNORECASE) for k, v in spell_config.get("metadata", {}).items()}
-    class_rules = spell_config.get("class_rules", [])
-    level_patterns = spell_config.get("level_patterns", {})
-
-    spells = []
-    for entry in entries:
-        content = entry.get("content", "")
-        chapter = (entry.get("chapter_title") or "").lower()
-
-        field_count = sum(1 for pat in detect_fields if re.search(pat, content, re.IGNORECASE))
-        has_class_field = any(re.search(pat, content, re.IGNORECASE) for pat in class_fields)
-
-        is_keyword_chapter = any(kw.lower() in chapter for kw in chapter_keywords)
-        is_spell = (field_count >= detect_min and has_class_field) or (is_keyword_chapter and field_count >= 2)
-
-        if not is_spell:
-            continue
-
-        meta = {}
-        for key, pattern in meta_patterns.items():
-            m = pattern.search(content)
-            if m:
-                meta[key] = m.group(1).strip()
-
-        # Determine entry class from config rules
-        meta["spell_type"] = "Unknown"
-        for rule in class_rules:
-            if "chapter_contains" in rule and rule["chapter_contains"].lower() in chapter:
-                meta["spell_type"] = rule["value"]
-                break
-            if "has_field" in rule and meta.get(rule["has_field"]):
-                meta["spell_type"] = rule["value"]
-                break
-            if "default" in rule:
-                meta["spell_type"] = rule["default"]
-
-        # Extract level from section title
-        section = (entry.get("section_title") or "").lower()
-        for word, num in level_patterns.items():
-            if word.lower() in section:
-                meta["level"] = num
-                break
-
-        spell_entry = dict(entry)
-        spell_entry["is_spell"] = True
-        spell_entry["spell_meta"] = meta
-        spell_entry["spell_name"] = entry.get("entry_title") or entry.get("section_title") or "Unknown"
-        spells.append(spell_entry)
-
-    return spells
-
-
-# ── Enrichment: Clean table extraction (no LLM) ─────────────────
-
-def extract_clean_tables(entries: list[dict], toc_tables: list[str]) -> list[dict]:
-    """Find entries matching named ToC tables and store as table-typed chunks."""
-    table_names_lower = {}
-    for t in toc_tables:
-        name = re.sub(r"^table\s+\d+\s*:?\s*", "", t, flags=re.IGNORECASE).strip().lower()
-        if name:
-            table_names_lower[name] = t
-
-    table_chunks = []
-    for entry in entries:
-        title = _clean_heading(entry.get("entry_title") or "").lower()
-        if title in table_names_lower:
-            table_chunks.append({
-                "chapter_title": entry.get("chapter_title"),
-                "section_title": entry.get("section_title"),
-                "entry_title": table_names_lower[title],
-                "content": entry["content"],
-                "chunk_type": "table",
-            })
-
-    return table_chunks
-
-
-# ── Enrichment: Parse Appendix 5/6 indexes (no LLM) ─────────────
-
-def parse_appendix_indexes(entries: list[dict], config: dict) -> list[dict]:
-    """Parse appendix content into cross-reference chunks based on config rules."""
-    cross_ref_config = config.get("cross_references", {})
-    appendix_rules = cross_ref_config.get("appendix_indexes", [])
-    if not appendix_rules:
-        return []
-
-    index_chunks = []
-    for entry in entries:
-        chapter = (entry.get("chapter_title") or "").lower()
-        content = entry["content"]
-        section = entry.get("section_title") or entry.get("entry_title")
-        if not section:
-            continue
-
-        clean_section = _clean_heading(section)
-
-        for rule in appendix_rules:
-            keyword = rule.get("chapter_contains", "").lower()
-            if keyword and keyword in chapter:
-                label = rule["label_template"].format(section=clean_section)
-                index_chunks.append({
-                    "chapter_title": entry.get("chapter_title"),
-                    "section_title": clean_section,
-                    "entry_title": label,
-                    "content": content,
-                    "chunk_type": "cross_reference",
-                })
-                break
-
-    return index_chunks
-
-
-# ── Enrichment: Section summaries (LLM) ─────────────────────────
-
-def generate_section_summaries(
-    entries: list[dict],
-    config: dict,
-    model: str = "llama3:70b",
-    batch_max_chars: int = 3000,
-) -> list[dict]:
-    """Generate LLM summaries for each named ToC subsection using config prompt."""
-    from collections import OrderedDict
-
-    prompt_template = config.get("prompts", {}).get("section_summary", "")
-    if not prompt_template:
-        return []
-
-    book_title = config.get("book", {}).get("title", "this book")
-    game_system = config.get("book", {}).get("game_system", "")
-
-    groups = OrderedDict()
-    for entry in entries:
-        key = (entry.get("chapter_title") or "", entry.get("section_title") or "")
-        if not key[1]:
-            continue
-        if key not in groups:
-            groups[key] = []
-        groups[key].append(entry["content"])
-
-    summaries = []
-    total = len(groups)
-    print(f"      Generating summaries for {total} sections...")
-
-    for i, ((chapter, section), contents) in enumerate(groups.items()):
-        combined = "\n\n".join(contents)[:batch_max_chars]
-
-        prompt = prompt_template.format(
-            book_title=book_title,
-            game_system=game_system,
-            section=section,
-            chapter=chapter,
-            content=combined,
-        )
-
-        result = call_llm(prompt, model=model)
-        if result:
-            summaries.append({
-                "chapter_title": chapter,
-                "section_title": section,
-                "entry_title": f"Summary: {section}",
-                "content": f"Summary of '{section}' ({chapter}):\n{result.strip()}",
-                "chunk_type": "summary",
-            })
-            if (i + 1) % 10 == 0:
-                print(f"      {i + 1}/{total} section summaries generated")
-
-    print(f"      {len(summaries)}/{total} section summaries completed")
-    return summaries
-
-
-# ── Enrichment: Spell summaries (LLM) ───────────────────────────
-
-def generate_spell_summaries(
-    spell_entries: list[dict],
-    config: dict,
-    model: str = "llama3:70b",
-    batch_size: int = 5,
-) -> list[dict]:
-    """Generate structured spell summaries using config prompt template."""
-    prompt_template = config.get("prompts", {}).get("entry_summary", "")
-    if not prompt_template:
-        return []
-
-    game_system = config.get("book", {}).get("game_system", "")
-
-    summaries = []
-    total = len(spell_entries)
-    print(f"      Generating summaries for {total} spells (batches of {batch_size})...")
-
-    for batch_start in range(0, total, batch_size):
-        batch = spell_entries[batch_start:batch_start + batch_size]
-
-        spell_texts = []
-        for s in batch:
-            name = s.get("spell_name", "Unknown")
-            content = s["content"][:600]
-            spell_texts.append(f"SPELL: {name}\n{content}")
-
-        prompt = prompt_template.format(
-            game_system=game_system,
-            spells="\n---\n".join(spell_texts),
-        )
-
-        result = call_llm(prompt, model=model, timeout=240)
-        if result:
-            # Parse individual spell summaries from batch response
-            spell_blocks = re.split(r"(?=SPELL:\s)", result.strip())
-            for block in spell_blocks:
-                block = block.strip()
-                if not block:
-                    continue
-                # Match back to a spell entry by name
-                name_match = re.match(r"SPELL:\s*(.+?)(?:\n|$)", block)
-                if not name_match:
-                    continue
-                summary_name = name_match.group(1).strip()
-
-                # Find the matching spell entry
-                matched_entry = None
-                for s in batch:
-                    if s["spell_name"].lower().rstrip("*").strip() == summary_name.lower().rstrip("*").strip():
-                        matched_entry = s
-                        break
-                if not matched_entry:
-                    # Fuzzy match: check if name is contained
-                    for s in batch:
-                        if summary_name.lower()[:20] in s["spell_name"].lower() or s["spell_name"].lower()[:20] in summary_name.lower():
-                            matched_entry = s
-                            break
-                if not matched_entry and batch:
-                    matched_entry = batch[0]
-
-                if matched_entry:
-                    summaries.append({
-                        "chapter_title": matched_entry.get("chapter_title"),
-                        "section_title": matched_entry.get("section_title"),
-                        "entry_title": f"Summary: {matched_entry['spell_name']}",
-                        "content": block,
-                        "chunk_type": "summary",
-                    })
-
-        batch_num = batch_start // batch_size + 1
-        total_batches = (total + batch_size - 1) // batch_size
-        if batch_num % 5 == 0:
-            print(f"      Batch {batch_num}/{total_batches} complete ({len(summaries)} summaries so far)")
-
-    print(f"      {len(summaries)}/{total} spell summaries completed")
-    return summaries
-
-
-# ── Enrichment: Cross-reference indexes (no LLM) ────────────────
-
-def build_generated_indexes(spell_entries: list[dict], config: dict) -> list[dict]:
-    """Build cross-reference index chunks from config-defined groupings."""
-    from collections import defaultdict
-
-    cross_ref_config = config.get("cross_references", {})
-    index_defs = cross_ref_config.get("generated_indexes", [])
-    if not index_defs:
-        return []
-
-    chunks = []
-    for index_def in index_defs:
-        group_by = index_def.get("group_by", [])
-        label_template = index_def.get("label_template", "")
-        chapter_template = index_def.get("chapter_template", "Cross-Reference")
-
-        if "alpha" in group_by:
-            # Alphabetical index
-            by_letter = defaultdict(list)
-            for s in spell_entries:
-                name = s["spell_name"]
-                meta = s.get("spell_meta", {})
-                letter = name[0].upper() if name else "?"
-                spell_type = meta.get("spell_type", "")
-                level = meta.get("level", "?")
-                by_letter[letter].append(f"- {name} ({spell_type}, Level {level})")
-
-            for letter in sorted(by_letter.keys()):
-                entries_list = sorted(by_letter[letter])
-                chunks.append({
-                    "chapter_title": chapter_template,
-                    "section_title": f"Spells: {letter}",
-                    "entry_title": label_template.format(letter=letter),
-                    "content": f"Spells starting with {letter}:\n\n" + "\n".join(entries_list),
-                    "chunk_type": "cross_reference",
-                })
-        else:
-            # Group by metadata fields (e.g. class + level)
-            groups = defaultdict(list)
-            for s in spell_entries:
-                meta = s.get("spell_meta", {})
-                key_parts = []
-                for field in group_by:
-                    val = meta.get("spell_type" if field == "class" else field)
-                    if val is None:
-                        break
-                    key_parts.append((field, val))
-                if len(key_parts) == len(group_by):
-                    groups[tuple(key_parts)].append(s["spell_name"])
-
-            for key_tuple, names in sorted(groups.items()):
-                names.sort()
-                spell_list = "\n".join(f"- {name}" for name in names)
-                fmt = {field: val for field, val in key_tuple}
-                fmt["class"] = fmt.get("class", "")
-                label = label_template.format(**fmt)
-                chapter = chapter_template.format(**fmt)
-                section = f"Level {fmt.get('level', '')}" if "level" in fmt else label
-                chunks.append({
-                    "chapter_title": chapter,
-                    "section_title": section,
-                    "entry_title": label,
-                    "content": f"{label}\n\n{spell_list}",
-                    "chunk_type": "cross_reference",
-                })
-
-    return chunks
-
-
-# ── Enrichment: Pipeline orchestration ───────────────────────────
-
-def enrich_chunks(
-    entries: list[dict],
-    chunks: list[dict],
-    toc_entries: dict,
-    config: dict,
-    model: str = "llama3:70b",
-) -> list[dict]:
-    """Run full enrichment pipeline using config-driven detection and prompts.
-    Returns all enrichment chunks to append to the main chunk list."""
-    enriched = []
-
-    print(f"    Pass 3a: Detecting entry types...")
-    spell_entries = detect_spell_entries(entries, config)
-    print(f"      Found {len(spell_entries)} spell entries")
-
-    print(f"    Pass 3b: Extracting named tables...")
-    table_chunks = extract_clean_tables(entries, toc_entries.get("tables", []))
-    enriched.extend(table_chunks)
-    print(f"      Extracted {len(table_chunks)} table chunks")
-
-    print(f"    Pass 3c: Parsing appendix indexes...")
-    appendix_chunks = parse_appendix_indexes(entries, config)
-    enriched.extend(appendix_chunks)
-    print(f"      Parsed {len(appendix_chunks)} appendix index chunks")
-
-    print(f"    Pass 3d: Generating section summaries (LLM)...")
-    section_summaries = generate_section_summaries(entries, config, model=model)
-    enriched.extend(section_summaries)
-
-    print(f"    Pass 3e: Generating spell summaries (LLM)...")
-    spell_summaries = generate_spell_summaries(spell_entries, config, model=model)
-    enriched.extend(spell_summaries)
-
-    print(f"    Pass 3f: Building cross-reference indexes...")
-    index_chunks = build_generated_indexes(spell_entries, config)
-    enriched.extend(index_chunks)
-    print(f"      Built {len(index_chunks)} index chunks")
-
-    print(f"    Enrichment complete: {len(enriched)} chunks added")
-    return enriched
-
-
-# ── PDF parsing pipeline ────────────────────────────────────────
-
-def parse_pdf(
+def store(
     filepath: Path,
-    use_vlm: bool = True,
-    enrich: bool = True,
-    llm_model: str = "llama3:70b",
-) -> tuple[str, list[dict]] | None:
-    """Parse a single PDF using multi-pass hybrid extraction + enrichment.
-
-    Pass 1: Marker for layout-aware markdown
-    Pass 2: VLM via Ollama for pages with incomplete structured content
-    Pass 3: Enrichment — summaries, tables, cross-references (if enrich=True)
-    """
-    import time
-    try:
-        start = time.time()
-        file_size_mb = filepath.stat().st_size / (1024 * 1024)
-        print(f"  Parsing {filepath.name} ({file_size_mb:.1f} MB)...")
-
-        config = load_book_config(filepath)
-        chunking = config.get("chunking", {})
-
-        print(f"    Pass 1: Marker extraction...")
-        markdown = extract_with_marker(filepath)
-        print(f"    Pass 1 complete: {len(markdown):,} chars")
-
-        if use_vlm:
-            print(f"    Pass 2: Detecting pages needing VLM...")
-            incomplete = detect_incomplete_pages(markdown, filepath, config)
-            if incomplete:
-                print(f"    Pass 2: VLM extracting {len(incomplete)} pages...")
-                vlm_results = extract_pages_with_vlm(filepath, incomplete)
-                markdown = merge_vlm_into_markdown(markdown, vlm_results, filepath, config)
-                print(f"    Pass 2 complete: supplemented {len(vlm_results)} pages")
-            else:
-                print(f"    Pass 2: No incomplete pages detected, skipping VLM")
-
-        print(f"    Extracting table of contents...")
-        toc_entries = extract_toc_entries(filepath, config)
-        entries = parse_book_structure(markdown, filepath, toc_entries, config)
-        chunks = chunk_entries(
-            entries,
-            max_chars=chunking.get("max_chars", 800),
-            overlap=chunking.get("overlap", 200),
-        )
-        print(f"    Content chunks: {len(chunks)}")
-
-        if enrich:
-            print(f"    Pass 3: Enrichment pipeline...")
-            enriched = enrich_chunks(entries, chunks, toc_entries, config, model=llm_model)
-            chunks.extend(enriched)
-
-        elapsed = time.time() - start
-        print(f"    Done in {elapsed:.1f}s -> {len(chunks)} total chunks")
-        return (filepath.name, chunks)
-    except Exception as e:
-        print(f"  ERROR parsing {filepath.name}: {e}")
-        import traceback
-        traceback.print_exc()
-        return None
-
-
-# ── Database writes ─────────────────────────────────────────────
-
-def ingest_file(
-    filepath: Path,
-    conn: duckdb.DuckDBPyConnection,
+    toc_data: dict,
     chunks: list[dict],
-    document_title: str | None = None,
     game_system: str | None = None,
     content_type: str | None = None,
-    tags: str | None = None,
-    rules_version: str | None = None,
-) -> int:
-    """Store pre-parsed chunks in DuckDB with metadata."""
+) -> None:
+    """Write ToC (with sub-headings and tables), chunks, and file metadata to DuckDB."""
+    conn = duckdb.connect(DB_PATH)
+    init_schema(conn)
     now = datetime.now(timezone.utc)
+    toc_sections = toc_data["sections"]
 
-    conn.execute(
-        "DELETE FROM documents_tabletop_rules.chunks WHERE source_file = ?",
-        [filepath.name],
-    )
-    conn.execute(
-        "DELETE FROM documents_tabletop_rules.files WHERE source_file = ?",
-        [filepath.name],
-    )
+    # Clear previous data for this file
+    conn.execute("DELETE FROM documents_tabletop_rules.chunks WHERE source_file = ?", [filepath.name])
+    conn.execute("DELETE FROM documents_tabletop_rules.toc WHERE source_file = ?", [filepath.name])
+    conn.execute("DELETE FROM documents_tabletop_rules.files WHERE source_file = ?", [filepath.name])
 
-    max_id = conn.execute(
-        "SELECT COALESCE(MAX(chunk_id), 0) FROM documents_tabletop_rules.chunks"
-    ).fetchone()[0]
+    # Insert ToC sections with sub-headings and tables
+    toc_id_map = {}
+    for i, entry in enumerate(toc_sections):
+        toc_id = i + 1
+        toc_id_map[entry["title"]] = toc_id
+        sub_headings_str = "; ".join(entry.get("sub_headings", []))
+        tables_str = "; ".join(entry.get("tables", []))
+        conn.execute(
+            """INSERT INTO documents_tabletop_rules.toc
+               (toc_id, source_file, title, page_start, page_end,
+                is_excluded, sub_headings, tables)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            [toc_id, filepath.name, entry["title"], entry["page_start"],
+             entry["page_end"], entry["is_excluded"], sub_headings_str, tables_str],
+        )
 
+    # Insert chunks
     for i, chunk in enumerate(chunks):
+        toc = chunk["toc_entry"]
+        toc_id = toc_id_map.get(toc["title"])
         conn.execute(
             """INSERT INTO documents_tabletop_rules.chunks
-               (chunk_id, source_file, chapter_title, section_title, entry_title,
-                content, char_count, chunk_type, parsed_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            [
-                max_id + i + 1,
-                filepath.name,
-                chunk.get("chapter_title"),
-                chunk.get("section_title"),
-                chunk.get("entry_title"),
-                chunk["content"],
-                len(chunk["content"]),
-                chunk.get("chunk_type", "content"),
-                now,
-            ],
+               (chunk_id, source_file, toc_id, section_title, entry_title,
+                content, page_numbers, char_count, chunk_type, parsed_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            [i + 1, filepath.name, toc_id, chunk.get("section_title"),
+             chunk.get("entry_title"), chunk["content"], chunk["page_numbers"],
+             len(chunk["content"]), chunk.get("chunk_type", "content"), now],
         )
 
-    total_chars = sum(len(c["content"]) for c in chunks)
+    # Insert file metadata
     conn.execute(
         """INSERT INTO documents_tabletop_rules.files
-           (source_file, document_title, game_system, content_type, tags, rules_version,
-            total_chunks, total_chars, parsed_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        [
-            filepath.name,
-            document_title or filepath.stem,
-            game_system,
-            content_type,
-            tags,
-            rules_version,
-            len(chunks),
-            total_chars,
-            now,
-        ],
+           (source_file, document_title, game_system, content_type,
+            total_chunks, total_toc_entries, parsed_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        [filepath.name, filepath.stem, game_system, content_type,
+         len(chunks), len(toc_sections), now],
     )
 
-    print(f"  {filepath.name}: {len(chunks)} chunks, {total_chars:,} chars")
-    return len(chunks)
+    conn.close()
+    print(f"  Stored: {len(toc_sections)} ToC entries, {len(chunks)} chunks")
 
 
-def ingest_all(
-    directory: Path | None = None,
+# ── Pipeline ─────────────────────────────────────────────────────
+
+def parse_pdf(filepath: Path, game_system: str | None = None,
+              content_type: str | None = None) -> None:
+    """Full ingestion pipeline for a single PDF."""
+    import time
+    start = time.time()
+    file_size_mb = filepath.stat().st_size / (1024 * 1024)
+    print(f"\nParsing {filepath.name} ({file_size_mb:.1f} MB)")
+
+    config = load_config(filepath)
+
+    # 1. Parse ToC — sections and tables
+    toc_data = parse_toc(filepath, config)
+
+    # 2. Map pages to ToC sections
+    page_map = build_page_map(filepath, toc_data["sections"], config)
+
+    # 3. Detect watermarks and extract text per page
+    watermarks = detect_watermarks(filepath)
+    pages = extract_pages(filepath, page_map, config, watermarks)
+
+    # 3b. Collect sub-headings within each ToC section
+    collect_sub_headings(pages, toc_data["sections"], config)
+
+    # 4. Build entries within ToC sections
+    entries = build_entries(pages, config)
+
+    # 5. Chunk
+    chunks = chunk_entries(entries, config)
+
+    # 6. Store
+    store(filepath, toc_data, chunks, game_system, content_type)
+
+    elapsed = time.time() - start
+    print(f"  Done in {elapsed:.1f}s")
+
+
+def run(
     game_system: str | None = None,
     content_type: str | None = None,
-    tags: str | None = None,
-    max_workers: int | None = None,
-    use_vlm: bool = True,
-    enrich: bool = True,
+    directory: Path | None = None,
 ) -> None:
-    """Parse all PDFs in documents/tabletop_rules/raw directory.
-
-    Args:
-        directory: Override directory to scan
-        game_system: e.g., "D&D 2e", "Pathfinder 2e"
-        content_type: e.g., "rules", "module", "campaign"
-        tags: comma-separated tags for categorization
-        max_workers: Number of cores to use (default: all available)
-        use_vlm: Enable Pass 2 VLM extraction for structured content
-        enrich: Enable Pass 3 enrichment (summaries, tables, cross-references)
-    """
-    import time
-    overall_start = time.time()
-
+    """Ingest all PDFs in the raw documents directory."""
     doc_dir = directory or DOCUMENTS_DIR
     files = sorted(doc_dir.glob("*.pdf"))
 
@@ -1166,83 +658,13 @@ def ingest_all(
         print(f"No PDF files found in {doc_dir}")
         return
 
-    if max_workers is None:
-        max_workers = mp.cpu_count()
-
     total_size_mb = sum(f.stat().st_size for f in files) / (1024 * 1024)
-    print(f"Parsing {len(files)} PDFs ({total_size_mb:.1f} MB total) using {max_workers} threads...")
-    print(f"VLM pass: {'enabled' if use_vlm else 'disabled'}")
-    print(f"Enrichment: {'enabled' if enrich else 'disabled'}")
-    print()
+    print(f"Ingesting {len(files)} PDFs ({total_size_mb:.1f} MB total)")
 
-    parsed_results = {}
-    parse_start = time.time()
-    # Run sequentially when enrichment is enabled (LLM calls aren't thread-safe)
-    if enrich:
-        for f in files:
-            result = parse_pdf(f, use_vlm=use_vlm, enrich=enrich)
-            if result:
-                filename, chunks = result
-                parsed_results[filename] = chunks
-    else:
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            future_to_file = {
-                executor.submit(parse_pdf, f, use_vlm, False): f for f in files
-            }
+    for f in files:
+        parse_pdf(f, game_system=game_system, content_type=content_type)
 
-            for future in as_completed(future_to_file):
-                result = future.result()
-                if result:
-                    filename, chunks = result
-                    parsed_results[filename] = chunks
-
-    parse_elapsed = time.time() - parse_start
-    print(f"\nParsing complete: {parse_elapsed:.1f}s")
-    print()
-
-    conn = duckdb.connect(DB_PATH)
-    init_schema(conn)
-
-    total_chunks = 0
-    print("Writing to database...")
-    for i, f in enumerate(files, 1):
-        if f.name in parsed_results:
-            chunks = parsed_results[f.name]
-            total_chunks += ingest_file(
-                f,
-                conn,
-                chunks,
-                game_system=game_system,
-                content_type=content_type,
-                tags=tags,
-            )
-        print(f"  {i}/{len(files)} files written")
-
-    conn.close()
-    overall_elapsed = time.time() - overall_start
-    print(f"\nDone in {overall_elapsed:.1f}s total:")
-    print(f"   {len(files)} files, {total_chunks} total chunks ingested")
-    if len(files) > 0:
-        print(f"   {total_chunks / overall_elapsed:.0f} chunks/sec")
-
-
-def run(
-    game_system: str | None = None,
-    content_type: str | None = None,
-    tags: str | None = None,
-    max_workers: int | None = None,
-    use_vlm: bool = True,
-    enrich: bool = True,
-) -> None:
-    """Entrypoint."""
-    ingest_all(
-        game_system=game_system,
-        content_type=content_type,
-        tags=tags,
-        max_workers=max_workers,
-        use_vlm=use_vlm,
-        enrich=enrich,
-    )
+    print(f"\nAll done: {len(files)} files ingested")
 
 
 if __name__ == "__main__":
