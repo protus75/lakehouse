@@ -131,6 +131,7 @@ services:
       - ../streamlit:/workspace/streamlit
       - ../rag:/workspace/rag
       - ../documents:/workspace/documents
+      - ../scripts:/workspace/scripts
       - ../chroma_db:/workspace/chroma_db
       - ../db/duckdb:/workspace/db
       - ../cache/huggingface:/workspace/.cache/huggingface

@@ -230,6 +230,34 @@ def build_page_map(filepath: Path, toc_entries: list[dict], config: dict) -> dic
     return page_map
 
 
+# ── Text cleanup ─────────────────────────────────────────────────
+
+def clean_text(text: str) -> str:
+    """Clean up raw pymupdf text extraction artifacts.
+    - Rejoin hyphenated words split across lines (larg-\\nest -> largest)
+    - Remove isolated single/double character fragments from column bleed
+    - Collapse multiple blank lines
+    - Strip trailing whitespace per line
+    """
+    # Rejoin hyphenated line breaks: "word-\n continued" -> "wordcontinued"
+    text = re.sub(r"(\w)-\s*\n\s*(\w)", r"\1\2", text)
+    # Remove lines that are just 1-2 characters (column bleed artifacts like " M" or "S")
+    lines = []
+    for line in text.split("\n"):
+        stripped = line.strip()
+        if stripped and len(stripped) <= 2 and stripped.isalpha():
+            continue
+        # Remove isolated single chars within a line: "some text  M  more text" -> "some text more text"
+        line = re.sub(r"  [A-Z]  ", " ", line)
+        # Remove trailing isolated chars: "some text  M"
+        line = re.sub(r"\s+[A-Z]\s*$", "", line)
+        lines.append(line.rstrip())
+    # Collapse multiple blank lines to single
+    result = "\n".join(lines)
+    result = re.sub(r"\n{3,}", "\n\n", result)
+    return result
+
+
 # ── Step 3: Extract text per page ────────────────────────────────
 
 def detect_watermarks(filepath: Path, threshold: float = 0.3) -> set[str]:
@@ -257,9 +285,45 @@ def detect_watermarks(filepath: Path, threshold: float = 0.3) -> set[str]:
     return watermarks
 
 
+def _extract_page_text_blocks(page) -> str:
+    """Extract text from a PDF page using block-level layout analysis.
+    Sorts blocks by column (left then right) and vertical position
+    to properly handle two-column layouts and tables."""
+    blocks = page.get_text("blocks")
+    page_width = page.rect.width
+    mid_x = page_width / 2
+
+    # Separate text blocks into left and right columns
+    left_blocks = []
+    right_blocks = []
+    for b in blocks:
+        if b[6] != 0:  # skip image blocks
+            continue
+        center_x = (b[0] + b[2]) / 2
+        if center_x < mid_x:
+            left_blocks.append(b)
+        else:
+            right_blocks.append(b)
+
+    # Sort each column by vertical position
+    left_blocks.sort(key=lambda b: b[1])
+    right_blocks.sort(key=lambda b: b[1])
+
+    # Interleave: left column first, then right column
+    # This preserves proper reading order for two-column layouts
+    all_blocks = left_blocks + right_blocks
+
+    text_parts = []
+    for b in all_blocks:
+        text_parts.append(b[4].strip())
+
+    return "\n".join(text_parts)
+
+
 def extract_pages(filepath: Path, page_map: dict, config: dict,
                   watermarks: set[str] | None = None) -> list[dict]:
-    """Extract text from each non-excluded page.
+    """Extract text from each non-excluded page using block-level layout.
+    Handles two-column layouts and tables correctly.
     Strips page numbers and watermarks automatically.
     Returns list of {page_idx, page_number, toc_entry, text}."""
     page_pattern = config.get("toc", {}).get("page_number_pattern", r"^\d{1,3}$")
@@ -275,9 +339,12 @@ def extract_pages(filepath: Path, page_map: dict, config: dict,
             continue
 
         page = doc[page_idx]
-        text = page.get_text("text")
         printed_page = read_page_number(page, page_idx, page_pattern)
 
+        # Use block-level extraction for proper column/table handling
+        text = _extract_page_text_blocks(page)
+
+        # Strip watermarks and page numbers
         lines = []
         for line in text.split("\n"):
             stripped = line.strip()
@@ -287,11 +354,12 @@ def extract_pages(filepath: Path, page_map: dict, config: dict,
                 continue
             lines.append(line)
 
+        raw = "\n".join(lines)
         pages.append({
             "page_idx": page_idx,
             "page_number": printed_page,
             "toc_entry": toc_entry,
-            "text": "\n".join(lines),
+            "text": clean_text(raw),
         })
 
     doc.close()
@@ -409,6 +477,29 @@ def _is_sub_section(stripped: str, rules: dict) -> bool:
     return False
 
 
+def _clean_entry_content(lines: list[str]) -> str:
+    """Clean up an entry's content lines before storage.
+    - Remove leading/trailing blank lines
+    - Collapse multiple consecutive blank lines to one
+    - Join short continuation lines to previous line
+    - Strip extraneous whitespace"""
+    # Remove leading/trailing blanks
+    while lines and not lines[0].strip():
+        lines.pop(0)
+    while lines and not lines[-1].strip():
+        lines.pop()
+
+    cleaned = []
+    for line in lines:
+        if not line.strip():
+            if cleaned and cleaned[-1] != "":
+                cleaned.append("")
+        else:
+            cleaned.append(line.strip())
+
+    return "\n".join(cleaned).strip()
+
+
 def build_entries(pages: list[dict], config: dict) -> list[dict]:
     """Group pages by ToC section, detect headings using section-specific rules.
     Each entry has: toc_entry, section_title, entry_title, content, page_numbers."""
@@ -422,9 +513,20 @@ def build_entries(pages: list[dict], config: dict) -> list[dict]:
             sections[toc_title] = []
         sections[toc_title].append(page)
 
+    # Build set of ToC titles to exclude from heading detection
+    toc_titles_lower = set()
+    for page in pages:
+        t = page["toc_entry"]["title"].lower()
+        toc_titles_lower.add(t)
+        # Also add just the name part after "Appendix N:" etc.
+        name = re.sub(r"^(chapter|appendix)\s+\d+\s*:?\s*", "", t, flags=re.IGNORECASE).strip()
+        if name:
+            toc_titles_lower.add(name)
+
     for toc_title, section_pages in sections.items():
         toc_entry = section_pages[0]["toc_entry"]
         rules = _get_section_parsing(toc_title, config)
+        last_was_metadata = False
 
         current_section = None
         current_entry_title = None
@@ -434,13 +536,14 @@ def build_entries(pages: list[dict], config: dict) -> list[dict]:
         def flush():
             nonlocal current_content, current_page_numbers
             if current_content:
-                content = "\n".join(current_content).strip()
-                if content and len(content) > 20:
+                # Clean up: collapse blank lines, join continuation lines
+                cleaned = _clean_entry_content(current_content)
+                if cleaned and len(cleaned) > 20:
                     entries.append({
                         "toc_entry": toc_entry,
                         "section_title": current_section,
                         "entry_title": current_entry_title,
-                        "content": content,
+                        "content": cleaned,
                         "page_numbers": sorted(set(current_page_numbers)),
                     })
             current_content = []
@@ -454,6 +557,20 @@ def build_entries(pages: list[dict], config: dict) -> list[dict]:
                 stripped = line.strip()
                 if not stripped:
                     current_content.append("")
+                    last_was_metadata = False
+                    continue
+
+                # If previous line was a metadata field and this line looks like
+                # a continuation (short, doesn't start a new field), join it
+                if last_was_metadata and not _is_metadata_line(stripped, rules) and not _is_heading(stripped, rules):
+                    if len(stripped) < 40 and not stripped[0].isupper():
+                        if current_content:
+                            current_content[-1] = current_content[-1] + " " + stripped
+                            last_was_metadata = False
+                            continue
+
+                # Skip ToC section titles that appear as text on the page
+                if stripped.lower() in toc_titles_lower:
                     continue
 
                 # Check in order: sub-section > metadata > keep_with_entry > heading > content
@@ -463,23 +580,28 @@ def build_entries(pages: list[dict], config: dict) -> list[dict]:
                     current_entry_title = None
                     current_content = [stripped]
                     current_page_numbers = [page_num]
+                    last_was_metadata = False
                 elif _is_metadata_line(stripped, rules):
                     current_content.append(stripped)
                     if page_num not in current_page_numbers:
                         current_page_numbers.append(page_num)
+                    last_was_metadata = True
                 elif _is_keep_with_entry(stripped, rules):
                     current_content.append(stripped)
                     if page_num not in current_page_numbers:
                         current_page_numbers.append(page_num)
+                    last_was_metadata = False
                 elif _is_heading(stripped, rules):
                     flush()
                     current_entry_title = stripped
                     current_content = [stripped]
                     current_page_numbers = [page_num]
+                    last_was_metadata = False
                 else:
                     current_content.append(stripped)
                     if page_num not in current_page_numbers:
                         current_page_numbers.append(page_num)
+                    last_was_metadata = False
 
         flush()
 
@@ -564,9 +686,13 @@ def store(
     conn.execute("DELETE FROM documents_tabletop_rules.files WHERE source_file = ?", [filepath.name])
 
     # Insert ToC sections with sub-headings and tables
+    max_toc_id = conn.execute(
+        "SELECT COALESCE(MAX(toc_id), 0) FROM documents_tabletop_rules.toc"
+    ).fetchone()[0]
+
     toc_id_map = {}
     for i, entry in enumerate(toc_sections):
-        toc_id = i + 1
+        toc_id = max_toc_id + i + 1
         toc_id_map[entry["title"]] = toc_id
         sub_headings_str = "; ".join(entry.get("sub_headings", []))
         tables_str = "; ".join(entry.get("tables", []))
@@ -580,6 +706,10 @@ def store(
         )
 
     # Insert chunks
+    max_chunk_id = conn.execute(
+        "SELECT COALESCE(MAX(chunk_id), 0) FROM documents_tabletop_rules.chunks"
+    ).fetchone()[0]
+
     for i, chunk in enumerate(chunks):
         toc = chunk["toc_entry"]
         toc_id = toc_id_map.get(toc["title"])
@@ -588,7 +718,7 @@ def store(
                (chunk_id, source_file, toc_id, section_title, entry_title,
                 content, page_numbers, char_count, chunk_type, parsed_at)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            [i + 1, filepath.name, toc_id, chunk.get("section_title"),
+            [max_chunk_id + i + 1, filepath.name, toc_id, chunk.get("section_title"),
              chunk.get("entry_title"), chunk["content"], chunk["page_numbers"],
              len(chunk["content"]), chunk.get("chunk_type", "content"), now],
         )
