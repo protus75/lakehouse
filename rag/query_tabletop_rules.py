@@ -98,13 +98,13 @@ LOOKUP: Strength ability score -> 1"""
         response = requests.post(
             f"{OLLAMA_URL}/api/generate",
             json={"model": model, "prompt": prompt, "stream": False},
-            timeout=120,
+            timeout=300,
         )
         response.raise_for_status()
         result = response.json()["response"]
     except Exception as e:
         print(f"ToC routing failed: {e}")
-        return [{"entity": question, "toc_entry": toc[0]}] if toc else []
+        return []
 
     return _parse_routing_response(result, toc, question)
 
@@ -121,10 +121,6 @@ def _parse_routing_response(response: str, toc: list[dict], question: str) -> li
             idx = int(m.group(2)) - 1
             if 0 <= idx < len(toc):
                 lookups.append({"entity": entity, "toc_entry": toc[idx]})
-
-    # Fallback if parsing failed
-    if not lookups and toc:
-        lookups = [{"entity": question, "toc_entry": toc[0]}]
 
     return lookups
 
