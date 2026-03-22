@@ -1,0 +1,6 @@
+- [user_profile.md](user_profile.md) - User prefers CLI/PowerShell over Jupyter, not familiar with Jupyter
+- [feedback_no_comments_in_commands.md](feedback_no_comments_in_commands.md) - Commands: no inline comments, specify terminal type, use PowerShell syntax, include cd
+- [feedback_no_notepad.md](feedback_no_notepad.md) - Never suggest notepad; use VSCode or Edit tool
+- [feedback_page_numbers.md](feedback_page_numbers.md) - Always read printed page numbers from PDF text, never calculate offsets
+- [feedback_ingestion_over_export.md](feedback_ingestion_over_export.md) - Fix data quality at ingestion with config, never patch in export
+- [project_d_drive.md](project_d_drive.md) - All data/models/caches must be on D drive, never C drive
