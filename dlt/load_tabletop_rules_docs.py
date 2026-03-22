@@ -375,52 +375,67 @@ def _has_metadata_but_no_description(content: str, config: dict) -> bool:
 
 
 def _is_orphan_continuation(content: str) -> bool:
-    """Check if entry content looks like an orphan continuation (split from previous entry)."""
+    """Check if entry content looks like an orphan continuation (split from previous entry).
+    Looks past the heading line to check if the first body line starts with lowercase/mid-word."""
     lines = [l for l in content.split("\n") if l.strip()]
     if not lines:
         return False
     first = lines[0].strip()
     if first.startswith("#"):
-        first_text = re.sub(r"^#{1,4}\s+", "", first).strip()
-        return bool(first_text) and first_text[0].islower()
+        for line in lines[1:]:
+            stripped = line.strip()
+            if stripped and not stripped.startswith("#"):
+                return stripped[0].islower()
+        return False
     return bool(first) and first[0].islower()
 
 
 def _merge_orphan_entries(entries: list[dict], config: dict) -> list[dict]:
     """Merge orphan continuation entries back into their preceding entry.
 
-    Fixes page-boundary splits where Marker breaks an entry so that:
-    - The previous entry has metadata but no/short description ('hungry')
-    - The next entry starts with lowercase continuation text ('orphan')
+    Handles two cases of page-boundary splits from Marker:
+    1. Same entry_title: consecutive entries with the same title where the later one
+       starts with lowercase/mid-word text (Marker split the entry across pages)
+    2. Hungry + orphan: previous entry has metadata but no description, next entry
+       starts with lowercase continuation text (description got split off)
     """
     if not config or len(entries) < 2:
         return entries
 
     merged = []
-    skip_next = False
     merge_count = 0
 
-    for i, entry in enumerate(entries):
-        if skip_next:
-            skip_next = False
-            continue
+    i = 0
+    while i < len(entries):
+        entry = dict(entries[i])
 
-        if i + 1 < len(entries):
-            current = entry
+        # Look ahead and absorb continuations
+        while i + 1 < len(entries):
             next_entry = entries[i + 1]
+            same_toc = entry["toc_entry"] == next_entry["toc_entry"]
+            if not same_toc:
+                break
 
-            is_hungry = _has_metadata_but_no_description(current["content"], config)
             is_orphan = _is_orphan_continuation(next_entry["content"])
 
-            if is_hungry and is_orphan and current["toc_entry"] == next_entry["toc_entry"]:
-                entry = dict(current)
+            # Case 1: same entry_title and next starts with lowercase/mid-word
+            same_title = (entry.get("entry_title") and
+                          entry["entry_title"] == next_entry.get("entry_title"))
+
+            # Case 2: current has metadata but no description, next is orphan
+            is_hungry = _has_metadata_but_no_description(entry["content"], config)
+
+            if (same_title and is_orphan) or (is_hungry and is_orphan):
                 orphan_content = next_entry["content"]
                 orphan_content = re.sub(r"^#{1,4}\s+.+\n?", "", orphan_content).strip()
-                entry["content"] = current["content"] + "\n\n" + orphan_content
-                skip_next = True
+                entry["content"] = entry["content"] + "\n\n" + orphan_content
                 merge_count += 1
+                i += 1
+            else:
+                break
 
         merged.append(entry)
+        i += 1
 
     if merge_count:
         print(f"  Orphan merges: {merge_count} entries recovered")
