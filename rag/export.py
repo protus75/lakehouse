@@ -495,26 +495,8 @@ def export_markdown(
             deduped_lines.append(stripped)
         combined = "\n".join(deduped_lines)
 
-        # Strip leading spaces from all lines
-        combined = "\n".join(line.lstrip() for line in combined.split("\n"))
-
-        # Clean up partial image references that survived the strip
-        combined = re.sub(r"[a-z_0-9]*\.jpeg\)?", "", combined)
-        combined = re.sub(r"[a-z_0-9]*\.png\)?", "", combined)
-        combined = re.sub(r"\!\[.*?\]", "", combined)
-
-        # Pre-process: split metadata fields that are smashed on one line
-        # e.g. "Sphere: All Range: 60 yds." -> separate lines
-        meta_field_names = "|".join(re.escape(f) for f in META_FIELDS)
-        combined = re.sub(
-            r"(" + meta_field_names + r")\s*:",
-            r"\n\1:",
-            combined,
-        )
-        # Clean up any double newlines from the splits
-        combined = re.sub(r"\n{3,}", "\n\n", combined)
-
         # Separate metadata from description
+        # (Leading spaces, smashed metadata, and image refs are cleaned at ingestion time)
         meta_lines = []
         desc_lines = []
         found_meta = {}

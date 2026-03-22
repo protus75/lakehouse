@@ -3,4 +3,6 @@
 - [feedback_no_notepad.md](feedback_no_notepad.md) - Never suggest notepad; use VSCode or Edit tool
 - [feedback_page_numbers.md](feedback_page_numbers.md) - Always read printed page numbers from PDF text, never calculate offsets
 - [feedback_ingestion_over_export.md](feedback_ingestion_over_export.md) - Fix data quality at ingestion with config, never patch in export
+- [feedback_avoid_regex.md](feedback_avoid_regex.md) - Use Marker ML headings and LLM, not regex for content parsing
 - [project_d_drive.md](project_d_drive.md) - All data/models/caches must be on D drive, never C drive
+- [project_rag_architecture.md](project_rag_architecture.md) - RAG architecture, key files, and next TODO (ToC state machine)

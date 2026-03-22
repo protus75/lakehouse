@@ -151,7 +151,7 @@ def parse_toc(filepath: Path, config: dict) -> dict:
     return {"sections": sections, "tables": tables}
 
 
-# ── Step 2: Page number → chapter map (pymupdf) ─────────────────
+# ── Step 2: Page number helpers (pymupdf) ────────────────────────
 
 def _read_page_number(page, page_idx: int, pattern: str) -> int:
     text = page.get_text("text")
@@ -166,26 +166,7 @@ def _read_page_number(page, page_idx: int, pattern: str) -> int:
     return page_idx
 
 
-def build_page_chapter_map(filepath: Path, toc_sections: list[dict], config: dict) -> dict:
-    """Map PDF page index → ToC section dict (or None for excluded/unmapped)."""
-    page_pattern = config.get("toc", {}).get("page_number_pattern", r"^\d{1,3}$")
-    included = [s for s in toc_sections if not s["is_excluded"]]
-
-    doc = fitz.open(str(filepath))
-    page_map = {}
-    for page_idx in range(len(doc)):
-        printed = _read_page_number(doc[page_idx], page_idx, page_pattern)
-        matched = None
-        for entry in included:
-            if entry["page_start"] <= printed <= entry["page_end"]:
-                matched = entry
-                break
-        page_map[page_idx] = matched
-    doc.close()
-    return page_map
-
-
-# ── Step 3: Marker extraction ───────────────────────────────────
+# ── Step 2b: Marker extraction ──────────────────────────────────
 
 _marker_models = None
 
@@ -214,7 +195,7 @@ def extract_marker_markdown(filepath: Path) -> str:
     return md
 
 
-# ── Step 4: Merge Marker pages with chapter assignments ─────────
+# ── Step 3: Merge Marker headings with chapter assignments ──────
 
 def _detect_watermarks(filepath: Path, threshold: float = 0.3) -> set[str]:
     """Detect watermark lines from pymupdf page text."""
@@ -237,50 +218,103 @@ def _detect_watermarks(filepath: Path, threshold: float = 0.3) -> set[str]:
     return watermarks
 
 
+def _normalize_toc_title(title: str) -> str:
+    """Strip 'Chapter X:', 'Appendix X:' prefixes for flexible heading matching."""
+    cleaned = re.sub(
+        r'^(?:Chapter|Appendix|Part|Section)\s+\d*\s*:?\s*',
+        '', title, flags=re.IGNORECASE,
+    )
+    return cleaned.strip().lower()
+
+
+def _toc_title_matches(heading: str, normalized_toc: str, full_toc_lower: str) -> bool:
+    """Check if a markdown heading matches a ToC section title."""
+    if heading == normalized_toc or heading == full_toc_lower:
+        return True
+    if normalized_toc in heading and len(normalized_toc) > 5:
+        return True
+    if heading in normalized_toc and len(heading) > 5 and len(heading) >= len(normalized_toc) * 0.5:
+        return True
+    if heading in full_toc_lower and len(heading) > 5 and len(heading) >= len(full_toc_lower) * 0.4:
+        return True
+    return False
+
+
 def build_heading_chapter_map(
     markdown: str,
+    toc_sections: list[dict],
     filepath: Path,
-    page_map: dict,
+    config: dict,
 ) -> dict[int, dict]:
-    """Map heading positions in the markdown to their ToC chapters.
+    """Map heading positions in markdown to ToC chapters using a state machine.
 
-    For each heading in Marker's markdown, find which pymupdf page contains
-    that heading text (forward-only search). That page's chapter from page_map
-    becomes the heading's chapter.
+    Walks Marker headings sequentially and matches against ToC sections in order.
+    The ToC determines chapter assignment — no brittle forward-only page text search.
+    Page numbers are resolved by targeted search within the matched section's page range.
 
-    Returns {char_position_in_markdown: toc_entry}."""
+    Returns {char_position_in_markdown: {"toc_entry": section_dict, "page": page_idx}}."""
+    included = [s for s in toc_sections if not s["is_excluded"]]
+    if not included:
+        return {}
+
+    normalized_titles = [_normalize_toc_title(s["title"]) for s in included]
+
+    # Load page data for page number resolution (not chapter assignment)
+    page_pattern = config.get("toc", {}).get("page_number_pattern", r"^\d{1,3}$")
     doc = fitz.open(str(filepath))
     page_texts = [doc[i].get_text("text").lower() for i in range(len(doc))]
-    total_pages = len(doc)
+    page_printed = {}
+    for page_idx in range(len(doc)):
+        page_printed[page_idx] = _read_page_number(doc[page_idx], page_idx, page_pattern)
     doc.close()
 
-    excluded_pages = {idx for idx, entry in page_map.items() if entry is None}
+    # Precompute which page_idxs belong to each section (by printed page range)
+    section_page_idxs = {}
+    for s in included:
+        section_page_idxs[s["title"]] = [
+            idx for idx, printed in page_printed.items()
+            if s["page_start"] <= printed <= s["page_end"]
+        ]
+
+    # State machine: walk headings, advance through ToC
+    toc_idx = 0
     heading_chapters = {}
     last_page = 0
 
-    for m in re.finditer(r"^#{1,4}\s+(.+)", markdown, re.MULTILINE):
-        heading = re.sub(r"\*+", "", m.group(1)).strip().lower()
-        heading_clean = re.sub(r"\s*\([\w/,\s]+\)\s*$", "", heading).strip()
+    for m in re.finditer(r"^(#{1,4})\s+(.+)", markdown, re.MULTILINE):
+        level = len(m.group(1))
+        heading = re.sub(r"\*+", "", m.group(2)).strip()
+        heading_lower = heading.lower()
+        heading_clean = re.sub(r"\s*\([\w/,\s]+\)\s*$", "", heading_lower).strip()
 
         if len(heading_clean) < 3:
             continue
 
-        # Search forward from last matched page — never wraps
-        for page_idx in range(last_page, total_pages):
-            if page_idx in excluded_pages:
-                continue
-            if heading_clean in page_texts[page_idx]:
-                toc_entry = page_map.get(page_idx)
-                if toc_entry:
-                    heading_chapters[m.start()] = {"toc_entry": toc_entry, "page": page_idx}
-                last_page = page_idx
-                break
+        # Level 1-2 headings can advance the ToC state
+        if level <= 2:
+            for i in range(toc_idx, len(included)):
+                if _toc_title_matches(heading_clean, normalized_titles[i], included[i]["title"].lower()):
+                    toc_idx = i
+                    break
 
-    print(f"  Heading-chapter map: {len(heading_chapters)} headings mapped")
+        if toc_idx < len(included):
+            current_section = included[toc_idx]
+
+            # Resolve page number within section's page range
+            page = last_page
+            for page_idx in section_page_idxs.get(current_section["title"], []):
+                if page_idx >= last_page and heading_clean in page_texts[page_idx]:
+                    page = page_idx
+                    break
+
+            last_page = page
+            heading_chapters[m.start()] = {"toc_entry": current_section, "page": page}
+
+    print(f"  Heading-chapter map: {len(heading_chapters)} headings mapped (state machine)")
     return heading_chapters
 
 
-# ── Step 5: Build entries from Marker headings ───────────────────
+# ── Step 4: Build entries from Marker headings ───────────────────
 
 def _should_strip_line(stripped: str, config: dict) -> bool:
     """Check if a line should be stripped from entry content based on config patterns.
@@ -292,6 +326,107 @@ def _should_strip_line(stripped: str, config: dict) -> bool:
     return False
 
 
+def _clean_entry_content(content: str, config: dict) -> str:
+    """Clean entry content at ingestion time.
+
+    Fixes Marker artifacts so stored data is clean:
+    - Split smashed metadata fields onto separate lines
+    - Strip leading spaces from all lines
+    - Clean partial image references
+    - Collapse excessive blank lines
+    """
+    field_names = config.get("metadata_field_names", [])
+    if field_names:
+        field_pattern = "|".join(re.escape(f) for f in field_names)
+        content = re.sub(
+            r"(" + field_pattern + r")\s*:",
+            r"\n\1:",
+            content,
+        )
+
+    lines = []
+    for line in content.split("\n"):
+        stripped = line.lstrip()
+        if re.match(r"^[a-z_0-9]*\.(?:jpeg|png)\)?$", stripped):
+            continue
+        if re.match(r"^!\[.*\]$", stripped):
+            continue
+        lines.append(stripped)
+
+    content = "\n".join(lines)
+    content = re.sub(r"\n{3,}", "\n\n", content)
+    return content.strip()
+
+
+def _has_metadata_but_no_description(content: str, config: dict) -> bool:
+    """Check if entry has metadata fields but little/no description after them."""
+    field_names = config.get("metadata_field_names", [])
+    if not field_names:
+        return False
+    last_meta_pos = -1
+    for field in field_names:
+        idx = content.lower().rfind(field.lower() + ":")
+        if idx > last_meta_pos:
+            last_meta_pos = idx
+    if last_meta_pos < 0:
+        return False
+    after_meta = content[last_meta_pos:].split("\n", 1)
+    return len(after_meta) < 2 or len(after_meta[1].strip()) < 20
+
+
+def _is_orphan_continuation(content: str) -> bool:
+    """Check if entry content looks like an orphan continuation (split from previous entry)."""
+    lines = [l for l in content.split("\n") if l.strip()]
+    if not lines:
+        return False
+    first = lines[0].strip()
+    if first.startswith("#"):
+        first_text = re.sub(r"^#{1,4}\s+", "", first).strip()
+        return bool(first_text) and first_text[0].islower()
+    return bool(first) and first[0].islower()
+
+
+def _merge_orphan_entries(entries: list[dict], config: dict) -> list[dict]:
+    """Merge orphan continuation entries back into their preceding entry.
+
+    Fixes page-boundary splits where Marker breaks an entry so that:
+    - The previous entry has metadata but no/short description ('hungry')
+    - The next entry starts with lowercase continuation text ('orphan')
+    """
+    if not config or len(entries) < 2:
+        return entries
+
+    merged = []
+    skip_next = False
+    merge_count = 0
+
+    for i, entry in enumerate(entries):
+        if skip_next:
+            skip_next = False
+            continue
+
+        if i + 1 < len(entries):
+            current = entry
+            next_entry = entries[i + 1]
+
+            is_hungry = _has_metadata_but_no_description(current["content"], config)
+            is_orphan = _is_orphan_continuation(next_entry["content"])
+
+            if is_hungry and is_orphan and current["toc_entry"] == next_entry["toc_entry"]:
+                entry = dict(current)
+                orphan_content = next_entry["content"]
+                orphan_content = re.sub(r"^#{1,4}\s+.+\n?", "", orphan_content).strip()
+                entry["content"] = current["content"] + "\n\n" + orphan_content
+                skip_next = True
+                merge_count += 1
+
+        merged.append(entry)
+
+    if merge_count:
+        print(f"  Orphan merges: {merge_count} entries recovered")
+    return merged
+
+
 def build_entries(
     markdown: str,
     heading_chapter_map: dict[int, dict],
@@ -301,7 +436,7 @@ def build_entries(
     """Parse Marker markdown into entries using heading-chapter map for ToC assignment.
 
     No page splitting. Marker's continuous markdown is parsed by headings.
-    Each heading's chapter comes from heading_chapter_map (built from pymupdf pages).
+    Each heading's chapter comes from heading_chapter_map (built from ToC state machine).
     known_entries whitelist prevents false headings in spell sections."""
     entries = []
     current_toc = None
@@ -314,6 +449,8 @@ def build_entries(
         nonlocal current_content
         if current_content and current_toc:
             content = "\n".join(current_content).strip()
+            if config:
+                content = _clean_entry_content(content, config)
             if content and len(content) > 10:
                 entries.append({
                     "toc_entry": current_toc,
@@ -366,11 +503,15 @@ def build_entries(
         char_pos += len(line) + 1
 
     flush()
+
+    if config:
+        entries = _merge_orphan_entries(entries, config)
+
     print(f"  Entries: {len(entries)}")
     return entries
 
 
-# ── Step 6: Extract known entry names from indexes ───────────────
+# ── Step 5: Extract known entry names from indexes ───────────────
 
 def extract_known_entries(filepath: Path, toc_data: dict, config: dict) -> set[str]:
     """Get valid entry names from excluded index sections."""
@@ -403,7 +544,7 @@ def extract_known_entries(filepath: Path, toc_data: dict, config: dict) -> set[s
     return names
 
 
-# ── Step 7: Collect sub-headings per ToC section ─────────────────
+# ── Step 6: Collect sub-headings per ToC section ─────────────────
 
 def collect_sub_headings(entries: list[dict], toc_sections: list[dict]) -> None:
     """Collect entry titles per ToC section for query routing."""
@@ -425,7 +566,7 @@ def collect_sub_headings(entries: list[dict], toc_sections: list[dict]) -> None:
     print(f"  Sub-headings: {total} collected")
 
 
-# ── Step 8: Chunk entries ────────────────────────────────────────
+# ── Step 7: Chunk entries ────────────────────────────────────────
 
 def chunk_entries(entries: list[dict], config: dict) -> list[dict]:
     chunking = config.get("chunking", {})
@@ -471,7 +612,7 @@ def chunk_entries(entries: list[dict], config: dict) -> list[dict]:
     return chunks
 
 
-# ── Step 9: Store ────────────────────────────────────────────────
+# ── Step 8: Store ────────────────────────────────────────────────
 
 def store(filepath: Path, toc_data: dict, chunks: list[dict],
           game_system: str | None = None, content_type: str | None = None) -> None:
@@ -546,36 +687,33 @@ def parse_pdf(filepath: Path, game_system: str | None = None,
     # 1. Parse ToC
     toc_data = parse_toc(filepath, config)
 
-    # 2. Page numbers → chapter map (pymupdf)
-    page_map = build_page_chapter_map(filepath, toc_data["sections"], config)
-
-    # 3. Marker extraction (continuous markdown, no page splitting)
+    # 2. Marker extraction (continuous markdown, no page splitting)
     print(f"  Marker: extracting...")
     markdown = extract_marker_markdown(filepath)
     print(f"  Marker: {len(markdown):,} chars")
 
-    # 4. Detect and strip watermarks from markdown
+    # 3. Detect and strip watermarks from markdown
     watermarks = _detect_watermarks(filepath)
     if watermarks:
         lines = [l for l in markdown.split("\n") if l.strip() not in watermarks]
         markdown = "\n".join(lines)
 
-    # 5. Map headings in markdown to chapters via pymupdf pages
-    heading_chapter_map = build_heading_chapter_map(markdown, filepath, page_map)
+    # 4. Map headings to chapters via ToC state machine (no brittle page text search)
+    heading_chapter_map = build_heading_chapter_map(markdown, toc_data["sections"], filepath, config)
 
-    # 6. Known entry names from indexes
+    # 5. Known entry names from indexes
     known_entries = extract_known_entries(filepath, toc_data, config)
 
-    # 7. Build entries from Marker headings with chapter assignments
+    # 6. Build entries from Marker headings with chapter assignments
     entries = build_entries(markdown, heading_chapter_map, known_entries, config)
 
-    # 8. Sub-headings for query routing
+    # 7. Sub-headings for query routing
     collect_sub_headings(entries, toc_data["sections"])
 
-    # 9. Chunk
+    # 8. Chunk
     chunks = chunk_entries(entries, config)
 
-    # 10. Store
+    # 9. Store
     store(filepath, toc_data, chunks, game_system, content_type)
 
     print(f"  Done in {time.time() - start:.1f}s")

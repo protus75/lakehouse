@@ -19,6 +19,25 @@ toc:
 # Used to remove school/type annotations, tags, etc. that belong in metadata not description.
 strip_content_patterns: []
 
+# Metadata field names used during content cleanup at ingestion time.
+# When Marker smashes multiple fields onto one line (e.g. "Sphere: All Range: 60 yds."),
+# the ingestion pipeline splits them into separate lines using these names.
+metadata_field_names:
+  - School
+  - Sphere
+  - Range
+  - Components
+  - Duration
+  - Casting Time
+  - Area of Effect
+  - Saving Throw
+  - Power Score
+  - Initial Cost
+  - Maintenance Cost
+  - Preparation Time
+  - Prerequisites
+  - Level
+
 index_headings:
   - "index"
   - "alphabetical index"
