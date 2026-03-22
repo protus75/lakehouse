@@ -326,10 +326,109 @@ def _should_strip_line(stripped: str, config: dict) -> bool:
     return False
 
 
+def _deduplicate_marker_blocks(content: str, field_names: list[str]) -> str:
+    """Remove duplicate metadata blocks from Marker page-boundary re-renders.
+
+    Marker sometimes re-renders the same entry at a page boundary, producing
+    a near-duplicate block with the same metadata fields. The duplicate often
+    starts with a mid-word fragment. This function splits on metadata blocks,
+    keeps the longest/most complete version, and appends any unique trailing text.
+    """
+    if not field_names:
+        return content
+
+    # Find all positions where a metadata field starts a line
+    meta_starts = []
+    lines = content.split("\n")
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        for field in field_names:
+            if stripped.lower().startswith(field.lower() + ":"):
+                meta_starts.append(i)
+                break
+
+    if len(meta_starts) < 2:
+        return content
+
+    # Find metadata block boundaries: a block starts at a metadata field
+    # and we look for repeated first-field occurrences
+    first_field = lines[meta_starts[0]].strip().split(":")[0].strip().lower()
+    block_starts = []
+    for i in meta_starts:
+        stripped = lines[i].strip()
+        if stripped.split(":")[0].strip().lower() == first_field:
+            block_starts.append(i)
+
+    if len(block_starts) < 2:
+        return content
+
+    # Split into: heading (before first block), then each metadata block
+    # Strip any mid-word junk between heading and first metadata block
+    heading_lines = []
+    for line in lines[:block_starts[0]]:
+        stripped = line.strip()
+        if stripped and stripped[0].islower() and len(stripped) < 60:
+            continue  # mid-word fragment or junk preamble
+        heading_lines.append(line)
+    blocks = []
+    for idx, start in enumerate(block_starts):
+        end = block_starts[idx + 1] if idx + 1 < len(block_starts) else len(lines)
+        block_lines = lines[start:end]
+
+        # Separate metadata lines from description lines
+        meta_end = 0
+        for j, line in enumerate(block_lines):
+            stripped = line.strip()
+            if any(stripped.lower().startswith(f.lower() + ":")
+                   for f in field_names):
+                meta_end = j + 1
+
+        meta = "\n".join(block_lines[:meta_end])
+        # Strip preamble junk between blocks (mid-word fragments, duplicate headings)
+        desc_lines = block_lines[meta_end:]
+        # Remove leading blank lines and lines starting with lowercase (mid-word fragments)
+        while desc_lines:
+            stripped = desc_lines[0].strip()
+            if not stripped:
+                desc_lines.pop(0)
+            elif stripped[0].islower() and len(stripped) < 80:
+                desc_lines.pop(0)
+            else:
+                break
+        desc = "\n".join(desc_lines).strip()
+        blocks.append({"meta": meta, "desc": desc})
+
+    # Keep the block with the most complete metadata
+    best = max(blocks, key=lambda b: len(b["meta"]))
+
+    # Collect unique descriptions from all blocks
+    all_descs = []
+    seen = set()
+    for block in blocks:
+        if block["desc"] and len(block["desc"]) > 15:
+            sig = block["desc"][:80]
+            if sig not in seen:
+                seen.add(sig)
+                all_descs.append(block["desc"])
+
+    # Reassemble: heading + best metadata + all unique descriptions
+    result = "\n".join(heading_lines).rstrip()
+    if result and best["meta"]:
+        result += "\n" + best["meta"]
+    elif best["meta"]:
+        result = best["meta"]
+
+    for desc in all_descs:
+        result += "\n\n" + desc
+
+    return result.strip()
+
+
 def _clean_entry_content(content: str, config: dict) -> str:
     """Clean entry content at ingestion time.
 
     Fixes Marker artifacts so stored data is clean:
+    - Deduplicate metadata blocks from page-boundary re-renders
     - Split smashed metadata fields onto separate lines
     - Strip leading spaces from all lines
     - Clean partial image references
@@ -355,6 +454,10 @@ def _clean_entry_content(content: str, config: dict) -> str:
 
     content = "\n".join(lines)
     content = re.sub(r"\n{3,}", "\n\n", content)
+
+    # Deduplicate after all other cleaning
+    content = _deduplicate_marker_blocks(content, field_names)
+
     return content.strip()
 
 
@@ -391,55 +494,77 @@ def _is_orphan_continuation(content: str) -> bool:
 
 
 def _merge_orphan_entries(entries: list[dict], config: dict) -> list[dict]:
-    """Merge orphan continuation entries back into their preceding entry.
+    """Merge duplicate and orphan entries caused by Marker page-boundary splits.
 
-    Handles two cases of page-boundary splits from Marker:
-    1. Same entry_title: consecutive entries with the same title where the later one
-       starts with lowercase/mid-word text (Marker split the entry across pages)
-    2. Hungry + orphan: previous entry has metadata but no description, next entry
-       starts with lowercase continuation text (description got split off)
+    Two passes:
+    1. Group-merge: entries with same (toc_title, entry_title) where later fragments
+       start with lowercase/mid-word text get folded into the first occurrence.
+       Handles Marker duplicating headings across page boundaries.
+    2. Hungry+orphan: entries with metadata but no description absorb the next
+       orphan continuation entry (different title, starts lowercase).
     """
     if not config or len(entries) < 2:
         return entries
 
+    # Pass 1: merge same-title fragments into first occurrence
+    primary = {}  # (toc_title, entry_title) -> index in merged list
     merged = []
-    merge_count = 0
+    fold_count = 0
 
-    i = 0
-    while i < len(entries):
-        entry = dict(entries[i])
+    for entry in entries:
+        title = entry.get("entry_title")
+        toc_title = entry["toc_entry"]["title"]
+        key = (toc_title, title) if title else None
 
-        # Look ahead and absorb continuations
-        while i + 1 < len(entries):
-            next_entry = entries[i + 1]
-            same_toc = entry["toc_entry"] == next_entry["toc_entry"]
-            if not same_toc:
-                break
-
-            is_orphan = _is_orphan_continuation(next_entry["content"])
-
-            # Case 1: same entry_title and next starts with lowercase/mid-word
-            same_title = (entry.get("entry_title") and
-                          entry["entry_title"] == next_entry.get("entry_title"))
-
-            # Case 2: current has metadata but no description, next is orphan
-            is_hungry = _has_metadata_but_no_description(entry["content"], config)
-
-            if (same_title and is_orphan) or (is_hungry and is_orphan):
-                orphan_content = next_entry["content"]
+        if key and key in primary:
+            if _is_orphan_continuation(entry["content"]):
+                # Strip the duplicate heading, append content to primary
+                orphan_content = entry["content"]
                 orphan_content = re.sub(r"^#{1,4}\s+.+\n?", "", orphan_content).strip()
-                entry["content"] = entry["content"] + "\n\n" + orphan_content
-                merge_count += 1
-                i += 1
-            else:
-                break
+                if orphan_content:
+                    merged[primary[key]]["content"] += "\n\n" + orphan_content
+                    fold_count += 1
+                continue
 
-        merged.append(entry)
+        idx = len(merged)
+        merged.append(dict(entry))
+        if key and key not in primary:
+            primary[key] = idx
+
+    # Pass 2: hungry + orphan (different titles, consecutive)
+    if len(merged) < 2:
+        if fold_count:
+            print(f"  Orphan merges: {fold_count} fragments folded")
+        return merged
+
+    result = []
+    hungry_count = 0
+    i = 0
+    while i < len(merged):
+        entry = dict(merged[i])
+
+        while i + 1 < len(merged):
+            next_entry = merged[i + 1]
+            if entry["toc_entry"] != next_entry["toc_entry"]:
+                break
+            if not _has_metadata_but_no_description(entry["content"], config):
+                break
+            if not _is_orphan_continuation(next_entry["content"]):
+                break
+            orphan_content = next_entry["content"]
+            orphan_content = re.sub(r"^#{1,4}\s+.+\n?", "", orphan_content).strip()
+            if orphan_content:
+                entry["content"] = entry["content"] + "\n\n" + orphan_content
+            hungry_count += 1
+            i += 1
+
+        result.append(entry)
         i += 1
 
-    if merge_count:
-        print(f"  Orphan merges: {merge_count} entries recovered")
-    return merged
+    total = fold_count + hungry_count
+    if total:
+        print(f"  Orphan merges: {fold_count} fragments folded, {hungry_count} descriptions recovered")
+    return result
 
 
 def build_entries(
