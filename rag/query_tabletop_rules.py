@@ -241,7 +241,7 @@ def _search_duckdb(query: str, toc_ids: list[int], n_results: int) -> list[dict]
 
 
 def _rerank(query: str, chunks: list[dict]) -> list[dict]:
-    """Rerank by entry title match and stat block presence."""
+    """Rerank by entry title match, stat block presence, and content completeness."""
     query_lower = query.lower()
     query_words = [w for w in query_lower.split() if len(w) > 2]
 
@@ -252,15 +252,26 @@ def _rerank(query: str, chunks: list[dict]) -> list[dict]:
         entry = (chunk.get("entry_title") or "").lower()
 
         # Entry title matches query words
+        title_match = False
         for w in query_words:
             if w in entry:
                 score += 3.0
+                title_match = True
 
         # Stat block fields present
+        stat_count = 0
         for field in ["casting time:", "range:", "duration:", "components:",
                       "saving throw:", "area of effect:", "sphere:", "school:"]:
             if field in content_lower:
+                stat_count += 1
                 score += 0.5
+
+        # Bonus: chunk has both title match AND stat fields (the complete entry)
+        if title_match and stat_count >= 3:
+            score += 5.0
+
+        # Prefer longer chunks (more complete content)
+        score += min(len(chunk["content"]) / 500, 2.0)
 
         # Content density
         if query_words:

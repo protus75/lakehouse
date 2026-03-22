@@ -50,6 +50,14 @@ prompts:
     SUMMARY:
   entry_summary: ""
 
+validation:
+  spell_toc_patterns:
+    - "spell"
+  required_metadata:
+    - "Range:"
+    - "Duration:"
+    - "Casting Time:"
+
 chunking:
   max_chars: 800
   overlap: 200

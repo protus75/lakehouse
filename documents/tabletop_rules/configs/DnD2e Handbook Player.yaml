@@ -121,6 +121,18 @@ section_parsing:
       - '(Necromancy.*)'
       - '(Invocation.*)'
 
+validation:
+  spell_toc_patterns:
+    - "wizard spell"
+    - "priest spell"
+  required_metadata:
+    - "Range:"
+    - "Components:"
+    - "Duration:"
+    - "Casting Time:"
+    - "Area of Effect:"
+    - "Saving Throw:"
+
 chunking:
   max_chars: 800
   overlap: 200

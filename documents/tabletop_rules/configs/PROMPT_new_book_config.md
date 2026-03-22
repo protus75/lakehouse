@@ -7,156 +7,76 @@ Attach or paste the table of contents pages and 2-3 sample content pages from yo
 
 ## Prompt
 
-I need you to create a YAML config file for parsing a tabletop RPG PDF into a RAG (retrieval-augmented generation) system. The config controls how the book is chunked, what structured entries are detected (spells, monsters, items, etc.), and how summaries and cross-references are generated.
+I need you to create a YAML config file for parsing a tabletop RPG PDF into a RAG system.
 
-Below I'll provide:
-1. The table of contents (first few pages of the book)
-2. Two or three sample pages showing typical structured entries (stat blocks, spells, abilities, etc.)
+The parsing pipeline works as follows:
+1. **pymupdf** reads printed page numbers from each PDF page and maps them to ToC chapters
+2. **Marker** (ML-based PDF parser) extracts the full document as clean markdown with proper headings, tables, and column handling
+3. Each Marker heading gets assigned its chapter by finding that heading text in the pymupdf page text (forward search)
+4. Known entry names from excluded index sections act as a whitelist — only headings matching known entries create new entries in spell/ability sections
+5. Config-driven `strip_content_patterns` remove school/type annotations and tags from entry content
 
-From this, I need you to produce a complete YAML config file.
+The config only needs to define:
+- How to find chapters in the ToC
+- What to exclude (indexes, reference lists)
+- What lines to strip from content (school annotations, tags)
+- Validation settings
+
+**IMPORTANT:** The config should NOT contain regex for heading detection, metadata extraction, or content parsing. Marker handles all of that with ML-based layout analysis. The config only handles ToC structure, exclusions, and content cleanup.
 
 ### Config Schema
-
-Here is the full schema with explanations. An example for the AD&D 2e Player's Handbook follows.
 
 ```yaml
 # Filename must match the PDF: "My Book Name.yaml" for "My Book Name.pdf"
 
 book:
   title: "Full Book Title"          # Used in LLM prompts
-  game_system: "System Name"        # e.g. "D&D 5e", "Pathfinder 2e", "Warhammer 40K"
+  game_system: "System Name"        # e.g. "D&D 5e", "Pathfinder 2e"
   content_type: "rules"             # "rules", "module", "campaign", "supplement", "bestiary"
 
 toc:
-  # Regex patterns to match chapter/section headings in the ToC
-  # These extract "Title ... page_number" lines from the first N pages
-  # The pattern must match the TITLE portion; the pipeline appends dot-leader + page number matching
+  # Regex to match chapter/section headings in the ToC pages
+  # Only needed for the ToC page format, not content parsing
+  # The pipeline appends dot-leader + page number matching automatically
   chapter_patterns:
     - '(?:Chapter|Appendix)\s+\d*\s*:?\s*[A-Za-z].*'
-  # Pattern for named tables in the ToC (set to "" if no named tables)
+  # Pattern for named tables in the ToC (set to "" if none)
   table_pattern: 'Table\s+\d+\s*:\s*[A-Za-z].*'
-  # How many PDF pages to scan for the ToC (front matter pages)
+  # How many PDF pages to scan for the ToC
   toc_scan_pages: 15
-  # Regex to find the printed page number on each PDF page
-  # The pipeline reads this from the actual page text (bottom or top) to map content to chapters
-  # Must match a standalone page number. Adjust for books with roman numerals, "Page N", etc.
+  # Regex to find the printed page number on each page
+  # Look at sample pages to see format — usually a standalone number at top or bottom
   page_number_pattern: '^\d{1,3}$'
 
-# Headings that mark sections to EXCLUDE from parsing (indexes, spell lists with just names+pages)
-# Case-insensitive exact match, plus anything ending in "index" is auto-excluded
+# Headings within pages that mark an index section to stop processing
 index_headings:
   - "index"
-  - "alphabetical index"
-  # Add book-specific ones like "spell index", "monster index", etc.
 
-# ToC entries to exclude entirely from parsing — indexes, reference lists,
-# compiled tables, cross-reference sections, etc. Any chapter, appendix,
-# section, or table that lists entry names without actual content.
-# CRITICAL: these MUST be listed or the parser will match entry names in
-# reference pages instead of in actual content pages.
+# Lines matching these regex patterns are stripped from entry content during ingestion
+# Used to remove school/type annotations that belong in metadata, not description
+# e.g. "(Conjuration/Summoning)" or "Reversible" in D&D spell sections
+strip_content_patterns: []
+
+# ToC entries to exclude entirely — indexes, reference lists, compiled tables
+# CRITICAL: list every ToC entry that contains entry NAMES without actual content
+# If not excluded, the parser will match entry names in these pages
+# and assign wrong chapters
 exclude_chapters: []
-  # Examples: ["Appendix 7: Spell Index", "Chapter 15: Monster Index",
-  #            "Table of Weapons", "Quick Reference Charts"]
 
-# Entry types define structured content the book contains.
-# Each type has detection rules and metadata extraction patterns.
-# You can define multiple types (spell, monster, magic_item, feat, class_feature, etc.)
-# Set to {} if the book has no structured entries.
-entry_types:
-  # The key name (e.g. "spell") is arbitrary but should describe the entry type
-  spell:
-    # An entry is this type if N+ of these regex patterns match in its content
-    # These are the KEY: VALUE field labels that appear in the stat block
-    # Don't include \b prefix — the code adds it
-    detect_fields:
-      - 'Range\s*:'
-      - 'Components\s*:'
-      - 'Duration\s*:'
-      - 'Casting Time\s*:'
-    # Minimum number of detect_fields that must match
-    detect_min_fields: 3
-    # Additional required fields — at least one must match (for classification)
-    # Leave empty [] if not needed
-    detect_class_fields:
-      - 'School\s*:'
-      - 'Sphere\s*:'
-    # Chapter titles containing these words are strong signals for this entry type
-    chapter_keywords:
-      - "spell"
-    # Metadata to extract from each entry via regex
-    # Key = metadata field name, Value = regex with one capture group for the value
-    # Don't include \b prefix — the code adds it
-    metadata:
-      school: 'School\s*:\s*(.+?)(?:\n|$)'
-      range: 'Range\s*:\s*(.+?)(?:\n|$)'
-    # Rules for determining the class/category of the entry from chapter context
-    # Evaluated in order; first match wins
-    class_rules:
-      - chapter_contains: "priest"   # If chapter title contains this word...
-        value: "Priest"              # ...assign this class
-      - has_field: "sphere"          # If this metadata field was extracted...
-        value: "Priest"              # ...assign this class
-      - default: "Wizard"            # Fallback if no rule matches
-    # Map words in section titles to level numbers
-    # e.g. "First-Level Spells" → level 1
-    level_patterns:
-      "first": 1
-      "second": 2
-      "third": 3
-      # ... up to the max level in this system
-
-cross_references:
-  # Parse existing appendix/index content in the book into per-category chunks
-  appendix_indexes:
-    - chapter_contains: "school"                              # Match chapters with this word
-      label_template: "Spell Index: Wizard School - {section}" # {section} = the section heading
-  # Generate index chunks from parsed entry metadata
-  generated_indexes:
-    - group_by: ["class", "level"]                            # Group entries by these metadata fields
-      label_template: "{class} Spells - Level {level}"
-      chapter_template: "Cross-Reference: {class} Spells"
-    - group_by: ["alpha"]                                     # Special: alphabetical grouping
-      label_template: "Spell Index: {letter}"
-      chapter_template: "Cross-Reference: Alphabetical Spell Index"
-
-# Regex patterns for detecting pages where the PDF parser may have dropped structured content
-# Used to trigger VLM (vision model) re-extraction of those pages
-# Include all key:value field patterns from the book's stat blocks
-vlm_detection_patterns:
-  - '(?:Range|Components|Duration|Casting Time)\s*:'
-  - '(?:AC|Hit Dice|Movement)\s*:'
-
-# LLM prompt templates for summary generation
-# Available placeholders: {book_title}, {game_system}, {section}, {chapter}, {content}, {spells}
-prompts:
-  # Summary for each ToC subsection
-  section_summary: |
-    You are summarizing a section from the {book_title} for a rules reference.
-    Write a concise 2-4 sentence summary of this section that captures:
-    - What this section covers
-    - The key rules or mechanics described
-    - Any important numbers, thresholds, or exceptions
-    SECTION: {section}
-    CHAPTER: {chapter}
-    CONTENT:
-    {content}
-    SUMMARY:
-  # Summary for each structured entry (spell, monster, etc.)
-  # Set to "" to skip entry summaries
-  entry_summary: |
-    You are creating concise structured summaries of {game_system} spells.
-    For each spell below, produce a summary in this exact format:
-    SPELL: [Name]
-    Type: [Class] Level [N]
-    Key Effect: [1 sentence]
-    Important Details: [1-2 sentences]
-    ---
-    {spells}
-    ---
+# Validation settings for the validate_spells.py script
+validation:
+  # ToC title substrings to match spell/entry sections
+  spell_toc_patterns:
+    - "spell"
+  # Metadata fields that should be present in every entry
+  required_metadata:
+    - "Range:"
+    - "Duration:"
+    - "Casting Time:"
 
 chunking:
   max_chars: 800    # Max characters per chunk
-  overlap: 200      # Overlap between consecutive chunks within a section
+  overlap: 200      # Overlap between chunks within an entry
 ```
 
 ### Example: AD&D 2e Player's Handbook Config
@@ -180,91 +100,29 @@ index_headings:
   - "priest spell index"
   - "wizard spell index"
 
-entry_types:
-  spell:
-    detect_fields:
-      - 'Range\s*:'
-      - 'Components\s*:'
-      - 'Duration\s*:'
-      - 'Casting Time\s*:'
-      - 'Area of Effect\s*:'
-      - 'Saving Throw\s*:'
-    detect_min_fields: 3
-    detect_class_fields:
-      - 'School\s*:'
-      - 'Sphere\s*:'
-    chapter_keywords: ["spell", "appendix"]
-    metadata:
-      school: 'School\s*:\s*(.+?)(?:\n|$)'
-      sphere: 'Sphere\s*:\s*(.+?)(?:\n|$)'
-      range: 'Range\s*:\s*(.+?)(?:\n|$)'
-      components: 'Components\s*:\s*(.+?)(?:\n|$)'
-      duration: 'Duration\s*:\s*(.+?)(?:\n|$)'
-      casting_time: 'Casting Time\s*:\s*(.+?)(?:\n|$)'
-      area_of_effect: 'Area of Effect\s*:\s*(.+?)(?:\n|$)'
-      saving_throw: 'Saving Throw\s*:\s*(.+?)(?:\n|$)'
-    class_rules:
-      - chapter_contains: "priest"
-        value: "Priest"
-      - chapter_contains: "wizard"
-        value: "Wizard"
-      - has_field: "sphere"
-        value: "Priest"
-      - default: "Wizard"
-    level_patterns:
-      "first": 1
-      "second": 2
-      "third": 3
-      "fourth": 4
-      "fifth": 5
-      "sixth": 6
-      "seventh": 7
-      "eighth": 8
-      "ninth": 9
+strip_content_patterns:
+  - '^\([\w/,\s*]+\)\s*(?:Reversible)?\s*$'
+  - '^Reversible\s*$'
+  - '^\([\w/,\s*]+\)\s+Reversible\s*$'
 
-cross_references:
-  appendix_indexes:
-    - chapter_contains: "school"
-      label_template: "Spell Index: Wizard School - {section}"
-    - chapter_contains: "sphere"
-      label_template: "Spell Index: Priest Sphere - {section}"
-  generated_indexes:
-    - group_by: ["class", "level"]
-      label_template: "{class} Spells - Level {level}"
-      chapter_template: "Cross-Reference: {class} Spells"
-    - group_by: ["alpha"]
-      label_template: "Spell Index: {letter}"
-      chapter_template: "Cross-Reference: Alphabetical Spell Index"
+exclude_chapters:
+  - "Appendix 1: Spell Lists"
+  - "Appendix 5: Wizard Spells by School"
+  - "Appendix 6: Priest Spells by Sphere"
+  - "Appendix 7: Spell Index"
+  - "Appendix 8: Compiled Character Generation Tables"
 
-vlm_detection_patterns:
-  - '(?:Range|Components|Duration|Casting Time|Area of Effect|Saving Throw)\s*:'
-  - '(?:Power Score|PSP Cost|Initial Cost|Maintenance Cost)\s*:'
-  - '(?:AC|THAC0|Hit Dice|No\. of Attacks|Damage/Attack|Movement)\s*:'
-
-prompts:
-  section_summary: |
-    You are summarizing a section from the {book_title} for a rules reference.
-    Write a concise 2-4 sentence summary of this section that captures:
-    - What this section covers
-    - The key rules or mechanics described
-    - Any important numbers, thresholds, or exceptions
-    SECTION: {section}
-    CHAPTER: {chapter}
-    CONTENT:
-    {content}
-    SUMMARY:
-  entry_summary: |
-    You are creating concise structured summaries of {game_system} spells for a rules reference.
-    For each spell below, produce a summary in this exact format:
-    SPELL: [Name]
-    Type: [Wizard/Priest] Level [N]
-    School: [school] | Sphere: [sphere if priest]
-    Key Effect: [1 sentence describing what the spell does]
-    Important Details: [1-2 sentences on range, duration, damage, saving throw effects]
-    Tactical Note: [1 sentence on when/why to use this spell]
-    ---
-    {spells}
-    ---
+validation:
+  spell_toc_patterns:
+    - "wizard spell"
+    - "priest spell"
+  required_metadata:
+    - "Range:"
+    - "Components:"
+    - "Duration:"
+    - "Casting Time:"
+    - "Area of Effect:"
+    - "Saving Throw:"
 
 chunking:
   max_chars: 800
@@ -273,21 +131,15 @@ chunking:
 
 ### Your Task
 
-Using the table of contents and sample pages I provide below, create a complete YAML config file for my book. Specifically:
+Using the table of contents and sample pages I provide below, create a complete YAML config file. Specifically:
 
-1. **book** — fill in the title, game system, and content type
-2. **toc** — look at the ToC format and write regex patterns that match the chapter/section headings. Note whether chapters use "Chapter N:", "Part N:", roman numerals, or other formats. Also check the sample pages for how page numbers are printed (standalone number at bottom, "Page N", roman numerals, etc.) and write the `page_number_pattern` regex to match. The pipeline reads the actual printed page number from each page to map content to the correct chapter — this is critical for accuracy
-3. **index_headings** — identify heading text within pages that marks an index section (e.g. "Index", "Spell Index")
-4. **exclude_chapters** — CRITICAL: list every ToC entry (chapter, appendix, section, table) that is a reference list, index, or compiled table rather than actual content. These contain entry names that would cause incorrect matching. Look for: spell lists, monster indexes, equipment tables, cross-reference appendices, compiled charts
-5. **entry_types** — look at the sample pages for repeating structured entries (stat blocks). Identify:
-   - What fields appear in each stat block (the "Key: Value" lines)
-   - Which fields distinguish entry categories (e.g. School vs Sphere for D&D spell types)
-   - How entries are organized by chapter (which chapter keywords signal this entry type)
-   - What level/tier system exists and how it appears in section titles
-6. **cross_references** — identify any existing index appendices in the ToC, and what groupings would be useful
-7. **vlm_detection_patterns** — combine all the stat block field patterns
-8. **prompts** — adapt the summary prompts to use terminology appropriate for this game system
-9. **chunking** — 800/200 is good for most books, but if entries are very short or very long, adjust
+1. **book** — fill in title, game system, and content type
+2. **toc** — look at the ToC format and write patterns that match chapter/section headings. Check sample pages for how page numbers are printed and write the `page_number_pattern`
+3. **index_headings** — identify heading text within pages that marks an index section
+4. **exclude_chapters** — CRITICAL: list every ToC entry that is a reference list, index, compiled table, or cross-reference rather than actual content. Look for: spell lists, monster indexes, equipment tables, compiled charts. If not excluded, entry names in these pages will cause incorrect chapter assignment.
+5. **strip_content_patterns** — look at the sample content pages. If entries have school/type annotations in parentheses (like "(Conjuration/Summoning)") or tags (like "Reversible") that appear as standalone lines, write regex patterns to strip them. These are metadata, not description content.
+6. **validation** — set the ToC title substrings that match entry sections, and list the metadata fields every entry should have
+7. **chunking** — 800/200 is good for most books
 
 Output ONLY the YAML config file with comments explaining your choices.
 
