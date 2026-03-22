@@ -14,6 +14,11 @@ toc:
   toc_scan_pages: 12
   page_number_pattern: '^\d{1,3}$'
 
+strip_content_patterns:
+  - '^\([\w/,\s*]+\)\s*(?:Reversible)?\s*$'
+  - '^Reversible\s*$'
+  - '^\([\w/,\s*]+\)\s+Reversible\s*$'
+
 index_headings:
   - "index"
   - "spell index"

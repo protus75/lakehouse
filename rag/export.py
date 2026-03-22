@@ -12,6 +12,7 @@ Usage:
   export_markdown('full_book', source_file='DnD2e Handbook Player.pdf')
 """
 
+import re
 import duckdb
 import requests
 from pathlib import Path
@@ -51,6 +52,70 @@ SUMMARY:"""
 
 
 # ── Category queries ─────────────────────────────────────────────
+
+def _format_inline_tables(text: str) -> str:
+    """Detect lines that look like table data (short values separated by spaces/tabs)
+    and attempt to format them as markdown tables."""
+    result_lines = []
+    lines = text.split("\n")
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        stripped = line.strip()
+
+        # Detect Marker table headers (#### or bold text followed by
+        # multiple short value lines)
+        if stripped.startswith("####") or (stripped.startswith("**") and stripped.endswith("**")):
+            # Look ahead for table-like data (short lines with spaces)
+            header = re.sub(r"^#{1,4}\s*|\*+", "", stripped).strip()
+            table_rows = []
+            j = i + 1
+            while j < len(lines):
+                row_line = lines[j].strip()
+                if not row_line:
+                    break
+                # Table rows: typically short with mixed text and numbers
+                # e.g. "cold none" or "icy 1-2 points"
+                if len(row_line) < 60 and not row_line.startswith("#"):
+                    table_rows.append(row_line)
+                    j += 1
+                else:
+                    break
+
+            if len(table_rows) >= 2:
+                # Format as markdown table
+                # Try to split each row into columns by 2+ spaces
+                parsed_rows = []
+                for row in table_rows:
+                    cols = re.split(r"\s{2,}", row)
+                    if len(cols) == 1:
+                        # Try splitting on common delimiters
+                        cols = re.split(r"\s+(?=\d)", row, maxsplit=1)
+                    parsed_rows.append(cols)
+
+                max_cols = max(len(r) for r in parsed_rows)
+                # Pad rows to same number of columns
+                for r in parsed_rows:
+                    while len(r) < max_cols:
+                        r.append("")
+
+                # Build markdown table
+                if header:
+                    result_lines.append(f"\n**{header}**\n")
+                header_cols = parsed_rows[0] if parsed_rows else [""] * max_cols
+                result_lines.append("| " + " | ".join(header_cols) + " |")
+                result_lines.append("| " + " | ".join(["---"] * max_cols) + " |")
+                for row in parsed_rows[1:]:
+                    result_lines.append("| " + " | ".join(row) + " |")
+                result_lines.append("")
+                i = j
+                continue
+
+        result_lines.append(line)
+        i += 1
+
+    return "\n".join(result_lines)
+
 
 CATEGORIES = {
     "priest_spells": {
@@ -335,7 +400,7 @@ def export_markdown(
     group_field = cat.get("group_by", "toc_title")
     group_idx = {"section_title": 1, "toc_title": 4, "document_title": 5}.get(group_field, 4)
 
-    # Combine chunks that belong to the same entry, track source per entry
+    # Combine chunks that belong to the same entry, deduplicate, track source
     from collections import OrderedDict
     entries = OrderedDict()
     for row in rows:
@@ -344,8 +409,7 @@ def export_markdown(
         content = row[2] or ""
         toc_title = row[4] or ""
         doc_title = row[5] or ""
-        group = row[group_idx] or "Ungrouped"
-        # Key includes doc_title so same spell from different books stays separate
+        group = row[group_idx] or row[4] or "General"
         key = (group, doc_title, entry_title or section_title)
 
         if key not in entries:
@@ -353,8 +417,22 @@ def export_markdown(
                             "entry_title": entry_title, "chunks": []}
         entries[key]["chunks"].append(content)
 
+    parse_errors = []
+
     if summarize:
         print(f"Summarizing {len(entries)} entries (this will take a while)...")
+
+    # Metadata field patterns to extract and format separately
+    META_FIELDS = [
+        "School", "Sphere", "Range", "Components", "Duration",
+        "Casting Time", "Area of Effect", "Saving Throw",
+        "Power Score", "Initial Cost", "Maintenance Cost",
+        "Preparation Time", "Prerequisites",
+    ]
+    meta_pattern = re.compile(
+        r"^(" + "|".join(re.escape(f) for f in META_FIELDS) + r")\s*:\s*(.+)$",
+        re.IGNORECASE | re.MULTILINE,
+    )
 
     current_group = None
     entry_count = 0
@@ -362,21 +440,147 @@ def export_markdown(
         group = entry["group"]
         if group != current_group:
             current_group = group
-            lines.append(f"\n## {group}\n")
+            # Don't show ToC section titles as group headings for spell exports
+            if not (group.lower().startswith("appendix") or group.lower().startswith("chapter")):
+                lines.append(f"\n## {group}\n")
 
         title = entry["entry_title"]
-        if title:
-            lines.append(f"\n### {title}\n")
-            lines.append(f"*Source: {entry['doc_title']}*\n")
+        if not title:
+            continue
 
-        combined = "\n".join(entry["chunks"])
-        if summarize and title:
-            combined = _summarize_entry(title, combined, model=model)
+        # Skip titles that look like ToC sections, not entries
+        title_lower = title.lower()
+        if title_lower.startswith("appendix") or title_lower.startswith("chapter"):
+            continue
+
+        lines.append(f"\n### {title}\n")
+        lines.append(f"*Source: {entry['doc_title']}*\n")
+
+        # Deduplicate chunks: if one chunk is a subset of another, keep the longer one
+        chunks = entry["chunks"]
+        if len(chunks) > 1:
+            chunks = sorted(chunks, key=len, reverse=True)
+            kept = []
+            for chunk in chunks:
+                sig = chunk[:100].strip()
+                if not any(sig in k for k in kept):
+                    kept.append(chunk)
+            chunks = kept
+        combined = "\n".join(chunks)
+
+        # Strip Marker heading formatting and image references
+        combined = re.sub(r"^#{1,4}\s+\**\s*" + re.escape(title) + r"\s*\**\s*$",
+                          "", combined, flags=re.MULTILINE)
+        combined = re.sub(r"!\[.*?\]\(.*?\)", "", combined)
+        combined = combined.strip()
+
+        # Deduplicate: remove repeated blocks while preserving metadata
+        # Only dedup lines longer than 40 chars (descriptions, not metadata fields)
+        seen_sigs = set()
+        deduped_lines = []
+        for line in combined.split("\n"):
+            stripped = line.strip()
+            if not stripped:
+                if deduped_lines and deduped_lines[-1] != "":
+                    deduped_lines.append("")
+                continue
+            # Don't dedup short lines (metadata fields, headings)
+            if len(stripped) < 50:
+                deduped_lines.append(stripped)
+                continue
+            sig = stripped[:80]
+            if sig in seen_sigs:
+                continue
+            seen_sigs.add(sig)
+            deduped_lines.append(stripped)
+        combined = "\n".join(deduped_lines)
+
+        # Strip leading spaces from all lines
+        combined = "\n".join(line.lstrip() for line in combined.split("\n"))
+
+        # Clean up partial image references that survived the strip
+        combined = re.sub(r"[a-z_0-9]*\.jpeg\)?", "", combined)
+        combined = re.sub(r"[a-z_0-9]*\.png\)?", "", combined)
+        combined = re.sub(r"\!\[.*?\]", "", combined)
+
+        # Pre-process: split metadata fields that are smashed on one line
+        # e.g. "Sphere: All Range: 60 yds." -> separate lines
+        meta_field_names = "|".join(re.escape(f) for f in META_FIELDS)
+        combined = re.sub(
+            r"(" + meta_field_names + r")\s*:",
+            r"\n\1:",
+            combined,
+        )
+        # Clean up any double newlines from the splits
+        combined = re.sub(r"\n{3,}", "\n\n", combined)
+
+        # Separate metadata from description
+        meta_lines = []
+        desc_lines = []
+        found_meta = {}
+        last_was_meta = False
+        for line in combined.split("\n"):
+            stripped = line.strip()
+            m = meta_pattern.match(stripped)
+            if m:
+                field = m.group(1)
+                value = m.group(2).strip()
+                # Skip duplicate metadata (same field already captured)
+                if field not in found_meta:
+                    found_meta[field] = value
+                    meta_lines.append(f"**{field}:** {value}")
+                last_was_meta = True
+            elif last_was_meta and stripped and len(stripped) < 40 and not stripped[0].isupper():
+                # Continuation of previous metadata line (e.g. "within a 40-ft. radius")
+                if meta_lines:
+                    meta_lines[-1] = meta_lines[-1] + " " + stripped
+                    # Update found_meta too
+                    for k in reversed(list(found_meta.keys())):
+                        found_meta[k] = found_meta[k] + " " + stripped
+                        break
+                last_was_meta = False
+            else:
+                desc_lines.append(line)
+                last_was_meta = False
+
+        description = "\n".join(desc_lines).strip()
+
+        # (Reversible is now rendered in the metadata table above)
+
+        # Render metadata as a table
+        if found_meta:
+            lines.append("")
+            lines.append("| Field | Value |")
+            lines.append("|-------|-------|")
+            # Reversible first
+            rev = "Yes" if "reversible" in combined.lower() else "No"
+            lines.append(f"| Reversible | {rev} |")
+            for field, value in found_meta.items():
+                lines.append(f"| {field} | {value} |")
+            lines.append("")
+
+        # Summarize if requested
+        if summarize:
+            summary = _summarize_entry(title, combined, model=model)
             entry_count += 1
             if entry_count % 10 == 0:
                 print(f"  Summarized {entry_count}/{len(entries)} entries...")
+            lines.append("**Summary:**\n")
+            lines.append(summary)
+            lines.append("")
 
-        lines.append(combined)
+        # Description
+        if description and len(description) > 20:
+            lines.append("**Description:**\n")
+            lines.append(_format_inline_tables(description))
+        else:
+            # Parsing error — log and skip this entry
+            parse_errors.append(f"MISSING DESCRIPTION: {title} (Source: {entry['doc_title']})")
+            # Remove the title and metadata we just added
+            while lines and lines[-1] != f"\n## {group}\n":
+                lines.pop()
+            continue
+
         lines.append("")
 
     md = "\n".join(lines)
@@ -384,7 +588,12 @@ def export_markdown(
     with open(output, "w", encoding="utf-8") as f:
         f.write(md)
 
-    print(f"Exported {len(entries)} entries to {output}")
+    exported = len(entries) - len(parse_errors)
+    print(f"Exported {exported} entries to {output}")
+    if parse_errors:
+        print(f"\nPARSING ERRORS ({len(parse_errors)}):")
+        for err in parse_errors:
+            print(f"  {err}")
     return output
 
 

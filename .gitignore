@@ -36,4 +36,6 @@ dbt/lakehouse_mvp/logs/
 data/*.csv
 data/*.parquet
 data/*.json
+data/exports/
 documents/**/raw/*.pdf
+

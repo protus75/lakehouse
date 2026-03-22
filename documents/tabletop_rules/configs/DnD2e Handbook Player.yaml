@@ -24,6 +24,13 @@ index_headings:
   - "priest spell list"
   - "wizard spell list"
 
+# Lines matching these patterns are stripped from entry content during ingestion.
+# Used to remove school/type annotations, tags, etc. that are metadata not content.
+strip_content_patterns:
+  - '^\([\w/,\s*]+\)\s*(?:Reversible)?\s*$'
+  - '^Reversible\s*$'
+  - '^\([\w/,\s*]+\)\s+Reversible\s*$'
+
 exclude_chapters:
   - "Appendix 1: Spell Lists"
   - "Appendix 5: Wizard Spells by School"
