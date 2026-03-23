@@ -4,8 +4,11 @@
 - [feedback_page_numbers.md](feedback_page_numbers.md) - Always read printed page numbers from PDF text, never calculate offsets
 - [feedback_ingestion_over_export.md](feedback_ingestion_over_export.md) - Fix data quality at ingestion with config, never patch in export
 - [feedback_avoid_regex.md](feedback_avoid_regex.md) - Use Marker ML headings and LLM, not regex for content parsing
+- [feedback_no_hardcoded_values.md](feedback_no_hardcoded_values.md) - CRITICAL: No hardcoded thresholds/strings in code, everything in YAML config
 - [project_d_drive.md](project_d_drive.md) - All data/models/caches must be on D drive, never C drive
-- [feedback_allow_readonly.md](feedback_allow_readonly.md) - Don't prompt for read-only Python/bash commands, just run them
+- [feedback_allow_readonly.md](feedback_allow_readonly.md) - Don't prompt for ANY read-only commands (bash, docker exec, searches)
 - [feedback_monitor_tasks.md](feedback_monitor_tasks.md) - Monitor long tasks, report progress, detect crashes, give ETAs
 - [feedback_memory_location.md](feedback_memory_location.md) - Write memory to .claude-memory/ in repo, not system path
-- [project_rag_architecture.md](project_rag_architecture.md) - RAG architecture, key files, and resolved issues
+- [feedback_save_working_state.md](feedback_save_working_state.md) - Save bugs, fixes, debugging state to memory aggressively across sessions
+- [feedback_one_book_at_a_time.md](feedback_one_book_at_a_time.md) - Only process one book until validation passes, never all 6
+- [project_rag_architecture.md](project_rag_architecture.md) - RAG architecture, current bugs, fix history, validation status, run commands
