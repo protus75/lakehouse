@@ -19,3 +19,6 @@ models:
       silver:
         +materialized: table
         +schema: silver_tabletop
+      gold:
+        +materialized: table
+        +schema: gold_tabletop

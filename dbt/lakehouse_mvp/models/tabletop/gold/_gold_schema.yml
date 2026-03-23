@@ -1,0 +1,38 @@
+version: 2
+
+models:
+  - name: gold_chunks
+    description: "Query-ready chunks for RAG retrieval and ChromaDB embedding"
+    columns:
+      - name: chunk_id
+        tests:
+          - unique
+          - not_null
+      - name: source_file
+        tests:
+          - not_null
+      - name: content
+        tests:
+          - not_null
+      - name: char_count
+        tests:
+          - not_null
+
+  - name: gold_toc
+    description: "Denormalized ToC for query routing"
+    columns:
+      - name: toc_id
+        tests:
+          - unique
+          - not_null
+      - name: title
+        tests:
+          - not_null
+
+  - name: gold_files
+    description: "File-level chunk aggregates"
+    columns:
+      - name: source_file
+        tests:
+          - unique
+          - not_null
