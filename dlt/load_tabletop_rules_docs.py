@@ -278,51 +278,58 @@ def _detect_watermarks(pdf: PDFCache, threshold: float = 0.3) -> set[str]:
     return watermarks
 
 
-def _normalize_toc_title(title: str) -> str:
-    """Strip 'Chapter X:', 'Appendix X:' prefixes for flexible heading matching."""
-    cleaned = re.sub(
-        r'^(?:Chapter|Appendix|Part|Section)\s+\d*\s*:?\s*',
-        '', title, flags=re.IGNORECASE,
-    )
-    return cleaned.strip().lower()
+def _build_page_position_map(markdown: str, pdf: PDFCache) -> list[tuple[int, int]]:
+    """Build a map of markdown positions to PDF page indices.
+
+    For each PDF page, finds a unique text snippet from that page in the Marker
+    markdown. Returns sorted list of (markdown_position, page_idx) anchors.
+
+    This is the ground truth for locating content in the markdown by page."""
+    md_lower = markdown.lower()
+    positions = []
+
+    for page_idx in range(pdf.total_pages):
+        text = pdf.page_texts[page_idx].lower()
+        lines = [l.strip() for l in text.split("\n") if len(l.strip()) > 20]
+
+        for line in lines[1:6]:  # skip header line, try body lines
+            clean = line.replace("-\n", "").replace("\n", " ").strip()
+            if len(clean) < 25:
+                continue
+            snippet = clean[:40]
+            pos = md_lower.find(snippet)
+            if pos >= 0:
+                positions.append((pos, page_idx))
+                break
+
+    positions.sort()
+    return positions
 
 
-def _toc_title_matches(heading: str, normalized_toc: str, full_toc_lower: str) -> bool:
-    """Check if a markdown heading matches a ToC section title.
+def _page_at_position(md_pos: int, page_anchors: list[tuple[int, int]]) -> int | None:
+    """Given a position in the markdown, find which page it's on by interpolating
+    between the nearest page anchors."""
+    if not page_anchors:
+        return None
 
-    Handles Marker splitting chapter headings (e.g. "Chapter 5" separate from
-    "Proficiencies"), OCR mangling, and partial matches.
-    Guards against false positives from short titles appearing inside long headings."""
-    if not heading or len(heading) < 3:
-        return False
+    # Binary search for the anchor just before this position
+    lo, hi = 0, len(page_anchors) - 1
+    while lo < hi:
+        mid = (lo + hi + 1) // 2
+        if page_anchors[mid][0] <= md_pos:
+            lo = mid
+        else:
+            hi = mid - 1
 
-    # Short headings (< 50 chars) can match by containment in either direction,
-    # but the match must be a significant portion to avoid false positives
-    # like "experience" matching inside a 200-char heading about proficiency levels
-    if normalized_toc and len(normalized_toc) > 3:
-        if heading == normalized_toc:
-            return True
-        if normalized_toc in heading:
-            # normalized_toc must be at least 40% of the heading to avoid false matches
-            if len(normalized_toc) >= len(heading) * 0.4:
-                return True
-        if heading in normalized_toc:
-            if len(heading) >= len(normalized_toc) * 0.4:
-                return True
+    return page_anchors[lo][1]
 
-    if heading == full_toc_lower:
-        return True
-    if heading in full_toc_lower and len(heading) >= len(full_toc_lower) * 0.3:
-        return True
 
-    # Match "Chapter N" / "Appendix N" prefix — Marker often splits these
-    full_words = full_toc_lower.split()
-    heading_words = heading.split()
-    if len(heading_words) >= 2 and len(full_words) >= 2:
-        if heading_words[0] == full_words[0] and heading_words[1].rstrip(":") == full_words[1].rstrip(":"):
-            return True
-
-    return False
+def _page_to_toc_section(printed_page: int, sections: list[dict]) -> dict | None:
+    """Look up which ToC section a printed page belongs to."""
+    for section in sections:
+        if section["page_start"] <= printed_page <= section["page_end"]:
+            return section
+    return None
 
 
 def build_heading_chapter_map(
@@ -330,66 +337,47 @@ def build_heading_chapter_map(
     toc_sections: list[dict],
     pdf: PDFCache,
 ) -> dict[int, dict]:
-    """Map heading positions in markdown to ToC chapters using a state machine.
+    """Map heading positions in markdown to ToC chapters using page positions.
 
-    Walks Marker headings sequentially and matches against ToC sections in order.
-    The ToC determines chapter assignment — no brittle forward-only page text search.
-    Page numbers are resolved by targeted search within the matched section's page range.
+    1. Build page-position anchors: find unique text from each PDF page in markdown
+    2. For each heading, interpolate which page it's on from nearest anchor
+    3. Look up the ToC section by printed page number
+
+    No text matching against ToC titles. Page positions are ground truth.
 
     Returns {char_position_in_markdown: {"toc_entry": section_dict, "page": page_idx}}."""
     included = [s for s in toc_sections if not s["is_excluded"]]
     if not included:
         return {}
 
-    normalized_titles = [_normalize_toc_title(s["title"]) for s in included]
+    # Build page-position map from PDF content → markdown positions
+    page_anchors = _build_page_position_map(markdown, pdf)
+    _log(f"  Page anchors: {len(page_anchors)}/{pdf.total_pages} pages located in markdown")
 
-    page_texts_lower = [t.lower() for t in pdf.page_texts]
-
-    # Precompute which page_idxs belong to each section (by printed page range)
-    section_page_idxs = {}
-    for s in included:
-        section_page_idxs[s["title"]] = [
-            idx for idx, printed in pdf.page_printed.items()
-            if s["page_start"] <= printed <= s["page_end"]
-        ]
-
-    # State machine: walk headings, advance through ToC
-    toc_idx = 0
     heading_chapters = {}
-    last_page = 0
+    mapped = 0
+    unmapped = 0
 
     for m in re.finditer(r"^(#{1,4})\s+(.+)", markdown, re.MULTILINE):
-        level = len(m.group(1))
         heading = re.sub(r"\*+", "", m.group(2)).strip()
-        heading_lower = heading.lower()
-        heading_clean = re.sub(r"\s*\([\w/,\s]+\)\s*$", "", heading_lower).strip()
-
-        if len(heading_clean) < 3:
+        if len(heading) < 3:
             continue
 
-        # Advance ToC state: H1/H2 match any section title, H3/H4 only match
-        # chapter/appendix identifiers (Marker sometimes renders these at H3+)
-        is_chapter_id = heading_clean.startswith(("chapter", "appendix", "part", "section"))
-        if level <= 2 or is_chapter_id:
-            for i in range(toc_idx, len(included)):
-                if _toc_title_matches(heading_clean, normalized_titles[i], included[i]["title"].lower()):
-                    toc_idx = i
-                    break
+        # Find which page this heading is on via position interpolation
+        page_idx = _page_at_position(m.start(), page_anchors)
+        if page_idx is None:
+            unmapped += 1
+            continue
 
-        if toc_idx < len(included):
-            current_section = included[toc_idx]
+        printed = pdf.page_printed.get(page_idx, page_idx)
+        section = _page_to_toc_section(printed, included)
+        if section:
+            heading_chapters[m.start()] = {"toc_entry": section, "page": page_idx}
+            mapped += 1
+        else:
+            unmapped += 1
 
-            # Resolve page number within section's page range
-            page = last_page
-            for page_idx in section_page_idxs.get(current_section["title"], []):
-                if page_idx >= last_page and heading_clean in page_texts_lower[page_idx]:
-                    page = page_idx
-                    break
-
-            last_page = page
-            heading_chapters[m.start()] = {"toc_entry": current_section, "page": page}
-
-    print(f"  Heading-chapter map: {len(heading_chapters)} headings mapped (state machine)", flush=True)
+    _log(f"  Heading-chapter map: {mapped} mapped, {unmapped} unmapped (page-based)")
     return heading_chapters
 
 
