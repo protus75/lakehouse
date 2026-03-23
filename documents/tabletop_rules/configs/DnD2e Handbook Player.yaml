@@ -133,6 +133,101 @@ validation:
     - "Area of Effect"
     - "Saving Throw"
 
+  # Expected content per section — validator checks these appear in chunk content
+  section_content:
+    "Player Character Classes":
+      expected_entries:
+        - "Fighter"
+        - "Paladin"
+        - "Ranger"
+        - "Cleric"
+        - "Druid"
+        - "Mage"
+        - "Illusionist"
+        - "Thief"
+        - "Bard"
+      expected_tables:
+        - "Table 13"
+        - "Table 14"
+        - "Table 15"
+        - "Table 16"
+
+    "Proficiencies":
+      expected_entries:
+        - "Agriculture"
+        - "Animal Handling"
+        - "Blacksmithing"
+        - "Blind-fighting"
+        - "Brewing"
+        - "Cooking"
+        - "Direction Sense"
+        - "Fire-building"
+        - "Fishing"
+        - "Healing"
+        - "Herbalism"
+        - "Hunting"
+        - "Mining"
+        - "Navigation"
+        - "Reading/Writing"
+        - "Riding"
+        - "Rope Use"
+        - "Seamanship"
+        - "Set Snares"
+        - "Singing"
+        - "Swimming"
+        - "Tracking"
+        - "Weather Sense"
+      expected_tables:
+        - "Table 34"
+        - "Table 36"
+        - "Table 37"
+
+    "Money and Equipment":
+      expected_entries:
+        - "Leather"
+        - "Chain Mail"
+        - "Plate Mail"
+        - "Shield"
+        - "Long Sword"
+        - "Short Sword"
+        - "Dagger"
+        - "Mace"
+        - "Bow"
+        - "Crossbow"
+        - "Spear"
+      expected_tables:
+        - "Table 42"
+        - "Table 43"
+        - "Table 44"
+        - "Table 45"
+        - "Table 46"
+
+    "Player Character Races":
+      expected_entries:
+        - "Dwarf"
+        - "Elf"
+        - "Gnome"
+        - "Half-Elf"
+        - "Halfling"
+        - "Human"
+      expected_tables:
+        - "Table 10"
+        - "Table 11"
+        - "Table 12"
+
+    "Combat":
+      expected_entries:
+        - "Initiative"
+        - "Surprise"
+        - "Melee"
+        - "Missile"
+        - "Saving Throw"
+      expected_tables:
+        - "Table 51"
+        - "Table 53"
+        - "Table 54"
+        - "Table 55"
+
 chunking:
   max_chars: 800
   overlap: 200
