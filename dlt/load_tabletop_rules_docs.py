@@ -91,24 +91,63 @@ def init_schema(conn: duckdb.DuckDBPyConnection) -> None:
             parsed_at       TIMESTAMP NOT NULL
         )
     """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS documents_tabletop_rules.known_entries (
+            source_file     VARCHAR NOT NULL,
+            entry_name      VARCHAR NOT NULL
+        )
+    """)
+
+
+# ── PDF Cache ────────────────────────────────────────────────────
+
+class PDFCache:
+    """Read the PDF once, cache page texts and printed page numbers."""
+
+    def __init__(self, filepath: Path, config: dict):
+        page_pattern = config.get("toc", {}).get("page_number_pattern", r"^\d{1,3}$")
+        doc = fitz.open(str(filepath))
+        self.total_pages = len(doc)
+        self.page_texts = []
+        self.page_printed = {}
+
+        for page_idx in range(self.total_pages):
+            text = doc[page_idx].get_text("text")
+            self.page_texts.append(text)
+            # Extract printed page number
+            printed = page_idx
+            for line in reversed(text.split("\n")):
+                stripped = line.strip()
+                if stripped and re.match(page_pattern, stripped):
+                    printed = int(re.search(r"\d+", stripped).group())
+                    break
+            else:
+                for line in text.split("\n")[:5]:
+                    stripped = line.strip()
+                    if stripped and re.match(page_pattern, stripped):
+                        printed = int(re.search(r"\d+", stripped).group())
+                        break
+            self.page_printed[page_idx] = printed
+
+        doc.close()
+        print(f"  PDF cache: {self.total_pages} pages read")
 
 
 # ── Step 1: Parse ToC ────────────────────────────────────────────
 
-def parse_toc(filepath: Path, config: dict) -> dict:
+def parse_toc(pdf: PDFCache, config: dict) -> dict:
     toc_config = config.get("toc", {})
     chapter_patterns = toc_config.get("chapter_patterns", [])
     table_pattern = toc_config.get("table_pattern", "")
     scan_pages = toc_config.get("toc_scan_pages", 15)
     exclude_set = set(t.lower() for t in config.get("exclude_chapters", []))
 
-    doc = fitz.open(str(filepath))
     sections = []
     tables = []
     seen = set()
 
-    for page_idx in range(min(scan_pages, len(doc))):
-        text = doc[page_idx].get_text("text")
+    for page_idx in range(min(scan_pages, pdf.total_pages)):
+        text = pdf.page_texts[page_idx]
         for line in text.split("\n"):
             stripped = line.strip()
             for pat in chapter_patterns:
@@ -133,7 +172,6 @@ def parse_toc(filepath: Path, config: dict) -> dict:
                     if title and title not in seen:
                         seen.add(title)
                         tables.append({"title": title, "page_number": page})
-    doc.close()
 
     sections.sort(key=lambda e: e["page_start"])
     for i, entry in enumerate(sections):
@@ -151,22 +189,7 @@ def parse_toc(filepath: Path, config: dict) -> dict:
     return {"sections": sections, "tables": tables}
 
 
-# ── Step 2: Page number helpers (pymupdf) ────────────────────────
-
-def _read_page_number(page, page_idx: int, pattern: str) -> int:
-    text = page.get_text("text")
-    for line in reversed(text.split("\n")):
-        stripped = line.strip()
-        if stripped and re.match(pattern, stripped):
-            return int(re.search(r"\d+", stripped).group())
-    for line in text.split("\n")[:5]:
-        stripped = line.strip()
-        if stripped and re.match(pattern, stripped):
-            return int(re.search(r"\d+", stripped).group())
-    return page_idx
-
-
-# ── Step 2b: Marker extraction ──────────────────────────────────
+# ── Step 2: Marker extraction ───────────────────────────────────
 
 _marker_models = None
 
@@ -197,21 +220,17 @@ def extract_marker_markdown(filepath: Path) -> str:
 
 # ── Step 3: Merge Marker headings with chapter assignments ──────
 
-def _detect_watermarks(filepath: Path, threshold: float = 0.3) -> set[str]:
-    """Detect watermark lines from pymupdf page text."""
-    doc = fitz.open(str(filepath))
-    total = len(doc)
+def _detect_watermarks(pdf: PDFCache, threshold: float = 0.3) -> set[str]:
+    """Detect watermark lines from cached page text."""
     line_counts = {}
-    for page_idx in range(total):
-        text = doc[page_idx].get_text("text")
+    for text in pdf.page_texts:
         seen = set()
         for line in text.split("\n"):
             stripped = line.strip()
             if stripped and len(stripped) > 2 and stripped not in seen:
                 seen.add(stripped)
                 line_counts[stripped] = line_counts.get(stripped, 0) + 1
-    doc.close()
-    min_count = max(int(total * threshold), 3)
+    min_count = max(int(pdf.total_pages * threshold), 3)
     watermarks = {line for line, count in line_counts.items() if count >= min_count}
     if watermarks:
         print(f"  Watermarks: {len(watermarks)} patterns detected")
@@ -243,8 +262,7 @@ def _toc_title_matches(heading: str, normalized_toc: str, full_toc_lower: str) -
 def build_heading_chapter_map(
     markdown: str,
     toc_sections: list[dict],
-    filepath: Path,
-    config: dict,
+    pdf: PDFCache,
 ) -> dict[int, dict]:
     """Map heading positions in markdown to ToC chapters using a state machine.
 
@@ -259,20 +277,13 @@ def build_heading_chapter_map(
 
     normalized_titles = [_normalize_toc_title(s["title"]) for s in included]
 
-    # Load page data for page number resolution (not chapter assignment)
-    page_pattern = config.get("toc", {}).get("page_number_pattern", r"^\d{1,3}$")
-    doc = fitz.open(str(filepath))
-    page_texts = [doc[i].get_text("text").lower() for i in range(len(doc))]
-    page_printed = {}
-    for page_idx in range(len(doc)):
-        page_printed[page_idx] = _read_page_number(doc[page_idx], page_idx, page_pattern)
-    doc.close()
+    page_texts_lower = [t.lower() for t in pdf.page_texts]
 
     # Precompute which page_idxs belong to each section (by printed page range)
     section_page_idxs = {}
     for s in included:
         section_page_idxs[s["title"]] = [
-            idx for idx, printed in page_printed.items()
+            idx for idx, printed in pdf.page_printed.items()
             if s["page_start"] <= printed <= s["page_end"]
         ]
 
@@ -303,7 +314,7 @@ def build_heading_chapter_map(
             # Resolve page number within section's page range
             page = last_page
             for page_idx in section_page_idxs.get(current_section["title"], []):
-                if page_idx >= last_page and heading_clean in page_texts[page_idx]:
+                if page_idx >= last_page and heading_clean in page_texts_lower[page_idx]:
                     page = page_idx
                     break
 
@@ -437,9 +448,17 @@ def _clean_entry_content(content: str, config: dict) -> str:
     field_names = config.get("metadata_field_names", [])
     if field_names:
         field_pattern = "|".join(re.escape(f) for f in field_names)
+        # Split smashed metadata fields onto separate lines
         content = re.sub(
             r"(" + field_pattern + r")\s*:",
             r"\n\1:",
+            content,
+        )
+        # Split description text smashed after metadata value
+        # e.g. "Saving Throw: None  This spell is..." → two lines
+        content = re.sub(
+            r"((?:" + field_pattern + r"):\s*\S[^\n]{0,40})\s{2,}([A-Z])",
+            r"\1\n\2",
             content,
         )
 
@@ -653,32 +672,41 @@ def build_entries(
 
 # ── Step 5: Extract known entry names from indexes ───────────────
 
-def extract_known_entries(filepath: Path, toc_data: dict, config: dict) -> set[str]:
-    """Get valid entry names from excluded index sections."""
+def extract_known_entries(pdf: PDFCache, toc_data: dict, config: dict) -> set[str]:
+    """Get valid entry names from excluded index sections.
+
+    Only extracts lines that are actual index entries (name + page number),
+    not category headers or other text that lacks a page reference."""
     page_pattern = config.get("toc", {}).get("page_number_pattern", r"^\d{1,3}$")
     excluded = [s for s in toc_data["sections"] if s["is_excluded"]]
     if not excluded:
         return set()
 
-    doc = fitz.open(str(filepath))
+    index_entry_pattern = re.compile(
+        r"^(.+?)\s*(?:\.[\s.]*){2,}\s*\d+\s*$"
+        r"|^(.+?)\s+\d{1,3}\s*$"
+    )
+
     names = set()
     for section in excluded:
-        for page_idx in range(len(doc)):
-            printed = _read_page_number(doc[page_idx], page_idx, page_pattern)
+        for page_idx in range(pdf.total_pages):
+            printed = pdf.page_printed.get(page_idx, page_idx)
             if not (section["page_start"] <= printed <= section["page_end"]):
                 continue
-            text = doc[page_idx].get_text("text")
+            text = pdf.page_texts[page_idx]
             for line in text.split("\n"):
                 stripped = line.strip()
                 if not stripped or len(stripped) < 3:
                     continue
                 if re.match(page_pattern, stripped):
                     continue
-                clean = re.sub(r"\s*(?:\.[\s.]*){2,}.*", "", stripped).strip()
-                clean = re.sub(r"\s+\d+\s*$", "", clean).strip()
+                m = index_entry_pattern.match(stripped)
+                if not m:
+                    continue
+                clean = (m.group(1) or m.group(2)).strip()
+                clean = re.sub(r"\s*\([\w/,\s]+\)\s*$", "", clean).strip()
                 if clean and 3 <= len(clean) <= 50 and clean[0].isupper():
                     names.add(clean.lower())
-    doc.close()
     if names:
         print(f"  Known entries: {len(names)} from index sections")
     return names
@@ -755,6 +783,7 @@ def chunk_entries(entries: list[dict], config: dict) -> list[dict]:
 # ── Step 8: Store ────────────────────────────────────────────────
 
 def store(filepath: Path, toc_data: dict, chunks: list[dict],
+          known_entries: set[str] | None = None,
           game_system: str | None = None, content_type: str | None = None) -> None:
     conn = duckdb.connect(DB_PATH)
     init_schema(conn)
@@ -764,6 +793,7 @@ def store(filepath: Path, toc_data: dict, chunks: list[dict],
     conn.execute("DELETE FROM documents_tabletop_rules.chunks WHERE source_file = ?", [filepath.name])
     conn.execute("DELETE FROM documents_tabletop_rules.toc WHERE source_file = ?", [filepath.name])
     conn.execute("DELETE FROM documents_tabletop_rules.files WHERE source_file = ?", [filepath.name])
+    conn.execute("DELETE FROM documents_tabletop_rules.known_entries WHERE source_file = ?", [filepath.name])
 
     max_toc_id = conn.execute(
         "SELECT COALESCE(MAX(toc_id), 0) FROM documents_tabletop_rules.toc"
@@ -810,8 +840,15 @@ def store(filepath: Path, toc_data: dict, chunks: list[dict],
          len(chunks), len(toc_sections), now],
     )
 
+    if known_entries:
+        for name in known_entries:
+            conn.execute(
+                "INSERT INTO documents_tabletop_rules.known_entries (source_file, entry_name) VALUES (?, ?)",
+                [filepath.name, name],
+            )
+
     conn.close()
-    print(f"  Stored: {len(toc_sections)} ToC, {len(chunks)} chunks")
+    print(f"  Stored: {len(toc_sections)} ToC, {len(chunks)} chunks, {len(known_entries or [])} known entries")
 
 
 # ── Pipeline ─────────────────────────────────────────────────────
@@ -824,37 +861,40 @@ def parse_pdf(filepath: Path, game_system: str | None = None,
 
     config = load_config(filepath)
 
-    # 1. Parse ToC
-    toc_data = parse_toc(filepath, config)
+    # 1. Read PDF once — cache page texts and page numbers
+    pdf = PDFCache(filepath, config)
 
-    # 2. Marker extraction (continuous markdown, no page splitting)
+    # 2. Parse ToC
+    toc_data = parse_toc(pdf, config)
+
+    # 3. Marker extraction (continuous markdown, no page splitting)
     print(f"  Marker: extracting...")
     markdown = extract_marker_markdown(filepath)
     print(f"  Marker: {len(markdown):,} chars")
 
-    # 3. Detect and strip watermarks from markdown
-    watermarks = _detect_watermarks(filepath)
+    # 4. Detect and strip watermarks from markdown
+    watermarks = _detect_watermarks(pdf)
     if watermarks:
         lines = [l for l in markdown.split("\n") if l.strip() not in watermarks]
         markdown = "\n".join(lines)
 
-    # 4. Map headings to chapters via ToC state machine (no brittle page text search)
-    heading_chapter_map = build_heading_chapter_map(markdown, toc_data["sections"], filepath, config)
+    # 5. Map headings to chapters via ToC state machine
+    heading_chapter_map = build_heading_chapter_map(markdown, toc_data["sections"], pdf)
 
-    # 5. Known entry names from indexes
-    known_entries = extract_known_entries(filepath, toc_data, config)
+    # 6. Known entry names from indexes
+    known_entries = extract_known_entries(pdf, toc_data, config)
 
-    # 6. Build entries from Marker headings with chapter assignments
+    # 7. Build entries from Marker headings with chapter assignments
     entries = build_entries(markdown, heading_chapter_map, known_entries, config)
 
-    # 7. Sub-headings for query routing
+    # 8. Sub-headings for query routing
     collect_sub_headings(entries, toc_data["sections"])
 
-    # 8. Chunk
+    # 9. Chunk
     chunks = chunk_entries(entries, config)
 
-    # 9. Store
-    store(filepath, toc_data, chunks, game_system, content_type)
+    # 10. Store
+    store(filepath, toc_data, chunks, known_entries, game_system, content_type)
 
     print(f"  Done in {time.time() - start:.1f}s")
 

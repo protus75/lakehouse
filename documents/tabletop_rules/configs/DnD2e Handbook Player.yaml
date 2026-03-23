@@ -126,12 +126,12 @@ validation:
     - "wizard spell"
     - "priest spell"
   required_metadata:
-    - "Range:"
-    - "Components:"
-    - "Duration:"
-    - "Casting Time:"
-    - "Area of Effect:"
-    - "Saving Throw:"
+    - "Range"
+    - "Component"
+    - "Duration"
+    - "Casting Time"
+    - "Area of Effect"
+    - "Saving Throw"
 
 chunking:
   max_chars: 800

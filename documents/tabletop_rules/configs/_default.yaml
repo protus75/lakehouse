@@ -27,6 +27,7 @@ metadata_field_names:
   - Sphere
   - Range
   - Components
+  - Component
   - Duration
   - Casting Time
   - Area of Effect
@@ -73,9 +74,9 @@ validation:
   spell_toc_patterns:
     - "spell"
   required_metadata:
-    - "Range:"
-    - "Duration:"
-    - "Casting Time:"
+    - "Range"
+    - "Duration"
+    - "Casting Time"
 
 chunking:
   max_chars: 800
