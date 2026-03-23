@@ -15,3 +15,7 @@ models:
     marts:
       +materialized: table
       +schema: marts
+    tabletop:
+      silver:
+        +materialized: table
+        +schema: silver_tabletop

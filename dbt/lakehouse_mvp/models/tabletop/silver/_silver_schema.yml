@@ -1,0 +1,67 @@
+version: 2
+
+models:
+  - name: silver_page_anchors
+    description: "Page-position anchors mapping markdown positions to PDF pages"
+    columns:
+      - name: source_file
+        tests:
+          - not_null
+      - name: markdown_position
+        tests:
+          - not_null
+      - name: page_index
+        tests:
+          - not_null
+
+  - name: silver_entries
+    description: "Cleaned, chapter-assigned entries from Marker markdown"
+    columns:
+      - name: entry_id
+        tests:
+          - unique
+          - not_null
+      - name: source_file
+        tests:
+          - not_null
+      - name: toc_title
+        tests:
+          - not_null
+      - name: content
+        tests:
+          - not_null
+
+  - name: silver_toc_sections
+    description: "ToC sections with sub_headings populated from entries"
+    columns:
+      - name: toc_id
+        tests:
+          - unique
+          - not_null
+      - name: source_file
+        tests:
+          - not_null
+      - name: title
+        tests:
+          - not_null
+
+  - name: silver_known_entries
+    description: "Known entries from index with validation flag"
+    columns:
+      - name: source_file
+        tests:
+          - not_null
+      - name: entry_name
+        tests:
+          - not_null
+
+  - name: silver_files
+    description: "File-level aggregated metadata"
+    columns:
+      - name: source_file
+        tests:
+          - unique
+          - not_null
+      - name: total_entries
+        tests:
+          - not_null

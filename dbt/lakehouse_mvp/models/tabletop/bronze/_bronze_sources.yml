@@ -1,0 +1,12 @@
+version: 2
+
+sources:
+  - name: bronze_tabletop
+    schema: bronze_tabletop
+    tables:
+      - name: files
+      - name: marker_extractions
+      - name: page_texts
+      - name: toc_raw
+      - name: known_entries_raw
+      - name: watermarks
