@@ -7,22 +7,18 @@ type: project
 ## Current Architecture (as of 2026-03-22)
 
 **Ingestion:** `dlt/load_tabletop_rules_docs.py`
-- pymupdf: page numbers → ToC chapter assignment (reliable)
+- ToC state machine: walks Marker headings sequentially, matches against ToC sections in order
+- pymupdf: page number resolution only (targeted search within matched section's page range)
 - Marker: full document markdown extraction (no page splitting — continuous document)
 - ToC is first-class entity stored in DuckDB `toc` table
 - Known entry names from excluded index sections act as heading whitelist
 - Config-driven per book via YAML in `documents/tabletop_rules/configs/`
+- `build_page_chapter_map` removed — chapter assignment comes from ToC order, not page lookup
 
 **Query:** `rag/query_tabletop_rules.py`
 - Two-stage: LLM routes to ToC section(s), then search within section
 - Multi-entity queries: each entity looked up independently
 - Reranking boosts chunks with entry title match + stat block fields + length
-
-**NEXT TODO: Replace `build_heading_chapter_map` with ToC state machine**
-- The ToC provides exact order and whitelist of headings
-- Walk Marker markdown sequentially, advance through ToC entries
-- No forward-search against pymupdf pages — that approach is brittle
-- The ToC state machine knows where it is in the book and what heading comes next
 
 ## Key Files
 - `dlt/load_tabletop_rules_docs.py` — ingestion pipeline
@@ -33,8 +29,17 @@ type: project
 - `documents/tabletop_rules/configs/` — per-book YAML configs
 - `scripts/tabletop_rules/` — rebuild, validate, test scripts
 
-## Export Issues Still Open
-- Metadata sometimes smashed on one line (Marker formatting)
-- Some entries missing descriptions (page boundary in Marker)
-- Leading spaces from Marker
-- Strip content patterns need to be applied consistently
+## Resolved (2026-03-22)
+- ToC state machine replaced brittle `build_heading_chapter_map` (no more page text search)
+- `build_page_chapter_map` removed — chapter assignment from ToC order
+- Content cleanup at ingestion: `_clean_entry_content` handles smashed metadata, leading spaces, image refs
+- `_deduplicate_marker_blocks` removes duplicate metadata from page-boundary re-renders
+- `_merge_orphan_entries` two-pass: group-merge same-title fragments + hungry/orphan recovery
+- Index extraction fixed: only real entries with page numbers, strips level annotations
+- Validation rewritten: per-entry not per-chunk (684 fake metadata errors → 5 real)
+- Redundant cleanup removed from `export.py`
+
+## Remaining (Marker OCR quality)
+- 310/430 spell entries have orphan chunks (mid-word page breaks in Marker output)
+- 5 entries missing Components: field, 6 entries missing description
+- These are Marker text extraction issues, not parsing issues

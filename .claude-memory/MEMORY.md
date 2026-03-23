@@ -5,4 +5,7 @@
 - [feedback_ingestion_over_export.md](feedback_ingestion_over_export.md) - Fix data quality at ingestion with config, never patch in export
 - [feedback_avoid_regex.md](feedback_avoid_regex.md) - Use Marker ML headings and LLM, not regex for content parsing
 - [project_d_drive.md](project_d_drive.md) - All data/models/caches must be on D drive, never C drive
-- [project_rag_architecture.md](project_rag_architecture.md) - RAG architecture, key files, and next TODO (ToC state machine)
+- [feedback_allow_readonly.md](feedback_allow_readonly.md) - Don't prompt for read-only Python/bash commands, just run them
+- [feedback_monitor_tasks.md](feedback_monitor_tasks.md) - Monitor long tasks, report progress, detect crashes, give ETAs
+- [feedback_memory_location.md](feedback_memory_location.md) - Write memory to .claude-memory/ in repo, not system path
+- [project_rag_architecture.md](project_rag_architecture.md) - RAG architecture, key files, and resolved issues
