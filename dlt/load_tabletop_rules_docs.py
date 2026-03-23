@@ -288,15 +288,40 @@ def _normalize_toc_title(title: str) -> str:
 
 
 def _toc_title_matches(heading: str, normalized_toc: str, full_toc_lower: str) -> bool:
-    """Check if a markdown heading matches a ToC section title."""
-    if heading == normalized_toc or heading == full_toc_lower:
+    """Check if a markdown heading matches a ToC section title.
+
+    Handles Marker splitting chapter headings (e.g. "Chapter 5" separate from
+    "Proficiencies"), OCR mangling, and partial matches.
+    Guards against false positives from short titles appearing inside long headings."""
+    if not heading or len(heading) < 3:
+        return False
+
+    # Short headings (< 50 chars) can match by containment in either direction,
+    # but the match must be a significant portion to avoid false positives
+    # like "experience" matching inside a 200-char heading about proficiency levels
+    if normalized_toc and len(normalized_toc) > 3:
+        if heading == normalized_toc:
+            return True
+        if normalized_toc in heading:
+            # normalized_toc must be at least 40% of the heading to avoid false matches
+            if len(normalized_toc) >= len(heading) * 0.4:
+                return True
+        if heading in normalized_toc:
+            if len(heading) >= len(normalized_toc) * 0.4:
+                return True
+
+    if heading == full_toc_lower:
         return True
-    if normalized_toc in heading and len(normalized_toc) > 5:
+    if heading in full_toc_lower and len(heading) >= len(full_toc_lower) * 0.3:
         return True
-    if heading in normalized_toc and len(heading) > 5 and len(heading) >= len(normalized_toc) * 0.5:
-        return True
-    if heading in full_toc_lower and len(heading) > 5 and len(heading) >= len(full_toc_lower) * 0.4:
-        return True
+
+    # Match "Chapter N" / "Appendix N" prefix — Marker often splits these
+    full_words = full_toc_lower.split()
+    heading_words = heading.split()
+    if len(heading_words) >= 2 and len(full_words) >= 2:
+        if heading_words[0] == full_words[0] and heading_words[1].rstrip(":") == full_words[1].rstrip(":"):
+            return True
+
     return False
 
 
@@ -342,8 +367,10 @@ def build_heading_chapter_map(
         if len(heading_clean) < 3:
             continue
 
-        # Level 1-2 headings can advance the ToC state
-        if level <= 2:
+        # Advance ToC state: H1/H2 match any section title, H3/H4 only match
+        # chapter/appendix identifiers (Marker sometimes renders these at H3+)
+        is_chapter_id = heading_clean.startswith(("chapter", "appendix", "part", "section"))
+        if level <= 2 or is_chapter_id:
             for i in range(toc_idx, len(included)):
                 if _toc_title_matches(heading_clean, normalized_titles[i], included[i]["title"].lower()):
                     toc_idx = i
