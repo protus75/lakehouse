@@ -42,6 +42,10 @@ exclude_chapters:
   - "Appendix 7: Spell Index"
   - "Appendix 8: Compiled Character Generation Tables"
 
+whitelist_sections:
+  - "Wizard Spells"
+  - "Priest Spells"
+
 # Default parsing rules for all sections
 parsing_defaults:
   # A heading is a short line that starts an entry

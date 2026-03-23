@@ -52,6 +52,11 @@ index_headings:
 # Chapters to exclude entirely from page mapping and content
 exclude_chapters: []
 
+# Sections where H3/H4 headings are filtered against known_entries whitelist.
+# All other sections treat every H3/H4 heading as a new entry.
+# List of substrings matched against ToC section titles.
+whitelist_sections: []
+
 # No entry types defined — generic parsing only
 entry_types: {}
 
@@ -112,6 +117,10 @@ ingestion:
   # Min/max length for valid index entry names
   min_index_entry_length: 3
   max_index_entry_length: 50
+  # Snippet lengths to try when building page-position anchors (longest first)
+  anchor_snippet_lengths: [40, 30, 20]
+  # Max lines per page to try for anchor matching
+  anchor_max_lines: 10
 
 chunking:
   max_chars: 800

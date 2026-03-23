@@ -53,15 +53,14 @@ for (sf,) in source_files:
         print(f"  Known entries from {sf}: {len(known)}")
         all_known.update(known)
 
-# Get spell chunks
-all_toc_patterns = set()
+# Get chunks from whitelist sections (spell/entry sections with structured metadata)
+all_whitelist = set()
 for (sf,) in source_files:
     config = load_validation_config(sf)
-    validation = config.get("validation", {})
-    patterns = validation.get("spell_toc_patterns", ["spell"])
-    all_toc_patterns.update(p.lower() for p in patterns)
+    whitelist = config.get("whitelist_sections", [])
+    all_whitelist.update(w.lower() for w in whitelist)
 
-toc_where = " OR ".join([f"LOWER(t.title) LIKE '%{p}%'" for p in all_toc_patterns])
+toc_where = " OR ".join([f"LOWER(t.title) LIKE '%{w}%'" for w in all_whitelist])
 if not toc_where:
     toc_where = "LOWER(t.title) LIKE '%spell%'"
 

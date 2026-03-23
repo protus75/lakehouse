@@ -278,29 +278,39 @@ def _detect_watermarks(pdf: PDFCache, threshold: float = 0.3) -> set[str]:
     return watermarks
 
 
-def _build_page_position_map(markdown: str, pdf: PDFCache) -> list[tuple[int, int]]:
+def _build_page_position_map(markdown: str, pdf: PDFCache, config: dict = None) -> list[tuple[int, int]]:
     """Build a map of markdown positions to PDF page indices.
 
     For each PDF page, finds a unique text snippet from that page in the Marker
     markdown. Returns sorted list of (markdown_position, page_idx) anchors.
 
     This is the ground truth for locating content in the markdown by page."""
+    ingestion = config.get("ingestion", {}) if config else {}
+    snippet_lengths = ingestion.get("anchor_snippet_lengths", [40, 30, 20])
+    max_lines = ingestion.get("anchor_max_lines", 10)
+
     md_lower = markdown.lower()
+    anchored_pages = set()
     positions = []
 
-    for page_idx in range(pdf.total_pages):
-        text = pdf.page_texts[page_idx].lower()
-        lines = [l.strip() for l in text.split("\n") if len(l.strip()) > 20]
-
-        for line in lines[1:6]:  # skip header line, try body lines
-            clean = line.replace("-\n", "").replace("\n", " ").strip()
-            if len(clean) < 25:
+    # Multi-pass: try longest snippets first, then shorter for unanchored pages
+    for snippet_len in snippet_lengths:
+        for page_idx in range(pdf.total_pages):
+            if page_idx in anchored_pages:
                 continue
-            snippet = clean[:40]
-            pos = md_lower.find(snippet)
-            if pos >= 0:
-                positions.append((pos, page_idx))
-                break
+            text = pdf.page_texts[page_idx].lower()
+            lines = [l.strip() for l in text.split("\n") if len(l.strip()) > 10]
+
+            for line in lines[1:max_lines]:
+                clean = line.replace("-\n", "").replace("\n", " ").strip()
+                if len(clean) < snippet_len:
+                    continue
+                snippet = clean[:snippet_len]
+                pos = md_lower.find(snippet)
+                if pos >= 0:
+                    positions.append((pos, page_idx))
+                    anchored_pages.add(page_idx)
+                    break
 
     positions.sort()
     return positions
@@ -308,8 +318,13 @@ def _build_page_position_map(markdown: str, pdf: PDFCache) -> list[tuple[int, in
 
 def _page_at_position(md_pos: int, page_anchors: list[tuple[int, int]]) -> int | None:
     """Given a position in the markdown, find which page it's on by interpolating
-    between the nearest page anchors."""
+    between the nearest page anchors.
+    Returns None for positions before the first anchor (front matter)."""
     if not page_anchors:
+        return None
+
+    # Content before the first page anchor is front matter — can't be reliably mapped
+    if md_pos < page_anchors[0][0]:
         return None
 
     # Binary search for the anchor just before this position
@@ -336,6 +351,7 @@ def build_heading_chapter_map(
     markdown: str,
     toc_sections: list[dict],
     pdf: PDFCache,
+    config: dict = None,
 ) -> dict[int, dict]:
     """Map heading positions in markdown to ToC chapters using page positions.
 
@@ -351,7 +367,7 @@ def build_heading_chapter_map(
         return {}
 
     # Build page-position map from PDF content → markdown positions
-    page_anchors = _build_page_position_map(markdown, pdf)
+    page_anchors = _build_page_position_map(markdown, pdf, config)
     _log(f"  Page anchors: {len(page_anchors)}/{pdf.total_pages} pages located in markdown")
 
     heading_chapters = {}
@@ -668,13 +684,14 @@ def _merge_orphan_entries(entries: list[dict], config: dict) -> list[dict]:
     return result
 
 
-def _is_spell_section(toc_entry: dict | None, config: dict | None) -> bool:
-    """Check if a ToC section is a spell/entry section that needs known_entries filtering."""
+def _is_whitelist_section(toc_entry: dict | None, config: dict | None) -> bool:
+    """Check if a ToC section uses known_entries whitelist for heading filtering.
+    Configured via whitelist_sections in config."""
     if not toc_entry or not config:
         return False
-    patterns = config.get("validation", {}).get("spell_toc_patterns", ["spell"])
+    whitelist = config.get("whitelist_sections", [])
     title_lower = toc_entry.get("title", "").lower()
-    return any(p.lower() in title_lower for p in patterns)
+    return any(w.lower() in title_lower for w in whitelist)
 
 
 def build_entries(
@@ -749,7 +766,7 @@ def build_entries(
             else:
                 # In spell sections, only create entries for known headings (whitelist)
                 # In non-spell sections, every H3/H4 heading creates a new entry
-                in_spell = _is_spell_section(current_toc, config)
+                in_spell = _is_whitelist_section(current_toc, config)
                 if in_spell and known_entries and match_name.lower() not in known_entries:
                     current_content.append(line)
                 else:
@@ -1001,7 +1018,7 @@ def parse_pdf(filepath: Path, game_system: str | None = None,
     step("Watermarks stripped")
 
     # 5. Map headings to chapters via ToC state machine
-    heading_chapter_map = build_heading_chapter_map(markdown, toc_data["sections"], pdf)
+    heading_chapter_map = build_heading_chapter_map(markdown, toc_data["sections"], pdf, config)
     step("Heading-chapter map built")
 
     # 6. Known entry names from indexes
