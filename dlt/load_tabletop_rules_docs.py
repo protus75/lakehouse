@@ -668,6 +668,15 @@ def _merge_orphan_entries(entries: list[dict], config: dict) -> list[dict]:
     return result
 
 
+def _is_spell_section(toc_entry: dict | None, config: dict | None) -> bool:
+    """Check if a ToC section is a spell/entry section that needs known_entries filtering."""
+    if not toc_entry or not config:
+        return False
+    patterns = config.get("validation", {}).get("spell_toc_patterns", ["spell"])
+    title_lower = toc_entry.get("title", "").lower()
+    return any(p.lower() in title_lower for p in patterns)
+
+
 def build_entries(
     markdown: str,
     heading_chapter_map: dict[int, dict],
@@ -677,8 +686,9 @@ def build_entries(
     """Parse Marker markdown into entries using heading-chapter map for ToC assignment.
 
     No page splitting. Marker's continuous markdown is parsed by headings.
-    Each heading's chapter comes from heading_chapter_map (built from ToC state machine).
-    known_entries whitelist prevents false headings in spell sections."""
+    Each heading's chapter comes from heading_chapter_map (page-position based).
+    known_entries whitelist only applies in spell sections — non-spell sections
+    treat every H3/H4 heading as a new entry."""
     entries = []
     current_toc = None
     current_page = 0
@@ -737,7 +747,10 @@ def build_entries(
                     current_entry = None
                     current_content = [line]
             else:
-                if known_entries and match_name.lower() not in known_entries:
+                # In spell sections, only create entries for known headings (whitelist)
+                # In non-spell sections, every H3/H4 heading creates a new entry
+                in_spell = _is_spell_section(current_toc, config)
+                if in_spell and known_entries and match_name.lower() not in known_entries:
                     current_content.append(line)
                 else:
                     flush()

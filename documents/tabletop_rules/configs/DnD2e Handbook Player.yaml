@@ -31,6 +31,10 @@ strip_content_patterns:
   - '^Reversible\s*$'
   - '^\([\w/,\s*]+\)\s+Reversible\s*$'
 
+content_substitutions:
+  - ['D- M', 'DM']
+  - ['| Tal | bl | e | 4 |', 'Table 45: Missile Weapon Ranges']
+
 exclude_chapters:
   - "Appendix 1: Spell Lists"
   - "Appendix 5: Wizard Spells by School"
@@ -123,8 +127,8 @@ section_parsing:
 
 validation:
   spell_toc_patterns:
-    - "wizard spell"
-    - "priest spell"
+    - "Appendix 3: Wizard Spells"
+    - "Appendix 4: Priest Spells"
   required_metadata:
     - "Range"
     - "Component"
