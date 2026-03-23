@@ -19,6 +19,11 @@ toc:
 # Used to remove school/type annotations, tags, etc. that belong in metadata not description.
 strip_content_patterns: []
 
+# Regex substitutions applied to entry content during cleanup.
+# Each item is [pattern, replacement]. Applied in order.
+content_substitutions:
+  - ['D- M', 'DM']
+
 # Metadata field names used during content cleanup at ingestion time.
 # When Marker smashes multiple fields onto one line (e.g. "Sphere: All Range: 60 yds."),
 # the ingestion pipeline splits them into separate lines using these names.
@@ -77,6 +82,36 @@ validation:
     - "Range"
     - "Duration"
     - "Casting Time"
+  # Minimum chars after last metadata line to count as having a description
+  min_description_chars: 20
+  # Entries shorter than this are flagged as very short
+  min_entry_chars: 50
+  # First N chars used to detect duplicate entries
+  duplicate_signature_chars: 200
+  # Regex patterns for legitimate hyphenated words to exclude from validation
+  hyphen_exclude_patterns:
+    - '\d+(?:st|nd|rd|th)-'
+    - 'warm-'
+
+# Thresholds for ingestion content cleanup and entry building
+ingestion:
+  # Minimum entry content length to keep (shorter entries are discarded)
+  min_entry_content: 10
+  # Max length for a line to be considered a mid-word fragment (dedup cleanup)
+  max_fragment_length: 60
+  # Max length for a lowercase line to be stripped between dedup blocks
+  max_interblock_fragment_length: 80
+  # Minimum description block length to keep during dedup
+  min_description_block: 15
+  # Chars used for dedup signature matching
+  dedup_signature_chars: 80
+  # Max chars in metadata value before splitting smashed description text
+  max_smashed_metadata_value: 40
+  # Max sub-headings collected per ToC section for query routing
+  max_sub_headings_per_section: 50
+  # Min/max length for valid index entry names
+  min_index_entry_length: 3
+  max_index_entry_length: 50
 
 chunking:
   max_chars: 800

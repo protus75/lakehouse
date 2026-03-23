@@ -1,19 +1,20 @@
 ---
-name: Minimize regex in parsing
-description: Use Marker ML headings and LLM classification instead of brittle regex patterns
+name: STOP using regex - use string ops, Marker headings, or LLM
+description: CRITICAL - Regex causes catastrophic backtracking and wastes hours debugging. Use string operations, Marker ML, or LLM instead.
 type: feedback
 ---
 
-Avoid regex for content parsing. Use it ONLY for:
-- ToC page number extraction (well-defined format)
-- Watermark detection (statistical frequency, not pattern matching)
-- Config-driven strip patterns that the USER defines for their books
+STOP using regex for content parsing. Regex has repeatedly caused:
+- Catastrophic backtracking (parse_toc taking 52s+ on 15 pages due to `.*` + dot-leader pattern)
+- Unmaintainable patterns that break across books
+- Hours of debugging wasted on regex bugs across 20+ ingestion reruns
 
-For everything else use:
-- Marker's ML-based heading detection (# ## ### from layout analysis)
-- Known entries whitelist from the book's index sections
-- LLM classification for ambiguous cases
+Use instead:
+1. **String operations** — split, startswith, endswith, find, `in` — for simple matching
+2. **Marker ML headings** — Marker already detects headings with `#` markers, use those directly
+3. **LLM** — for complex content classification that regex can't handle reliably
+4. **Config-driven user patterns** — ONLY when user explicitly defines them for their books
 
-**Why:** Regex patterns for heading detection, metadata extraction, and content cleanup were the root cause of dozens of painful iterations. Every regex fix broke something else. Marker already solves the hard visual parsing problems (columns, tables, headings).
+**Why:** User has corrected this many times. parse_toc regex caused a 52s hang scanning 15 pages. `.*` combined with `(?:\.[\s.]*){2,}` causes exponential backtracking. Every complex regex introduced has eventually caused a bug or performance issue.
 
-**How to apply:** When tempted to add a regex to detect or classify content, ask: can Marker's output or the known entries list handle this? If yes, use those. Only reach for regex as a last resort, and put it in the config so the user controls it.
+**How to apply:** Before writing ANY regex, ask: can this be done with string split/find/startswith? If yes, use that. Refactor existing regex to string ops wherever possible. Only use regex for truly atomic patterns (extracting a number, matching a fixed format), never for greedy content matching with `.*`.

@@ -34,9 +34,9 @@ def load_config(filepath: Path) -> dict:
         with open(book_path) as f:
             book = yaml.safe_load(f) or {}
         config = _deep_merge(config, book)
-        print(f"  Config: {book_path.name}")
+        print(f"  Config: {book_path.name}", flush=True)
     else:
-        print(f"  Config: defaults")
+        print(f"  Config: defaults", flush=True)
     return config
 
 
@@ -130,17 +130,50 @@ class PDFCache:
             self.page_printed[page_idx] = printed
 
         doc.close()
-        print(f"  PDF cache: {self.total_pages} pages read")
+        print(f"  PDF cache: {self.total_pages} pages read", flush=True)
 
 
 # ── Step 1: Parse ToC ────────────────────────────────────────────
 
+def _extract_toc_line(line: str) -> tuple[str, int] | None:
+    """Extract (title, page_number) from a ToC line using string ops.
+    ToC lines look like: 'Chapter 1: Introduction ......... 5'
+    Returns None if not a valid ToC line."""
+    stripped = line.strip()
+    if not stripped or len(stripped) < 5:
+        return None
+
+    # Page number must be at the end — find trailing digits
+    rstripped = stripped.rstrip()
+    i = len(rstripped) - 1
+    while i >= 0 and rstripped[i].isdigit():
+        i -= 1
+    if i >= len(rstripped) - 1:
+        return None  # no trailing number
+    page_str = rstripped[i + 1:]
+    if not page_str or int(page_str) == 0:
+        return None
+
+    # Title is everything before dot leaders / whitespace + page number
+    before = rstripped[:i + 1].rstrip()
+    # Strip dot leaders: sequences of dots, spaces, dots
+    while before and before[-1] in '.… ':
+        before = before.rstrip('.… ')
+    title = before.strip()
+    if not title:
+        return None
+
+    return (title, int(page_str))
+
+
 def parse_toc(pdf: PDFCache, config: dict) -> dict:
     toc_config = config.get("toc", {})
-    chapter_patterns = toc_config.get("chapter_patterns", [])
-    table_pattern = toc_config.get("table_pattern", "")
+    chapter_patterns = [re.compile(p, re.IGNORECASE) for p in toc_config.get("chapter_patterns", [])]
+    table_pattern = re.compile(toc_config["table_pattern"], re.IGNORECASE) if toc_config.get("table_pattern") else None
     scan_pages = toc_config.get("toc_scan_pages", 15)
     exclude_set = set(t.lower() for t in config.get("exclude_chapters", []))
+
+    _log(f"  ToC: scanning {scan_pages} pages with {len(chapter_patterns)} patterns")
 
     sections = []
     tables = []
@@ -149,29 +182,25 @@ def parse_toc(pdf: PDFCache, config: dict) -> dict:
     for page_idx in range(min(scan_pages, pdf.total_pages)):
         text = pdf.page_texts[page_idx]
         for line in text.split("\n"):
-            stripped = line.strip()
+            parsed = _extract_toc_line(line)
+            if not parsed:
+                continue
+            title, page = parsed
+
             for pat in chapter_patterns:
-                m = re.match(r"(" + pat + r")\s*(?:\.[\s.]*){2,}\s*(\d+)\s*$",
-                             stripped, re.IGNORECASE)
-                if m:
-                    title = re.sub(r"\s*(?:\.[\s.]*){2,}.*", "", m.group(1)).strip()
-                    page = int(m.group(2))
-                    if title and title not in seen:
+                if pat.match(title):
+                    if title not in seen:
                         seen.add(title)
                         sections.append({
                             "title": title, "page_start": page,
                             "is_excluded": title.lower() in exclude_set,
                             "sub_headings": [], "tables": [],
                         })
-            if table_pattern:
-                m = re.match(r"(" + table_pattern + r")\s*(?:\.[\s.]*){2,}\s*(\d+)\s*$",
-                             stripped, re.IGNORECASE)
-                if m:
-                    title = re.sub(r"\s*(?:\.[\s.]*){2,}.*", "", m.group(1)).strip()
-                    page = int(m.group(2))
-                    if title and title not in seen:
-                        seen.add(title)
-                        tables.append({"title": title, "page_number": page})
+                    break
+            if table_pattern and table_pattern.match(title):
+                if title not in seen:
+                    seen.add(title)
+                    tables.append({"title": title, "page_number": page})
 
     sections.sort(key=lambda e: e["page_start"])
     for i, entry in enumerate(sections):
@@ -185,7 +214,7 @@ def parse_toc(pdf: PDFCache, config: dict) -> dict:
 
     included = sum(1 for e in sections if not e["is_excluded"])
     excluded = sum(1 for e in sections if e["is_excluded"])
-    print(f"  ToC: {included} sections, {excluded} excluded, {len(tables)} tables")
+    print(f"  ToC: {included} sections, {excluded} excluded, {len(tables)} tables", flush=True)
     return {"sections": sections, "tables": tables}
 
 
@@ -201,14 +230,26 @@ def _get_marker_models():
     return _marker_models
 
 
-def extract_marker_markdown(filepath: Path) -> str:
-    """Run Marker to get full document markdown. No page splitting."""
-    from marker.converters.pdf import PdfConverter
+MARKER_CACHE_DIR = Path("/workspace/cache/marker")
 
-    models = _get_marker_models()
-    converter = PdfConverter(artifact_dict=models)
-    rendered = converter(str(filepath))
-    md = rendered.markdown
+
+def extract_marker_markdown(filepath: Path) -> str:
+    """Run Marker to get full document markdown. No page splitting.
+    Caches result to disk so re-ingestion skips the slow Marker step."""
+    MARKER_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    cache_path = MARKER_CACHE_DIR / f"{filepath.stem}.md"
+
+    if cache_path.exists():
+        print(f"  Marker: using cached {cache_path.name}", flush=True)
+        md = cache_path.read_text(encoding="utf-8")
+    else:
+        from marker.converters.pdf import PdfConverter
+        models = _get_marker_models()
+        converter = PdfConverter(artifact_dict=models)
+        rendered = converter(str(filepath))
+        md = rendered.markdown
+        cache_path.write_text(md, encoding="utf-8")
+        print(f"  Marker: cached to {cache_path.name}", flush=True)
 
     # Strip image references
     md = re.sub(r"!\[.*?\]\(.*?\)", "", md)
@@ -233,7 +274,7 @@ def _detect_watermarks(pdf: PDFCache, threshold: float = 0.3) -> set[str]:
     min_count = max(int(pdf.total_pages * threshold), 3)
     watermarks = {line for line, count in line_counts.items() if count >= min_count}
     if watermarks:
-        print(f"  Watermarks: {len(watermarks)} patterns detected")
+        print(f"  Watermarks: {len(watermarks)} patterns detected", flush=True)
     return watermarks
 
 
@@ -321,7 +362,7 @@ def build_heading_chapter_map(
             last_page = page
             heading_chapters[m.start()] = {"toc_entry": current_section, "page": page}
 
-    print(f"  Heading-chapter map: {len(heading_chapters)} headings mapped (state machine)")
+    print(f"  Heading-chapter map: {len(heading_chapters)} headings mapped (state machine)", flush=True)
     return heading_chapters
 
 
@@ -337,7 +378,7 @@ def _should_strip_line(stripped: str, config: dict) -> bool:
     return False
 
 
-def _deduplicate_marker_blocks(content: str, field_names: list[str]) -> str:
+def _deduplicate_marker_blocks(content: str, field_names: list[str], config: dict) -> str:
     """Remove duplicate metadata blocks from Marker page-boundary re-renders.
 
     Marker sometimes re-renders the same entry at a page boundary, producing
@@ -347,6 +388,12 @@ def _deduplicate_marker_blocks(content: str, field_names: list[str]) -> str:
     """
     if not field_names:
         return content
+
+    ingestion = config.get("ingestion", {})
+    max_fragment = ingestion.get("max_fragment_length", 60)
+    max_interblock_fragment = ingestion.get("max_interblock_fragment_length", 80)
+    min_desc_block = ingestion.get("min_description_block", 15)
+    dedup_sig_chars = ingestion.get("dedup_signature_chars", 80)
 
     # Find all positions where a metadata field starts a line
     meta_starts = []
@@ -378,7 +425,7 @@ def _deduplicate_marker_blocks(content: str, field_names: list[str]) -> str:
     heading_lines = []
     for line in lines[:block_starts[0]]:
         stripped = line.strip()
-        if stripped and stripped[0].islower() and len(stripped) < 60:
+        if stripped and stripped[0].islower() and len(stripped) < max_fragment:
             continue  # mid-word fragment or junk preamble
         heading_lines.append(line)
     blocks = []
@@ -402,7 +449,7 @@ def _deduplicate_marker_blocks(content: str, field_names: list[str]) -> str:
             stripped = desc_lines[0].strip()
             if not stripped:
                 desc_lines.pop(0)
-            elif stripped[0].islower() and len(stripped) < 80:
+            elif stripped[0].islower() and len(stripped) < max_interblock_fragment:
                 desc_lines.pop(0)
             else:
                 break
@@ -416,8 +463,8 @@ def _deduplicate_marker_blocks(content: str, field_names: list[str]) -> str:
     all_descs = []
     seen = set()
     for block in blocks:
-        if block["desc"] and len(block["desc"]) > 15:
-            sig = block["desc"][:80]
+        if block["desc"] and len(block["desc"]) > min_desc_block:
+            sig = block["desc"][:dedup_sig_chars]
             if sig not in seen:
                 seen.add(sig)
                 all_descs.append(block["desc"])
@@ -446,36 +493,55 @@ def _clean_entry_content(content: str, config: dict) -> str:
     - Collapse excessive blank lines
     """
     field_names = config.get("metadata_field_names", [])
-    if field_names:
-        field_pattern = "|".join(re.escape(f) for f in field_names)
-        # Split smashed metadata fields onto separate lines
-        content = re.sub(
-            r"(" + field_pattern + r")\s*:",
-            r"\n\1:",
-            content,
-        )
-        # Split description text smashed after metadata value
-        # e.g. "Saving Throw: None  This spell is..." → two lines
-        content = re.sub(
-            r"((?:" + field_pattern + r"):\s*\S[^\n]{0,40})\s{2,}([A-Z])",
-            r"\1\n\2",
-            content,
-        )
+    field_names_lower = [f.lower() for f in field_names]
 
     lines = []
     for line in content.split("\n"):
         stripped = line.lstrip()
-        if re.match(r"^[a-z_0-9]*\.(?:jpeg|png)\)?$", stripped):
+        # Skip image artifacts
+        if stripped.startswith("![") or (stripped and stripped[0].islower() and stripped.endswith((".jpeg", ".png", ".jpeg)", ".png)"))):
             continue
-        if re.match(r"^!\[.*\]$", stripped):
-            continue
+
+        # Split smashed metadata fields onto separate lines
+        # e.g. "Sphere: All Range: 60 yds." → "Sphere: All\nRange: 60 yds."
+        if field_names:
+            for fname in field_names:
+                # Find field name preceded by space (smashed onto previous field's line)
+                idx = stripped.find(" " + fname + ":")
+                if idx < 0:
+                    idx = stripped.find("  " + fname + ":")
+                if idx > 0:
+                    lines.append(stripped[:idx].rstrip())
+                    stripped = stripped[idx:].lstrip()
+
+        # Split description smashed after metadata value
+        # e.g. "Saving Throw: Special  This spell is..." → two lines
+        if field_names and "  " in stripped:
+            for fname in field_names:
+                if stripped.lower().startswith(fname.lower() + ":"):
+                    # Find double-space followed by uppercase letter
+                    pos = stripped.find("  ", len(fname) + 1)
+                    while pos > 0:
+                        after = stripped[pos:].lstrip()
+                        if after and after[0].isupper():
+                            lines.append(stripped[:pos].rstrip())
+                            stripped = after
+                            break
+                        pos = stripped.find("  ", pos + 2)
+                    break
+
         lines.append(stripped)
 
     content = "\n".join(lines)
     content = re.sub(r"\n{3,}", "\n\n", content)
 
+    # Apply config-driven substitutions (OCR artifact fixes)
+    for sub in config.get("content_substitutions", []):
+        if len(sub) == 2:
+            content = content.replace(sub[0], sub[1])
+
     # Deduplicate after all other cleaning
-    content = _deduplicate_marker_blocks(content, field_names)
+    content = _deduplicate_marker_blocks(content, field_names, config)
 
     return content.strip()
 
@@ -492,8 +558,9 @@ def _has_metadata_but_no_description(content: str, config: dict) -> bool:
             last_meta_pos = idx
     if last_meta_pos < 0:
         return False
+    min_desc = config.get("validation", {}).get("min_description_chars", 20)
     after_meta = content[last_meta_pos:].split("\n", 1)
-    return len(after_meta) < 2 or len(after_meta[1].strip()) < 20
+    return len(after_meta) < 2 or len(after_meta[1].strip()) < min_desc
 
 
 def _is_orphan_continuation(content: str) -> bool:
@@ -553,7 +620,7 @@ def _merge_orphan_entries(entries: list[dict], config: dict) -> list[dict]:
     # Pass 2: hungry + orphan (different titles, consecutive)
     if len(merged) < 2:
         if fold_count:
-            print(f"  Orphan merges: {fold_count} fragments folded")
+            print(f"  Orphan merges: {fold_count} fragments folded", flush=True)
         return merged
 
     result = []
@@ -582,7 +649,7 @@ def _merge_orphan_entries(entries: list[dict], config: dict) -> list[dict]:
 
     total = fold_count + hungry_count
     if total:
-        print(f"  Orphan merges: {fold_count} fragments folded, {hungry_count} descriptions recovered")
+        print(f"  Orphan merges: {fold_count} fragments folded, {hungry_count} descriptions recovered", flush=True)
     return result
 
 
@@ -610,7 +677,8 @@ def build_entries(
             content = "\n".join(current_content).strip()
             if config:
                 content = _clean_entry_content(content, config)
-            if content and len(content) > 10:
+            min_content = config.get("ingestion", {}).get("min_entry_content", 10) if config else 10
+            if content and len(content) > min_content:
                 entries.append({
                     "toc_entry": current_toc,
                     "section_title": current_section,
@@ -639,10 +707,20 @@ def build_entries(
                 current_page = hc["page"]
 
             if level <= 2:
-                flush()
-                current_section = clean_heading
-                current_entry = None
-                current_content = [line]
+                # Skip duplicate section headings from Marker page-boundary re-renders
+                # e.g. "## Priest Spells" repeated at top of new page mid-entry
+                if current_section and clean_heading.lower() == current_section.lower():
+                    pass  # same section — keep accumulating current entry
+                elif current_entry and current_content and config and _has_metadata_but_no_description("\n".join(current_content), config):
+                    # Current entry has metadata but no description yet — the description
+                    # likely follows this section heading (Marker inserted it mid-entry).
+                    # Update section but don't flush the entry.
+                    current_section = clean_heading
+                else:
+                    flush()
+                    current_section = clean_heading
+                    current_entry = None
+                    current_content = [line]
             else:
                 if known_entries and match_name.lower() not in known_entries:
                     current_content.append(line)
@@ -666,7 +744,7 @@ def build_entries(
     if config:
         entries = _merge_orphan_entries(entries, config)
 
-    print(f"  Entries: {len(entries)}")
+    print(f"  Entries: {len(entries)}", flush=True)
     return entries
 
 
@@ -676,17 +754,17 @@ def extract_known_entries(pdf: PDFCache, toc_data: dict, config: dict) -> set[st
     """Get valid entry names from excluded index sections.
 
     Only extracts lines that are actual index entries (name + page number),
-    not category headers or other text that lacks a page reference."""
-    page_pattern = config.get("toc", {}).get("page_number_pattern", r"^\d{1,3}$")
+    not category headers or other text that lacks a page reference.
+    Uses _extract_toc_line for parsing — no regex on content."""
     excluded = [s for s in toc_data["sections"] if s["is_excluded"]]
     if not excluded:
         return set()
 
-    index_entry_pattern = re.compile(
-        r"^(.+?)\s*(?:\.[\s.]*){2,}\s*\d+\s*$"
-        r"|^(.+?)\s+\d{1,3}\s*$"
-    )
+    ingestion = config.get("ingestion", {})
+    min_idx = ingestion.get("min_index_entry_length", 3)
+    max_idx = ingestion.get("max_index_entry_length", 50)
 
+    _log(f"  Known entries: scanning {len(excluded)} excluded sections, {pdf.total_pages} pages")
     names = set()
     for section in excluded:
         for page_idx in range(pdf.total_pages):
@@ -695,27 +773,26 @@ def extract_known_entries(pdf: PDFCache, toc_data: dict, config: dict) -> set[st
                 continue
             text = pdf.page_texts[page_idx]
             for line in text.split("\n"):
-                stripped = line.strip()
-                if not stripped or len(stripped) < 3:
+                parsed = _extract_toc_line(line)
+                if not parsed:
                     continue
-                if re.match(page_pattern, stripped):
-                    continue
-                m = index_entry_pattern.match(stripped)
-                if not m:
-                    continue
-                clean = (m.group(1) or m.group(2)).strip()
-                clean = re.sub(r"\s*\([\w/,\s]+\)\s*$", "", clean).strip()
-                if clean and 3 <= len(clean) <= 50 and clean[0].isupper():
-                    names.add(clean.lower())
+                title = parsed[0]
+                # Strip trailing parenthetical (school/type annotations)
+                paren = title.rfind("(")
+                if paren > 0:
+                    title = title[:paren].strip()
+                if title and min_idx <= len(title) <= max_idx and title[0].isupper():
+                    names.add(title.lower())
     if names:
-        print(f"  Known entries: {len(names)} from index sections")
+        print(f"  Known entries: {len(names)} from index sections", flush=True)
     return names
 
 
 # ── Step 6: Collect sub-headings per ToC section ─────────────────
 
-def collect_sub_headings(entries: list[dict], toc_sections: list[dict]) -> None:
+def collect_sub_headings(entries: list[dict], toc_sections: list[dict], config: dict) -> None:
     """Collect entry titles per ToC section for query routing."""
+    max_subs = config.get("ingestion", {}).get("max_sub_headings_per_section", 50)
     section_headings = {}
     for entry in entries:
         title = entry["toc_entry"]["title"]
@@ -728,10 +805,10 @@ def collect_sub_headings(entries: list[dict], toc_sections: list[dict]) -> None:
     for section in toc_sections:
         if section["is_excluded"]:
             continue
-        section["sub_headings"] = section_headings.get(section["title"], [])[:50]
+        section["sub_headings"] = section_headings.get(section["title"], [])[:max_subs]
 
     total = sum(len(s["sub_headings"]) for s in toc_sections if not s["is_excluded"])
-    print(f"  Sub-headings: {total} collected")
+    print(f"  Sub-headings: {total} collected", flush=True)
 
 
 # ── Step 7: Chunk entries ────────────────────────────────────────
@@ -776,7 +853,7 @@ def chunk_entries(entries: list[dict], config: dict) -> list[dict]:
                     "chunk_type": "content",
                 })
 
-    print(f"  Chunks: {len(chunks)}")
+    print(f"  Chunks: {len(chunks)}", flush=True)
     return chunks
 
 
@@ -848,55 +925,78 @@ def store(filepath: Path, toc_data: dict, chunks: list[dict],
             )
 
     conn.close()
-    print(f"  Stored: {len(toc_sections)} ToC, {len(chunks)} chunks, {len(known_entries or [])} known entries")
+    print(f"  Stored: {len(toc_sections)} ToC, {len(chunks)} chunks, {len(known_entries or [])} known entries", flush=True)
 
 
 # ── Pipeline ─────────────────────────────────────────────────────
+
+def _log(msg: str) -> None:
+    """Print with flush for real-time monitoring in Docker."""
+    print(msg, flush=True)
+
 
 def parse_pdf(filepath: Path, game_system: str | None = None,
               content_type: str | None = None) -> None:
     import time
     start = time.time()
-    print(f"\nParsing {filepath.name} ({filepath.stat().st_size / 1024 / 1024:.1f} MB)")
+    step_start = start
+
+    def step(msg: str) -> None:
+        nonlocal step_start
+        now = time.time()
+        elapsed = now - step_start
+        _log(f"  [{elapsed:.1f}s] {msg}")
+        step_start = now
+
+    _log(f"\nParsing {filepath.name} ({filepath.stat().st_size / 1024 / 1024:.1f} MB)")
 
     config = load_config(filepath)
 
     # 1. Read PDF once — cache page texts and page numbers
     pdf = PDFCache(filepath, config)
+    step("PDF cache ready")
 
     # 2. Parse ToC
     toc_data = parse_toc(pdf, config)
+    step("ToC parsed")
 
     # 3. Marker extraction (continuous markdown, no page splitting)
-    print(f"  Marker: extracting...")
+    _log("  Marker: extracting...")
     markdown = extract_marker_markdown(filepath)
-    print(f"  Marker: {len(markdown):,} chars")
+    step(f"Marker: {len(markdown):,} chars")
 
     # 4. Detect and strip watermarks from markdown
     watermarks = _detect_watermarks(pdf)
     if watermarks:
         lines = [l for l in markdown.split("\n") if l.strip() not in watermarks]
         markdown = "\n".join(lines)
+    step("Watermarks stripped")
 
     # 5. Map headings to chapters via ToC state machine
     heading_chapter_map = build_heading_chapter_map(markdown, toc_data["sections"], pdf)
+    step("Heading-chapter map built")
 
     # 6. Known entry names from indexes
     known_entries = extract_known_entries(pdf, toc_data, config)
+    step(f"Known entries: {len(known_entries)}")
 
     # 7. Build entries from Marker headings with chapter assignments
     entries = build_entries(markdown, heading_chapter_map, known_entries, config)
+    step(f"Entries built: {len(entries)}")
 
     # 8. Sub-headings for query routing
-    collect_sub_headings(entries, toc_data["sections"])
+    collect_sub_headings(entries, toc_data["sections"], config)
+    step("Sub-headings collected")
 
     # 9. Chunk
     chunks = chunk_entries(entries, config)
+    step(f"Chunked: {len(chunks)}")
 
     # 10. Store
     store(filepath, toc_data, chunks, known_entries, game_system, content_type)
+    step("Stored")
 
-    print(f"  Done in {time.time() - start:.1f}s")
+    _log(f"  Total: {time.time() - start:.1f}s")
 
 
 def run(game_system: str | None = None, content_type: str | None = None,
@@ -904,12 +1004,12 @@ def run(game_system: str | None = None, content_type: str | None = None,
     doc_dir = directory or DOCUMENTS_DIR
     files = sorted(doc_dir.glob("*.pdf"))
     if not files:
-        print(f"No PDFs in {doc_dir}")
+        print(f"No PDFs in {doc_dir}", flush=True)
         return
-    print(f"Ingesting {len(files)} PDFs ({sum(f.stat().st_size for f in files) / 1024 / 1024:.1f} MB)")
+    print(f"Ingesting {len(files)} PDFs ({sum(f.stat().st_size for f in files) / 1024 / 1024:.1f} MB)", flush=True)
     for f in files:
         parse_pdf(f, game_system=game_system, content_type=content_type)
-    print(f"\nDone: {len(files)} files")
+    print(f"\nDone: {len(files)} files", flush=True)
 
 
 if __name__ == "__main__":

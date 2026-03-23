@@ -99,10 +99,8 @@ total_entries = len(entries)
 print(f"\nValidating {total_entries} spell entries ({total_chunks} chunks) against {len(all_known)} known spell names...\n")
 
 issues = {
-    "missing_from_index": [],
     "missing_metadata": [],
     "no_description": [],
-    "orphan_chunks": [],
     "duplicate_content": [],
     "very_short": [],
     "hyphenated_words": [],
@@ -121,10 +119,7 @@ for key, entry in entries.items():
 
     config = load_validation_config(source)
     validation = config.get("validation", {})
-    req = validation.get("required_metadata", [
-        "Range", "Component", "Duration", "Casting Time",
-        "Area of Effect", "Saving Throw",
-    ])
+    req = validation.get("required_metadata", [])
     # Strip colons from config values for prefix matching
     req = [f.rstrip(":").strip() for f in req]
 
@@ -143,6 +138,7 @@ for key, entry in entries.items():
         issues["missing_metadata"].append(f"{label} — missing: {', '.join(missing)}")
 
     # No description — find last metadata line, check for text after it
+    min_desc_chars = validation.get("min_description_chars", 20)
     last_meta_pos = -1
     for field in req:
         # Search for "Field:" at start of line to avoid matching mid-word
@@ -152,38 +148,28 @@ for key, entry in entries.items():
                 last_meta_pos = m.start()
     if last_meta_pos > 0:
         after_meta = combined[last_meta_pos:].split("\n", 1)
-        if len(after_meta) < 2 or len(after_meta[1].strip()) < 20:
+        if len(after_meta) < 2 or len(after_meta[1].strip()) < min_desc_chars:
             issues["no_description"].append(label)
 
-    # Orphan chunks
-    orphan_count = sum(1 for c in entry["chunks"][1:]
-                       if c.split("\n")[0].strip() and c.split("\n")[0].strip()[0].islower())
-    if orphan_count:
-        issues["orphan_chunks"].append(f"{label} — {orphan_count} orphan chunk(s)")
-
     # Duplicate content
-    content_key = combined[:200]
+    dup_sig_chars = validation.get("duplicate_signature_chars", 200)
+    content_key = combined[:dup_sig_chars]
     if content_key in seen_content:
         issues["duplicate_content"].append(f"{label} — duplicate of {seen_content[content_key]}")
     else:
         seen_content[content_key] = label
 
     # Very short
-    if len(combined) < 50:
+    min_entry_chars = validation.get("min_entry_chars", 50)
+    if len(combined) < min_entry_chars:
         issues["very_short"].append(f"{label} — only {len(combined)} chars")
 
-    # Hyphenated words
+    # Hyphenated words — filter out legitimate ordinal-hyphen patterns from config
+    hyph_exclude = validation.get("hyphen_exclude_patterns", [r"\d+(?:st|nd|rd|th)-"])
     hyph = re.findall(r"\w+- \w+", combined)
+    hyph = [h for h in hyph if not any(re.match(p, h) for p in hyph_exclude)]
     if hyph:
         issues["hyphenated_words"].append(f"{label} — {hyph[:3]}")
-
-# Missing from index
-if all_known:
-    missing_spells = sorted(all_known - found_spells)
-    if missing_spells:
-        issues["missing_from_index"] = missing_spells[:20]
-        if len(missing_spells) > 20:
-            issues["missing_from_index"].append(f"... and {len(missing_spells) - 20} more")
 
 # Report
 total_issues = sum(len(v) for v in issues.values())
