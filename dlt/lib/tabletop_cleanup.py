@@ -405,6 +405,7 @@ def build_entries(
     current_toc = None
     current_page = 0
     current_section = None
+    current_sub_section = None  # tracks level sub-headings like "First-Level Spells"
     current_entry = None
     current_content = []
 
@@ -418,7 +419,7 @@ def build_entries(
             if content and len(content) > min_content:
                 entries.append({
                     "toc_entry": current_toc,
-                    "section_title": current_section,
+                    "section_title": current_sub_section or current_section,
                     "entry_title": current_entry,
                     "content": content,
                     "page_numbers": [current_page],
@@ -456,18 +457,35 @@ def build_entries(
                 else:
                     flush()
                     current_section = clean_heading
+                    current_sub_section = None  # reset sub-section on new main section
                     current_entry = None
                     current_content = [line]
             else:
-                # In spell sections, only create entries for known headings (whitelist)
-                # In non-spell sections, every H3/H4 heading creates a new entry
-                in_spell = _is_whitelist_section(current_toc, config)
-                if in_spell and known_entries and match_name.lower() not in known_entries:
-                    current_content.append(line)
-                else:
+                # Check if this heading matches a sub-section pattern from config
+                # (e.g. "First-Level Spells") — updates section_title, not an entry
+                sub_patterns = config.get("section_parsing", {}) if config else {}
+                is_sub_section = False
+                for sec_key, sec_cfg in sub_patterns.items():
+                    sub_pat = sec_cfg.get("sub_section_pattern", "")
+                    if sub_pat and re.match(sub_pat, clean_heading, re.IGNORECASE):
+                        is_sub_section = True
+                        break
+
+                if is_sub_section:
                     flush()
-                    current_entry = match_name
+                    current_sub_section = clean_heading
+                    current_entry = None
                     current_content = [line]
+                else:
+                    # In whitelist sections, only create entries for known headings
+                    # In non-whitelist sections, every H3/H4 heading creates a new entry
+                    in_whitelist = _is_whitelist_section(current_toc, config)
+                    if in_whitelist and known_entries and match_name.lower() not in known_entries:
+                        current_content.append(line)
+                    else:
+                        flush()
+                        current_entry = match_name
+                        current_content = [line]
         else:
             stripped = line.strip()
             if re.match(r"^!\[.*\]\(.*\)$", stripped):
