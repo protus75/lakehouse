@@ -408,11 +408,68 @@ def build_entries(
     current_sub_section = None  # tracks level sub-headings like "First-Level Spells"
     current_entry = None
     current_content = []
+    current_school = None  # captured from stripped school/type lines
+    current_sphere = None
+
+    def _extract_school_from_raw(raw_content: str) -> str | None:
+        """Extract spell school from raw content before cleanup strips it.
+        Sources: heading parenthetical, standalone (School) line, School: field."""
+        known_schools = {
+            "abjuration", "alteration", "conjuration", "conjuration/summoning",
+            "divination", "enchantment", "enchantment/charm", "evocation",
+            "illusion", "illusion/phantasm", "invocation", "invocation/evocation",
+            "necromancy", "universal",
+        }
+        for line in raw_content.split("\n"):
+            stripped = line.strip()
+            # Heading parenthetical: #### **Fireball** (Evocation)
+            if stripped.startswith("#"):
+                paren_start = stripped.rfind("(")
+                paren_end = stripped.rfind(")")
+                if paren_start > 0 and paren_end > paren_start:
+                    school = stripped[paren_start + 1:paren_end].replace("*", "").strip()
+                    # Accept if any part matches a known school (comma or slash separated)
+                    parts = [p.strip().lower() for p in school.replace("/", ",").split(",")]
+                    if any(p in known_schools for p in parts):
+                        return school
+                continue
+            # Standalone parenthetical line: (Alteration) or (Conjuration/Summoning) Reversible
+            # Also handles compound: (Abjuration, Evocation)
+            clean = stripped.replace("*", "").strip()
+            if clean.startswith("("):
+                inner_end = clean.find(")")
+                if inner_end > 0:
+                    inner = clean[1:inner_end].strip()
+                    # Check all parts (comma or slash separated)
+                    parts = [p.strip().lower() for p in inner.replace("/", ",").split(",")]
+                    if any(p in known_schools for p in parts):
+                        return inner
+        # Fallback: School: field
+        for line in raw_content.split("\n"):
+            stripped = line.strip()
+            if stripped.lower().startswith("school:"):
+                return stripped[7:].strip() or None
+        return None
+
+    def _extract_field_from_raw(raw_content: str, field_name: str) -> str | None:
+        """Extract a metadata field value from raw content (case-insensitive)."""
+        field_lower = field_name.lower() + ":"
+        for line in raw_content.split("\n"):
+            stripped = line.strip()
+            if stripped.lower().startswith(field_lower):
+                return stripped[len(field_name) + 1:].strip() or None
+        return None
 
     def flush():
-        nonlocal current_content
+        nonlocal current_content, current_school, current_sphere
         if current_content and current_toc:
-            content = "\n".join(current_content).strip()
+            raw_content = "\n".join(current_content).strip()
+
+            # Extract school/sphere from raw content, fall back to captured stripped lines
+            school = _extract_school_from_raw(raw_content) or current_school
+            sphere = _extract_field_from_raw(raw_content, "Sphere") or current_sphere
+
+            content = raw_content
             if config:
                 content = _clean_entry_content(content, config)
             min_content = config.get("ingestion", {}).get("min_entry_content", 10) if config else 10
@@ -422,9 +479,13 @@ def build_entries(
                     "section_title": current_sub_section or current_section,
                     "entry_title": current_entry,
                     "content": content,
+                    "school": school,
+                    "sphere": sphere,
                     "page_numbers": [current_page],
                 })
         current_content = []
+        current_school = None
+        current_sphere = None
 
     lines = markdown.split("\n")
     char_pos = 0
@@ -483,7 +544,7 @@ def build_entries(
                     if in_whitelist and known_entries and match_name.lower() not in known_entries:
                         current_content.append(line)
                     else:
-                        flush()
+                        flush()  # resets current_school/sphere
                         current_entry = match_name
                         current_content = [line]
         else:
@@ -491,7 +552,14 @@ def build_entries(
             if re.match(r"^!\[.*\]\(.*\)$", stripped):
                 pass
             elif config and stripped and _should_strip_line(stripped, config):
-                pass
+                # Capture school from stripped parenthetical lines before discarding
+                clean = stripped.replace("*", "").strip()
+                if clean.startswith("(") and ")" in clean:
+                    inner = clean[1:clean.index(")")].strip()
+                    # Remove "Reversible" suffix
+                    inner = inner.replace("Reversible", "").strip().rstrip(",").strip()
+                    if inner and current_school is None:
+                        current_school = inner
             else:
                 current_content.append(line)
 

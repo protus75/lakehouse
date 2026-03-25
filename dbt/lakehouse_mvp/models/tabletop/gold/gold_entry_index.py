@@ -1,7 +1,8 @@
 """Gold: cross-reference index for structured queries.
 
-Extracts entry_type, spell_level, school, sphere, components, etc.
-from silver_entries content using string parsing. No LLM needed.
+Extracts entry_type, spell_level from section context.
+School/sphere come from silver_entries (extracted before cleanup strips them).
+Other metadata fields parsed from content.
 
 Enables queries like: "all 3rd level wizard necromancy spells"
 """
@@ -10,33 +11,12 @@ sys.path.insert(0, "/workspace")
 
 
 def _extract_field(content: str, field_name: str) -> str | None:
-    """Extract a metadata field value from entry content.
-    Looks for 'Field: value' on its own line."""
+    """Extract a metadata field value from entry content (case-insensitive)."""
     field_lower = field_name.lower() + ":"
     for line in content.split("\n"):
-        stripped = line.strip().lower()
-        if stripped.startswith(field_lower):
-            value = line.strip()[len(field_name) + 1:].strip()
-            return value if value else None
-    return None
-
-
-def _extract_school(content: str) -> str | None:
-    """Extract spell school from parenthetical after heading.
-    e.g. '#### **Fireball** (Evocation)' → 'Evocation'"""
-    for line in content.split("\n"):
         stripped = line.strip()
-        if stripped.startswith("#"):
-            # Find parenthetical
-            paren_start = stripped.rfind("(")
-            paren_end = stripped.rfind(")")
-            if paren_start > 0 and paren_end > paren_start:
-                school = stripped[paren_start + 1:paren_end].strip()
-                # Clean markdown bold
-                school = school.replace("*", "").strip()
-                if school and len(school) < 40:
-                    return school
-            break
+        if stripped.lower().startswith(field_lower):
+            return stripped[len(field_name) + 1:].strip() or None
     return None
 
 
@@ -49,15 +29,32 @@ def _get_entry_type(toc_title: str, mapping: dict) -> str:
     return "rule"
 
 
-def _get_spell_level(section_title: str, level_mapping: dict) -> int | None:
-    """Extract spell level from section_title like 'First-Level Spells'."""
+def _get_spell_level(section_title: str, toc_title: str, level_mapping: dict) -> int | None:
+    """Extract spell level from section_title like 'First-Level Spells'.
+    Spells before the first sub-heading default to level 1."""
     if not section_title:
         return None
     section_lower = section_title.lower()
     for word, level in level_mapping.items():
         if word in section_lower:
             return level
+    # If section_title is the main section (no sub-section matched), default to L1
+    if "spell" in section_lower and "level" not in section_lower:
+        return 1
     return None
+
+
+def _is_valid_spell(entry_title: str | None, content: str) -> bool:
+    """Filter out junk entries that aren't actual spells."""
+    if not entry_title or entry_title == "None":
+        return False
+    junk_titles = {"combat", "divination", "compiled character tables", "spell index",
+                   "wizard spells by school", "priest spells by sphere"}
+    if entry_title.lower() in junk_titles:
+        return False
+    content_lower = content.lower()
+    return any(f in content_lower for f in
+               ["range:", "duration:", "casting time:", "components:", "sphere:"])
 
 
 def model(dbt, session):
@@ -87,20 +84,20 @@ def model(dbt, session):
 
             entry_type = _get_entry_type(toc_title, type_mapping)
 
+            # Filter junk entries in spell sections
+            if entry_type == "spell" and not _is_valid_spell(entry_title, content):
+                entry_type = "rule"
+
             spell_level = None
             spell_class = None
-            school = None
-            sphere = None
 
             if entry_type == "spell":
-                spell_level = _get_spell_level(section_title, level_mapping)
+                spell_level = _get_spell_level(section_title, toc_title, level_mapping)
                 toc_lower = toc_title.lower()
                 if "wizard" in toc_lower:
                     spell_class = "wizard"
                 elif "priest" in toc_lower:
                     spell_class = "priest"
-                school = _extract_school(content)
-                sphere = _extract_field(content, "Sphere")
 
             all_rows.append({
                 "entry_id": int(row["entry_id"]),
@@ -109,8 +106,8 @@ def model(dbt, session):
                 "entry_type": entry_type,
                 "spell_level": spell_level,
                 "spell_class": spell_class,
-                "school": school,
-                "sphere": sphere,
+                "school": row.get("school"),      # from silver (extracted before strip)
+                "sphere": row.get("sphere"),      # from silver (extracted before strip)
                 "components": _extract_field(content, "Components") or _extract_field(content, "Component"),
                 "saving_throw": _extract_field(content, "Saving Throw"),
                 "range_text": _extract_field(content, "Range"),

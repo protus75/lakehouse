@@ -118,6 +118,8 @@ def model(dbt, session):
                 "section_title": entry.get("section_title"),
                 "entry_title": entry.get("entry_title"),
                 "content": content,
+                "school": entry.get("school"),
+                "sphere": entry.get("sphere"),
                 "page_numbers": ",".join(str(p) for p in entry.get("page_numbers", [])),
                 "char_count": len(content),
                 "has_metadata": has_metadata,
