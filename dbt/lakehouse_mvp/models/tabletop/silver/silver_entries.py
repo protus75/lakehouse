@@ -63,9 +63,10 @@ def model(dbt, session):
                 "tables": [],
             })
 
-        # Load known entries
+        # Load known entries — only entries with a class (actual spells from spell index)
+        # General index entries without class are excluded to prevent false matches
         ke_df = session.execute(
-            f"SELECT entry_name FROM bronze_tabletop.known_entries_raw WHERE source_file = '{sf}'"
+            f"SELECT entry_name FROM bronze_tabletop.known_entries_raw WHERE source_file = '{sf}' AND entry_class IS NOT NULL"
         ).fetchdf()
         known_entries = set(ke_df["entry_name"].tolist()) if not ke_df.empty else set()
 

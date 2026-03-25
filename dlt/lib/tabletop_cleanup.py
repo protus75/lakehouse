@@ -489,6 +489,13 @@ def build_entries(
     def flush():
         nonlocal current_content, current_school, current_sphere
         if current_content and current_toc:
+            # In whitelist sections, skip entries with no title — these are
+            # section/level headings, not actual entries
+            if _is_whitelist_section(current_toc, config) and not current_entry:
+                current_content = []
+                current_school = None
+                current_sphere = None
+                return
             raw_content = "\n".join(current_content).strip()
 
             # Extract school/sphere from raw content, fall back to captured stripped lines
