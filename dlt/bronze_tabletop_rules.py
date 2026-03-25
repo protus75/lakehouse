@@ -78,7 +78,12 @@ def init_bronze_schema(conn: duckdb.DuckDBPyConnection) -> None:
         CREATE TABLE IF NOT EXISTS bronze_tabletop.known_entries_raw (
             source_file     VARCHAR NOT NULL,
             entry_name      VARCHAR NOT NULL,
-            PRIMARY KEY (source_file, entry_name)
+            entry_class     VARCHAR,
+            entry_level     INTEGER,
+            ref_page        INTEGER,
+            source_section  VARCHAR,
+            school          VARCHAR,
+            sphere          VARCHAR
         )
     """)
 
@@ -219,35 +224,142 @@ def extract_toc(page_texts: list[str], config: dict) -> list[dict]:
     return sections
 
 
+def _parse_ordinal_level(text: str) -> int | None:
+    """Parse '1st', '2nd', '3rd', '4th' etc. to integer."""
+    text = text.lower().strip().rstrip(")")
+    for suffix in ("st", "nd", "rd", "th"):
+        if text.endswith(suffix):
+            num = text[:-len(suffix)]
+            if num.isdigit():
+                return int(num)
+    return None
+
+
 def extract_known_entries(page_texts: list[str], page_printed: dict[int, int],
-                          toc_sections: list[dict], config: dict) -> set[str]:
-    """Get entry names from excluded index sections."""
+                          toc_sections: list[dict], config: dict) -> list[dict]:
+    """Get entry names and full metadata from ALL excluded index sections.
+
+    Handles multiple index formats:
+    - Spell Index (Appendix 7): 'Name (Pr 4) . . . . Page' → name, class, level, page
+    - Spells by School (Appendix 5): heading = school, lines = 'Name (1st)' → name, school, level
+    - Spells by Sphere (Appendix 6): heading = sphere, lines = 'Name (1st)' → name, sphere, level
+
+    Returns list of dicts with all available fields."""
     excluded = [s for s in toc_sections if s["is_excluded"]]
     if not excluded:
-        return set()
+        return []
 
     ingestion = config.get("ingestion", {})
     min_idx = ingestion.get("min_index_entry_length", 3)
     max_idx = ingestion.get("max_index_entry_length", 50)
 
-    names = set()
+    entries = []
+    seen = set()
+
     for section in excluded:
+        section_title = section["title"].lower()
+        is_school_index = "by school" in section_title
+        is_sphere_index = "by sphere" in section_title
+        is_grouped_index = is_school_index or is_sphere_index
+
+        current_group = None  # current school or sphere heading
+
         for page_idx in range(len(page_texts)):
             printed = page_printed.get(page_idx, page_idx)
             if not (section["page_start"] <= printed <= section["page_end"]):
                 continue
-            for line in page_texts[page_idx].split("\n"):
-                parsed = _extract_toc_line(line)
-                if not parsed:
-                    continue
-                title = parsed[0]
-                paren = title.rfind("(")
-                if paren > 0:
-                    title = title[:paren].strip()
-                if title and min_idx <= len(title) <= max_idx and title[0].isupper():
-                    names.add(title.lower())
 
-    return names
+            for line in page_texts[page_idx].split("\n"):
+                stripped = line.strip()
+                if not stripped or len(stripped) < 2:
+                    continue
+
+                if is_grouped_index:
+                    # Grouped index: headings are school/sphere names,
+                    # lines underneath are 'SpellName (1st)' or 'SpellName (2nd)'
+                    # A heading is a short line with no parenthetical and starts uppercase
+                    if stripped[0].isupper() and "(" not in stripped and len(stripped) < 30:
+                        current_group = stripped
+                        continue
+
+                    # Parse spell line: 'SpellName (1st)'
+                    paren_start = stripped.rfind("(")
+                    if paren_start < 0:
+                        continue
+                    name = stripped[:paren_start].strip()
+                    paren_end = stripped.rfind(")")
+                    inner = stripped[paren_start + 1:paren_end].strip() if paren_end > paren_start else ""
+                    level = _parse_ordinal_level(inner)
+
+                    if not name or len(name) < min_idx or len(name) > max_idx:
+                        continue
+                    if not name[0].isupper():
+                        continue
+
+                    entry = {
+                        "entry_name": name.lower(),
+                        "entry_class": "wizard" if is_school_index else "priest",
+                        "entry_level": level,
+                        "ref_page": None,
+                        "source_section": section["title"],
+                        "school": current_group if is_school_index else None,
+                        "sphere": current_group if is_sphere_index else None,
+                    }
+
+                    key = (entry["entry_name"], entry["entry_class"],
+                           entry.get("school"), entry.get("sphere"))
+                    if key not in seen:
+                        seen.add(key)
+                        entries.append(entry)
+
+                else:
+                    # Standard index: 'Name (Pr 4) . . . . Page'
+                    parsed = _extract_toc_line(stripped)
+                    if not parsed:
+                        continue
+                    raw_title, ref_page = parsed
+
+                    entry_class = None
+                    entry_level = None
+                    name = raw_title
+
+                    paren_start = raw_title.rfind("(")
+                    if paren_start > 0:
+                        paren_end = raw_title.rfind(")")
+                        if paren_end > paren_start:
+                            inner = raw_title[paren_start + 1:paren_end].strip()
+                            parts = inner.split()
+                            if parts:
+                                cls = parts[0].lower()
+                                if cls in ("pr", "pri", "priest"):
+                                    entry_class = "priest"
+                                elif cls in ("wiz", "wizard"):
+                                    entry_class = "wizard"
+                                if len(parts) >= 2 and parts[1].isdigit():
+                                    entry_level = int(parts[1])
+                        name = raw_title[:paren_start].strip()
+
+                    if not name or len(name) < min_idx or len(name) > max_idx:
+                        continue
+                    if not name[0].isupper():
+                        continue
+
+                    entry = {
+                        "entry_name": name.lower(),
+                        "entry_class": entry_class,
+                        "entry_level": entry_level,
+                        "ref_page": ref_page,
+                        "source_section": section["title"],
+                        "school": None,
+                        "sphere": None,
+                    }
+
+                    key = (entry["entry_name"], entry["entry_class"])
+                    if key not in seen:
+                        seen.add(key)
+                        entries.append(entry)
+
+    return entries
 
 
 def detect_watermarks(page_texts: list[str], threshold: float = 0.3) -> dict[str, int]:
@@ -315,11 +427,14 @@ def store_bronze(filepath: Path, config: dict,
              section["page_end"], section["is_excluded"]],
         )
 
-    # Known entries
-    for name in known_entries:
+    # Known entries (full metadata from all index appendixes)
+    for entry in known_entries:
         conn.execute(
-            "INSERT INTO bronze_tabletop.known_entries_raw VALUES (?, ?)",
-            [sf, name],
+            "INSERT INTO bronze_tabletop.known_entries_raw VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            [sf, entry["entry_name"], entry.get("entry_class"),
+             entry.get("entry_level"), entry.get("ref_page"),
+             entry.get("source_section"), entry.get("school"),
+             entry.get("sphere")],
         )
 
     # Watermarks
@@ -331,7 +446,7 @@ def store_bronze(filepath: Path, config: dict,
 
     conn.close()
     _log(f"  Bronze stored: {len(page_texts)} pages, {len(toc_sections)} ToC, "
-         f"{len(known_entries)} entries, {len(watermarks)} watermarks")
+         f"{len(known_entries)} index entries, {len(watermarks)} watermarks")
 
 
 # ── Pipeline ─────────────────────────────────────────────────────
