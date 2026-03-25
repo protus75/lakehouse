@@ -120,6 +120,8 @@ def model(dbt, session):
                 "content": content,
                 "school": entry.get("school"),
                 "sphere": entry.get("sphere"),
+                "spell_class": entry.get("spell_class"),
+                "spell_level": entry.get("spell_level"),
                 "page_numbers": ",".join(str(p) for p in entry.get("page_numbers", [])),
                 "char_count": len(content),
                 "has_metadata": has_metadata,

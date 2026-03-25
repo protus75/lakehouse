@@ -401,11 +401,16 @@ def build_entries(
     Each heading's chapter comes from heading_chapter_map (page-position based).
     known_entries whitelist only applies in spell sections -- non-spell sections
     treat every H3/H4 heading as a new entry."""
+    # Spell level mapping from config
+    level_mapping = config.get("spell_level_mapping", {}) if config else {}
+
     entries = []
     current_toc = None
     current_page = 0
     current_section = None
     current_sub_section = None  # tracks level sub-headings like "First-Level Spells"
+    current_spell_class = None  # wizard or priest, from ToC section
+    current_spell_level = None  # from sub-section heading
     current_entry = None
     current_content = []
     current_school = None  # captured from stripped school/type lines
@@ -485,6 +490,8 @@ def build_entries(
                     "content": content,
                     "school": school,
                     "sphere": sphere,
+                    "spell_class": current_spell_class,
+                    "spell_level": current_spell_level,
                     "page_numbers": [current_page],
                 })
         current_content = []
@@ -506,7 +513,22 @@ def build_entries(
             # Update chapter from heading-chapter map
             if char_pos in heading_chapter_map:
                 hc = heading_chapter_map[char_pos]
-                current_toc = hc["toc_entry"]
+                new_toc = hc["toc_entry"]
+                if new_toc != current_toc:
+                    current_toc = new_toc
+                    # Set spell_class from ToC title (ground truth)
+                    toc_lower = current_toc.get("title", "").lower()
+                    if "wizard" in toc_lower and "spell" in toc_lower:
+                        current_spell_class = "wizard"
+                        if current_spell_level is None:
+                            current_spell_level = 1
+                    elif "priest" in toc_lower and "spell" in toc_lower:
+                        current_spell_class = "priest"
+                        if current_spell_level is None:
+                            current_spell_level = 1
+                    else:
+                        current_spell_class = None
+                        current_spell_level = None
                 current_page = hc["page"]
 
             if level <= 2:
@@ -522,7 +544,24 @@ def build_entries(
                 else:
                     flush()
                     current_section = clean_heading
-                    current_sub_section = None  # reset sub-section on new main section
+                    current_sub_section = None
+                    current_spell_level = None
+                    # Set spell_class from section name, default level to 1
+                    section_lower = clean_heading.lower()
+                    if "wizard" in section_lower and "spell" in section_lower:
+                        current_spell_class = "wizard"
+                        current_spell_level = 1  # default until sub-section heading
+                    elif "priest" in section_lower and "spell" in section_lower:
+                        current_spell_class = "priest"
+                        current_spell_level = 1
+                    elif current_toc:
+                        toc_lower = current_toc.get("title", "").lower()
+                        if "wizard" in toc_lower:
+                            current_spell_class = "wizard"
+                        elif "priest" in toc_lower:
+                            current_spell_class = "priest"
+                        else:
+                            current_spell_class = None
                     current_entry = None
                     current_content = [line]
             else:
@@ -539,6 +578,13 @@ def build_entries(
                 if is_sub_section:
                     flush()
                     current_sub_section = clean_heading
+                    # Extract level from sub-section heading
+                    sub_lower = clean_heading.lower()
+                    current_spell_level = None
+                    for word, level in level_mapping.items():
+                        if word in sub_lower:
+                            current_spell_level = level
+                            break
                     current_entry = None
                     current_content = [line]
                 else:
