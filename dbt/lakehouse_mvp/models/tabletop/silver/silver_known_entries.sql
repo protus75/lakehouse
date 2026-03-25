@@ -11,7 +11,7 @@ with raw_entries as (
 validated as (
     select distinct
         source_file,
-        lower(entry_title) as entry_name_lower
+        lower(cast(entry_title as varchar)) as entry_name_lower
     from {{ ref('silver_entries') }}
     where entry_title is not null
 )

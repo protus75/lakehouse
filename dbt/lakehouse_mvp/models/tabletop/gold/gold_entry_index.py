@@ -94,10 +94,17 @@ def model(dbt, session):
             if entry_type == "spell":
                 spell_level = _get_spell_level(section_title, toc_title, level_mapping)
                 toc_lower = toc_title.lower()
+                school = row.get("school")
+                sphere = row.get("sphere")
                 if "wizard" in toc_lower:
                     spell_class = "wizard"
                 elif "priest" in toc_lower:
                     spell_class = "priest"
+                    # Correction: priest spells must have a sphere.
+                    # If a "priest" spell has school but no sphere, it's a wizard spell
+                    # misassigned by page-position anchors.
+                    if school and not sphere:
+                        spell_class = "wizard"
 
             all_rows.append({
                 "entry_id": int(row["entry_id"]),

@@ -418,7 +418,7 @@ def build_entries(
             "abjuration", "alteration", "conjuration", "conjuration/summoning",
             "divination", "enchantment", "enchantment/charm", "evocation",
             "illusion", "illusion/phantasm", "invocation", "invocation/evocation",
-            "necromancy", "universal",
+            "necromancy", "universal", "all schools",
         }
         for line in raw_content.split("\n"):
             stripped = line.strip()
@@ -452,12 +452,16 @@ def build_entries(
         return None
 
     def _extract_field_from_raw(raw_content: str, field_name: str) -> str | None:
-        """Extract a metadata field value from raw content (case-insensitive)."""
+        """Extract a metadata field value from raw content (case-insensitive).
+        Handles field at start of line or smashed mid-line (e.g. 'Reversible Sphere: Sun')."""
         field_lower = field_name.lower() + ":"
         for line in raw_content.split("\n"):
-            stripped = line.strip()
-            if stripped.lower().startswith(field_lower):
-                return stripped[len(field_name) + 1:].strip() or None
+            line_lower = line.strip().lower()
+            if field_lower in line_lower:
+                # Find the field and extract value after it
+                idx = line_lower.index(field_lower)
+                value = line.strip()[idx + len(field_name) + 1:].strip()
+                return value if value else None
         return None
 
     def flush():
@@ -594,27 +598,35 @@ def _build_page_position_map(
     max_lines = ingestion.get("anchor_max_lines", 10)
 
     md_lower = markdown.lower()
-    anchored_pages = set()
     positions = []
+    last_found_pos = 0  # search forward from last found position
 
-    # Multi-pass: try longest snippets first, then shorter for unanchored pages
+    # Process pages in order — search forward from last found position
+    # This prevents false matches where a late page's text appears early
     for snippet_len in snippet_lengths:
+        anchored_pages = {p for _, p in positions}
         for page_idx in range(total_pages):
             if page_idx in anchored_pages:
                 continue
             text = page_texts[page_idx].lower()
             lines = [l.strip() for l in text.split("\n") if len(l.strip()) > 10]
 
+            found = False
             for line in lines[1:max_lines]:
                 clean = line.replace("-\n", "").replace("\n", " ").strip()
                 if len(clean) < snippet_len:
                     continue
                 snippet = clean[:snippet_len]
-                pos = md_lower.find(snippet)
+                # Search forward from last found position (pages are roughly in order)
+                pos = md_lower.find(snippet, max(0, last_found_pos - 5000))
                 if pos >= 0:
                     positions.append((pos, page_idx))
-                    anchored_pages.add(page_idx)
+                    last_found_pos = pos
+                    found = True
                     break
+            if not found and snippet_len == snippet_lengths[0]:
+                # First pass miss — don't advance last_found_pos
+                pass
 
     positions.sort()
     return positions

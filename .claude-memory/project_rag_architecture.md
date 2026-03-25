@@ -1,41 +1,62 @@
 ---
 name: RAG architecture decisions
-description: Key architecture, validation status, remaining issues for tabletop rules RAG system
+description: Medallion lakehouse architecture with AI enrichment for tabletop rules
 type: project
 ---
 
-## Current Architecture (as of 2026-03-23)
+## Architecture (2026-03-25)
 
-**Ingestion:** `dlt/load_tabletop_rules_docs.py` (~19s with Marker cache)
-- Page-position anchors: unique text from each PDF page located in markdown (291/322)
-- Front matter guard: content before first anchor excluded
-- Fallback anchor lengths: config-driven [40, 30, 20] char snippets
-- `whitelist_sections` config: explicit sections using known_entries filter
-- Non-whitelist sections: every H3/H4 heading → named entry
-- Content cleanup: string-based, config-driven substitutions
-- Marker cache: `cache/marker/{stem}.md`
+### Medallion Pipeline
+```
+PDF → Bronze (dlt, 9s) → Silver+Gold (dbt, 5s) → AI Enrichment (Ollama, ~45min)
+```
 
-**Validation:** 3 scripts, all in `scripts/tabletop_rules/`
-- `validate_spells.py` — uses `whitelist_sections` config
-- `validate_sections.py` — chunk distribution per ToC section
-- `validate_content.py` — config-driven expected entries/tables
+### Bronze (dlt, `dlt/bronze_tabletop_rules.py`)
+- `bronze_tabletop.marker_extractions` — full Marker markdown
+- `bronze_tabletop.page_texts` — pymupdf per-page with printed page numbers
+- `bronze_tabletop.toc_raw` — ToC entries
+- `bronze_tabletop.known_entries_raw` — index entry names
+- `bronze_tabletop.watermarks` — detected repeated lines
+- `bronze_tabletop.files` — PDF metadata + config hash
 
-## Validation Status (2026-03-23)
-- **Spells: 0 issues** (431 entries)
-- **Sections: 17/17 populated**, 1 overflow (Ch1, 170 chunks for 8 pages)
-- **Content: 4 issues** (Tables 14, 15, 42, 43 in wrong section from bad anchors)
+### Silver (dbt, `dbt/lakehouse_mvp/models/tabletop/silver/`)
+- `silver_page_anchors` — page-position interpolation
+- `silver_entries` — cleaned entries with chapter assignment (804 entries)
+- `silver_toc_sections`, `silver_known_entries`, `silver_files`
 
-## Remaining Issues
-- Ch1 overflow: bad page anchors mapping pages 36/42/53/129/308/311 into Ch1
-- 4 missing tables: downstream of Ch1 overflow
-- Root cause: text snippets from some pages match at wrong positions in markdown
+### Gold (dbt + scripts)
+- `gold_chunks` — 800-char chunked entries (2816 chunks)
+- `gold_entry_index` — structured cross-ref (type, level, school, sphere, components)
+- `gold_toc`, `gold_files`
+- `gold_ai_summaries` — LLM summaries (751 entries, script-based)
+- `gold_ai_annotations` — combat/popular flags (495 entries, 259 combat, 165 popular)
 
-## Key Config Settings
-- `whitelist_sections`: sections that filter H3/H4 headings against known_entries
-- `ingestion.anchor_snippet_lengths`: [40, 30, 20] for multi-pass anchor matching
-- `validation.section_content`: expected entries/tables per section
-- `content_substitutions`: OCR artifact fixes
+### Shared Library
+- `dlt/lib/tabletop_cleanup.py` — pure functions used by both dbt models and scripts
+
+### Enrichment Scripts (resumable, Ollama llama3:70b)
+- `scripts/tabletop_rules/enrich_summaries.py`
+- `scripts/tabletop_rules/enrich_annotations.py`
+
+### Validation
+- dbt: 36 tests passing (silver + gold)
+- `scripts/tabletop_rules/validate_spells.py` — 0 issues
+- `scripts/tabletop_rules/validate_sections.py` — 1 issue (Ch1 overflow)
+- `scripts/tabletop_rules/validate_content.py` — 4 issues (missing tables from overflow)
+
+### Compatibility
+- `documents_tabletop_rules.*` views → gold/silver tables
+- RAG query engine works unchanged via views
 
 ## How to Run
-- Ingest one book: `docker exec lakehouse-workspace python -u -c "from pathlib import Path; from dlt.load_tabletop_rules_docs import parse_pdf; parse_pdf(Path('/workspace/documents/tabletop_rules/raw/BOOK.pdf'), game_system='...', content_type='rules')"`
-- All 3 validators: `docker exec lakehouse-workspace python scripts/tabletop_rules/validate_spells.py && docker exec lakehouse-workspace python scripts/tabletop_rules/validate_content.py && docker exec lakehouse-workspace python scripts/tabletop_rules/validate_sections.py`
+```bash
+# Bronze extraction
+docker exec lakehouse-workspace python -u dlt/bronze_tabletop_rules.py
+
+# Silver + Gold (dbt)
+docker exec lakehouse-workspace bash -c "cd /workspace/dbt/lakehouse_mvp && dbt build --select tabletop"
+
+# AI Enrichment (requires Ollama running with llama3:70b)
+docker exec lakehouse-workspace python -u scripts/tabletop_rules/enrich_summaries.py
+docker exec lakehouse-workspace python -u scripts/tabletop_rules/enrich_annotations.py
+```
