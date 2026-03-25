@@ -36,3 +36,20 @@ models:
         tests:
           - unique
           - not_null
+
+  - name: gold_entry_index
+    description: "Structured cross-reference index for fast queries"
+    columns:
+      - name: entry_id
+        tests:
+          - unique
+          - not_null
+      - name: entry_type
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['spell', 'proficiency', 'class', 'race', 'equipment', 'rule']
+
+  # gold_ai_summaries and gold_ai_annotations are populated by
+  # scripts/tabletop_rules/enrich_summaries.py and enrich_annotations.py
+  # (resumable, incremental — not dbt models due to long LLM runtimes)
