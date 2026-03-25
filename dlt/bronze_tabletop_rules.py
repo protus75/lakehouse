@@ -389,20 +389,21 @@ def extract_spell_list_entries(filepath: Path, page_printed: dict[int, int],
 
     doc = fitz.open(str(filepath))
 
-    # Phase 1: collect raw lines with formatting and x-position
-    # x-position distinguishes: numbers (leftmost), spell names (middle), continuations (indented)
-    raw_lines = []  # (text, x_pos, is_italic, is_bold)
+    # Phase 1: collect all text lines with formatting, sorted by reading order (y, x)
+    all_lines = []  # (y, x, text, is_italic, is_bold, page_idx)
     for section in spell_list_sections:
+        page_offset = 0
         for page_idx in range(doc.page_count):
             printed = page_printed.get(page_idx, page_idx)
             if not (section["page_start"] <= printed <= section["page_end"]):
                 continue
             page = doc[page_idx]
+            page_height = page.rect.height
             for block in page.get_text("dict")["blocks"]:
                 if "lines" not in block:
                     continue
                 for line in block["lines"]:
-                    x_pos = line["bbox"][0]
+                    x0, y0 = line["bbox"][0], line["bbox"][1]
                     text = ""
                     italic = False
                     bold = False
@@ -416,82 +417,125 @@ def extract_spell_list_entries(filepath: Path, page_printed: dict[int, int],
                                 bold = True
                     text = text.strip()
                     if text and len(text) >= 2:
-                        raw_lines.append((text, x_pos, italic, bold))
+                        # Use absolute y for cross-page ordering
+                        abs_y = page_offset + y0
+                        all_lines.append((abs_y, x0, text, italic, bold))
+            page_offset += page_height
     doc.close()
 
-    if not raw_lines:
+    if not all_lines:
         return []
 
-    # Phase 2: determine base x-position for spell names
-    # Spell names are the most common x-position (excluding numbers and headings)
-    from collections import Counter
-    x_counts = Counter()
-    for text, x, italic, bold in raw_lines:
-        if not bold and not text.isdigit() and len(text) > 3:
-            x_counts[round(x, 0)] += 1
-    if not x_counts:
-        return []
-    base_x = x_counts.most_common(1)[0][0]
+    # Phase 2: find bold headings to identify class and level columns
+    class_headings = []  # (abs_y, class_name)
+    level_columns = []   # (abs_y, x, level_num)
+    for abs_y, x, text, italic, bold in all_lines:
+        if not bold:
+            continue
+        text_lower = text.lower().strip()
+        if "wizard" in text_lower and "spell" in text_lower:
+            class_headings.append((abs_y, "wizard"))
+        elif "priest" in text_lower and "spell" in text_lower:
+            class_headings.append((abs_y, "priest"))
+        for ordinal, num in [("1st", 1), ("2nd", 2), ("3rd", 3), ("4th", 4),
+                             ("5th", 5), ("6th", 6), ("7th", 7), ("8th", 8), ("9th", 9)]:
+            if text_lower.startswith(ordinal):
+                level_columns.append((abs_y, round(x), num))
+                break
 
-    # Phase 3: parse entries using x-position for continuation detection
+    if not level_columns:
+        return []
+
+    # Phase 3: for each level column, determine its class and collect spells
     entries = []
-    current_level = None
-    current_class = None
-    pending_name = ""
-    pending_italic = False
+    section_title = spell_list_sections[0]["title"]
 
-    def flush_pending():
-        nonlocal pending_name, pending_italic
-        if pending_name and current_level and current_class:
-            entries.append({
-                "entry_name": pending_name.lower().strip(),
-                "entry_class": current_class,
-                "entry_level": current_level,
-                "is_reversible": pending_italic,
-                "source_section": spell_list_sections[0]["title"],
-            })
+    for col_y, col_x, level_num in level_columns:
+        # Determine class: find the most recent class heading before this column
+        spell_class = None
+        for h_y, h_class in sorted(class_headings):
+            if h_y <= col_y:
+                spell_class = h_class
+        if not spell_class:
+            continue
+
+        # Collect non-bold lines in this column:
+        # - Same x bucket (within ±25px of col_x)
+        # - Below the level heading (abs_y > col_y)
+        # - Above the next level heading at same x, or next class heading
+        next_y = float("inf")
+        for other_y, other_x, _ in level_columns:
+            if other_y > col_y and abs(other_x - col_x) < 25:
+                next_y = min(next_y, other_y)
+                break
+        for h_y, _ in class_headings:
+            if h_y > col_y:
+                next_y = min(next_y, h_y)
+
+        col_spans = []
+        for abs_y, x, text, italic, bold in all_lines:
+            if bold or text.isdigit():
+                continue
+            if abs_y <= col_y or abs_y >= next_y:
+                continue
+            if abs(round(x) - col_x) > 30:
+                continue
+            if len(text) < 2:
+                continue
+            text_stripped = text.strip()
+            if "order #" in text_stripped.lower() or text_stripped.startswith("*"):
+                continue
+            col_spans.append((abs_y, x, text_stripped, italic))
+
+        col_spans.sort()
+
+        if not col_spans:
+            continue
+
+        # Determine base x for spell names in this column (most common x)
+        from collections import Counter
+        x_freq = Counter(round(s[1]) for s in col_spans)
+        base_x_col = x_freq.most_common(1)[0][0]
+
+        # Parse into spell names with continuation detection
         pending_name = ""
         pending_italic = False
+        last_name = ""
 
-    for text, x_pos, italic, bold in raw_lines:
-        # Skip sequence numbers and noise
-        if text.isdigit():
-            continue
-        if "spell list" in text.lower() or "order #" in text.lower():
-            continue
+        for abs_y, x, text, italic in col_spans:
+            # Continuation: indented > 5px from base_x
+            is_continuation = round(x) > base_x_col + 5
 
-        # Bold = level heading
-        if bold and not italic:
-            flush_pending()
-            text_lower = text.lower()
-            for ordinal, num in [("1st", 1), ("2nd", 2), ("3rd", 3), ("4th", 4),
-                                 ("5th", 5), ("6th", 6), ("7th", 7), ("8th", 8), ("9th", 9)]:
-                if text_lower.startswith(ordinal):
-                    current_level = num
-                    if num == 1 and current_class == "wizard":
-                        current_class = "priest"
-                    elif current_class is None:
-                        current_class = "wizard"
-                    break
-            continue
+            if is_continuation and pending_name:
+                pending_name += " " + text
+                pending_italic = pending_italic or italic
+            else:
+                # Flush previous
+                if pending_name:
+                    name_lower = pending_name.lower().strip()
+                    # Alphabetical sanity check
+                    if last_name and name_lower < last_name:
+                        _log(f"    Warning: '{name_lower}' before '{last_name}' in {spell_class} L{level_num}")
+                    entries.append({
+                        "entry_name": name_lower,
+                        "entry_class": spell_class,
+                        "entry_level": level_num,
+                        "is_reversible": pending_italic,
+                        "source_section": section_title,
+                    })
+                    last_name = name_lower
+                pending_name = text
+                pending_italic = italic
 
-        if not current_level or not current_class:
-            continue
-
-        # Continuation line: x-position > base_x + threshold (indented)
-        is_continuation = round(x_pos, 0) > base_x + 5
-
-        if is_continuation and pending_name:
-            # Append to current spell name
-            pending_name += " " + text
-            pending_italic = pending_italic or italic
-        else:
-            # New spell name — flush previous
-            flush_pending()
-            pending_name = text
-            pending_italic = italic
-
-    flush_pending()
+        # Flush last
+        if pending_name:
+            entries.append({
+                "entry_name": pending_name.lower().strip(),
+                "entry_class": spell_class,
+                "entry_level": level_num,
+                "is_reversible": pending_italic,
+                "source_section": section_title,
+            })
 
     return [e for e in entries if len(e["entry_name"]) >= 3]
 
