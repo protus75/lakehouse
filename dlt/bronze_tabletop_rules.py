@@ -822,38 +822,80 @@ def extract_all_tables(markdown: str, toc_tables: list[dict],
 
         i += 1
 
-    # Second pass: use config missing_tables headings to find remaining tables
-    missing_cfg = config.get("missing_tables", [])
+    # Second pass: use config missing_tables to find remaining tables
+    missing_cfg = (config or {}).get("missing_tables", [])
     for mt in missing_cfg:
         tnum = mt["table_number"]
         if tnum in found_nums:
             continue
-        heading = mt["heading"].lower()
-        # Find the heading in the markdown, then capture text until next heading
-        for li in range(len(lines)):
-            clean = lines[li].strip().lstrip("#").lstrip().lstrip("*").strip().rstrip("*").strip()
-            if fuzz.ratio(clean.lower(), heading) >= 85:
-                text_rows = []
-                for j in range(li, min(li + 40, len(lines))):
-                    s = lines[j].strip()
-                    if s.startswith("#") and j > li + 1:
-                        break
-                    if j > li + 1:
-                        nl = _try_table_label(s)
-                        if nl is not None and nl != tnum:
+        heading = mt.get("heading", "").lower()
+        content_marker = mt.get("content_marker", "")
+
+        # Strategy 1: find by content_marker (literal string in a line)
+        if content_marker:
+            for li in range(len(lines)):
+                if content_marker in lines[li]:
+                    # Capture this pipe block or text block
+                    start = li
+                    # Walk back to find start of pipe block
+                    while start > 0 and lines[start - 1].strip().startswith("|"):
+                        start -= 1
+                    block_rows = []
+                    for j in range(start, len(lines)):
+                        s = lines[j].strip()
+                        if s.startswith("|") and s.count("|") >= 2:
+                            cells = [c.strip() for c in s.split("|")]
+                            if cells and cells[0] == "":
+                                cells = cells[1:]
+                            if cells and cells[-1] == "":
+                                cells = cells[:-1]
+                            if not all(re.match(r'^[\s\-:]+$', c) or c == "" for c in cells):
+                                block_rows.append(cells)
+                        elif not s:
+                            if j + 1 < len(lines) and lines[j + 1].strip().startswith("|"):
+                                continue
                             break
-                    if s:
-                        text_rows.append([s])
-                if len(text_rows) >= 2:
-                    tables.append({
-                        "table_number": tnum,
-                        "table_title": toc_lookup.get(tnum, mt["heading"]),
-                        "format": "text",
-                        "rows": text_rows,
-                    })
-                    found_nums.add(tnum)
-                    _log(f"  Tables: T{tnum} recovered via config heading match")
-                break
+                        else:
+                            break
+                    if block_rows:
+                        tables.append({
+                            "table_number": tnum,
+                            "table_title": toc_lookup.get(tnum, mt.get("heading", "")),
+                            "format": "pipe",
+                            "rows": block_rows,
+                        })
+                        found_nums.add(tnum)
+                        _log(f"  Tables: T{tnum} recovered via content marker")
+                    break
+            if tnum in found_nums:
+                continue
+
+        # Strategy 2: find by heading text (fuzzy match)
+        if heading:
+            for li in range(len(lines)):
+                clean = lines[li].strip().lstrip("#").lstrip().lstrip("*").strip().rstrip("*").strip()
+                if fuzz.ratio(clean.lower(), heading) >= 85:
+                    text_rows = []
+                    for j in range(li, min(li + 40, len(lines))):
+                        s = lines[j].strip()
+                        if s.startswith("#") and j > li + 1:
+                            break
+                        if j > li + 1:
+                            nl = _try_table_label(s)
+                            if nl is not None and nl != tnum:
+                                break
+                        if s:
+                            text_rows.append([s])
+                    if len(text_rows) >= 2:
+                        tables.append({
+                            "table_number": tnum,
+                            "table_title": toc_lookup.get(tnum, mt.get("heading", "")),
+                            "format": "text",
+                            "rows": text_rows,
+                        })
+                        found_nums.add(tnum)
+                        _log(f"  Tables: T{tnum} recovered via config heading match")
+                    break
 
     missed = sorted(toc_nums - found_nums)
     if missed:

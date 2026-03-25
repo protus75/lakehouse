@@ -152,7 +152,7 @@ authority_tables:
 missing_tables:
   - table_number: 21
     heading: "Wizard Spell Progression"
-    note: "Marker merged T21 into T20 pipe block — no separate heading exists"
+    content_marker: "Wizard<br>Level<br>1<br>2"
   - table_number: 40
     heading: "Movement While Tracking"
   - table_number: 65
