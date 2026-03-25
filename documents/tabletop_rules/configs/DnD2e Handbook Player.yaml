@@ -147,6 +147,17 @@ authority_tables:
     page: 75
     type: secondary_skill
 
+# Tables that Marker failed to parse — provide heading text for fuzzy fallback
+# These are text-only tables (no pipe formatting) that the parser couldn't auto-detect
+missing_tables:
+  - table_number: 21
+    heading: "Wizard Spell Progression"
+    note: "Marker merged T21 into T20 pipe block — no separate heading exists"
+  - table_number: 40
+    heading: "Movement While Tracking"
+  - table_number: 65
+    heading: "Base Climbing Success Rates"
+
 validation:
   spell_toc_patterns:
     - "Appendix 3: Wizard Spells"

@@ -88,6 +88,18 @@ def init_bronze_schema(conn: duckdb.DuckDBPyConnection) -> None:
     """)
 
     conn.execute("""
+        CREATE TABLE IF NOT EXISTS bronze_tabletop.tables_raw (
+            source_file       VARCHAR NOT NULL,
+            table_number      INTEGER NOT NULL,
+            table_title       VARCHAR NOT NULL,
+            format            VARCHAR NOT NULL,
+            row_index         INTEGER NOT NULL,
+            cells             VARCHAR NOT NULL,
+            PRIMARY KEY (source_file, table_number, row_index)
+        )
+    """)
+
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS bronze_tabletop.authority_table_entries (
             source_file       VARCHAR NOT NULL,
             entry_name        VARCHAR NOT NULL,
@@ -208,8 +220,13 @@ def extract_marker_pages(filepath: Path, total_pages: int) -> list[str]:
     return pages
 
 
-def extract_toc(page_texts: list[str], config: dict) -> list[dict]:
-    """Parse ToC from first N pages."""
+def extract_toc(page_texts: list[str], config: dict) -> tuple[list[dict], list[dict]]:
+    """Parse ToC from first N pages.
+
+    Returns (sections, toc_tables):
+      sections: [{title, page_start, page_end, is_excluded}, ...]
+      toc_tables: [{table_number, title, page}, ...]
+    """
     toc_config = config.get("toc", {})
     chapter_patterns = [re.compile(p, re.IGNORECASE) for p in toc_config.get("chapter_patterns", [])]
     table_pattern_str = toc_config.get("table_pattern", "")
@@ -218,7 +235,9 @@ def extract_toc(page_texts: list[str], config: dict) -> list[dict]:
     exclude_set = set(t.lower() for t in config.get("exclude_chapters", []))
 
     sections = []
-    seen = set()
+    toc_tables = []
+    seen_sections = set()
+    seen_tables = set()
 
     for page_idx in range(min(scan_pages, len(page_texts))):
         for line in page_texts[page_idx].split("\n"):
@@ -227,10 +246,28 @@ def extract_toc(page_texts: list[str], config: dict) -> list[dict]:
                 continue
             title, page = parsed
 
+            # Check for table entries
+            if table_pattern and table_pattern.match(title):
+                # Extract table number from title like "Table 37: Nonweapon Proficiency Groups"
+                num_match = re.search(r'\d+', title)
+                if num_match:
+                    table_num = int(num_match.group())
+                    if table_num not in seen_tables:
+                        seen_tables.add(table_num)
+                        # Title without "Table N:" prefix
+                        colon_idx = title.find(":")
+                        table_title = title[colon_idx + 1:].strip() if colon_idx >= 0 else title
+                        toc_tables.append({
+                            "table_number": table_num,
+                            "title": table_title,
+                            "page": page,
+                        })
+
+            # Check for chapter entries
             for pat in chapter_patterns:
                 if pat.match(title):
-                    if title not in seen:
-                        seen.add(title)
+                    if title not in seen_sections:
+                        seen_sections.add(title)
                         sections.append({
                             "title": title, "page_start": page,
                             "is_excluded": title.lower() in exclude_set,
@@ -241,7 +278,8 @@ def extract_toc(page_texts: list[str], config: dict) -> list[dict]:
     for i, entry in enumerate(sections):
         entry["page_end"] = sections[i + 1]["page_start"] - 1 if i + 1 < len(sections) else 9999
 
-    return sections
+    toc_tables.sort(key=lambda t: t["table_number"])
+    return sections, toc_tables
 
 
 def _parse_ordinal_level(text: str) -> int | None:
@@ -549,149 +587,364 @@ def extract_spell_list_entries(filepath: Path, page_printed: dict[int, int],
     return [e for e in entries if len(e["entry_name"]) >= 3]
 
 
-def extract_authority_tables(markdown: str, toc_tables: list[dict],
-                             page_texts: list[str], page_printed: dict[int, int],
-                             config: dict) -> list[dict]:
-    """Parse authority tables to extract entry names.
+def extract_all_tables(markdown: str, toc_tables: list[dict],
+                       page_texts: list[str],
+                       page_printed: dict[int, int],
+                       config: dict | None = None) -> list[dict]:
+    """Parse ALL tables by walking markdown lines sequentially.
 
-    Config `authority_tables` maps entry_type → table name (e.g. "Table 37").
-    Uses ToC table data to find the page number, then searches the Marker markdown
-    near that page's content for the actual table.
+    Scan lines top-to-bottom. When we see a 'Table N' label line followed
+    by pipe-delimited rows, that's the data for Table N. Match the number
+    to the ToC to get the title. Tables appear in document order — once a
+    table number is found, it won't appear again as a real table.
+
+    Returns list of dicts: {table_number, table_title, rows: [[cell, ...], ...]}
+    """
+    from rapidfuzz import fuzz
+
+    toc_lookup = {t["table_number"]: t["title"] for t in toc_tables}
+    toc_nums_sorted = sorted(toc_lookup.keys())  # sequential order
+    toc_nums = set(toc_nums_sorted)
+    # Next expected table number — only accept this or higher (sequential)
+    next_expected_idx = 0
+
+    # Build title → table_number lookup for fuzzy matching headings
+    title_to_num = {t["title"].lower(): t["table_number"] for t in toc_tables if t["title"]}
+
+    lines = markdown.split("\n")
+    tables = []
+    found_nums = set()
+
+    pending_table_num = None
+    lines_since_label = 0  # how many lines since we set pending_table_num
+    i = 0
+
+    def _try_table_label(text: str) -> int | None:
+        """Check if text is a 'Table N:' label (not a prose reference).
+        Returns the table number or None.
+
+        A label: 'Table 37:', '#### Table 37:', '| Table 33:<br>Bard...'
+        NOT a label: 'Table 37 lists all...', 'as shown in Table 37'
+        """
+        clean = text.lstrip("#").lstrip().lstrip("*").lstrip()
+        clean = clean.lstrip("|").lstrip()
+        clean = clean.split("<br>")[0].strip()
+        if not clean.lower().startswith("table "):
+            return None
+        rest = clean[6:].lstrip()
+        num_str = ""
+        j = 0
+        for j, ch in enumerate(rest):
+            if ch.isdigit():
+                num_str += ch
+            else:
+                break
+        if not num_str:
+            return None
+        # What follows the number? Must be ':' or end of string or just a title.
+        # Reject if followed by prose verbs (lists, shows, contains, etc.)
+        after = rest[len(num_str):].lstrip()
+        if after and not after.startswith(":") and not after.startswith("."):
+            # Check first word — if it's a verb, this is prose not a label
+            first_word = after.split()[0].lower().rstrip(".,;") if after.split() else ""
+            prose_verbs = {"lists", "shows", "contains", "gives", "indicates",
+                           "details", "describes", "summarizes", "provides",
+                           "determines", "displays", "includes", "is", "has",
+                           "for", "to", "of", "and", "the", "in", "on",
+                           "would", "can", "also", "or"}
+            if first_word in prose_verbs:
+                return None
+        candidate = int(num_str)
+        if candidate in toc_nums and candidate not in found_nums:
+            return candidate
+        return None
+
+    while i < len(lines):
+        stripped = lines[i].strip()
+
+        # Check if this line contains a "Table N" label
+        candidate = _try_table_label(stripped)
+        if candidate is not None:
+            # If we already have a pending label that never found pipes,
+            # capture it as a text table before moving on
+            if pending_table_num is not None and pending_table_num != candidate:
+                label_line = i - lines_since_label
+                text_rows = []
+                for j in range(label_line, i):
+                    s = lines[j].strip()
+                    if s:
+                        text_rows.append([s])
+                if len(text_rows) >= 2:
+                    tables.append({
+                        "table_number": pending_table_num,
+                        "table_title": toc_lookup.get(pending_table_num, ""),
+                        "format": "text",
+                        "rows": text_rows,
+                    })
+                    found_nums.add(pending_table_num)
+                    while (next_expected_idx < len(toc_nums_sorted)
+                           and toc_nums_sorted[next_expected_idx] <= pending_table_num):
+                        next_expected_idx += 1
+            pending_table_num = candidate
+            lines_since_label = 0
+
+        # If no table number match, try fuzzy matching heading text to ToC titles.
+        # Only check the next few expected tables to avoid premature matches
+        # (e.g. chapter heading "Nonweapon Proficiencies" matching Table 37
+        #  "Nonweapon Proficiency Groups" before Table 36 is found).
+        if pending_table_num is None and stripped and next_expected_idx < len(toc_nums_sorted):
+            clean_heading = stripped.lstrip("#").lstrip().lstrip("*").strip().rstrip("*").strip()
+            if 5 <= len(clean_heading) <= 80:
+                # Only check the NEXT expected table (strict ordering)
+                tnum = toc_nums_sorted[next_expected_idx]
+                if tnum not in found_nums:
+                    title = toc_lookup.get(tnum, "").lower()
+                    if title:
+                        score = fuzz.ratio(clean_heading.lower(), title)
+                        if score >= 85:
+                            pending_table_num = tnum
+                            lines_since_label = 0
+
+        is_pipe_row = stripped.startswith("|") and stripped.count("|") >= 2
+
+        # Check if a pipe row contains a "Table N:" label that starts a new table.
+        # Only match if previous line was NOT a pipe row (= start of a new block,
+        # not mid-stream in an existing block like the ToC).
+        if is_pipe_row and pending_table_num is None:
+            prev = lines[i - 1].strip() if i > 0 else ""
+            prev_is_pipe = prev.startswith("|") and prev.count("|") >= 2
+            if not prev_is_pipe:
+                pipe_candidate = _try_table_label(stripped)
+                if pipe_candidate is not None:
+                    pending_table_num = pipe_candidate
+                    lines_since_label = 0
+
+        # If we have a pending table and hit pipe rows, capture as pipe format
+        # But if the gap since label is large (>10), the pipes are likely unrelated
+        # — trigger text capture instead
+        if is_pipe_row and pending_table_num is not None and lines_since_label > 10:
+            label_line = i - lines_since_label
+            text_rows = []
+            for j in range(label_line, i):
+                s = lines[j].strip()
+                if s:
+                    text_rows.append([s])
+            if len(text_rows) >= 2:
+                tables.append({
+                    "table_number": pending_table_num,
+                    "table_title": toc_lookup.get(pending_table_num, ""),
+                    "format": "text",
+                    "rows": text_rows,
+                })
+                found_nums.add(pending_table_num)
+                while (next_expected_idx < len(toc_nums_sorted)
+                       and toc_nums_sorted[next_expected_idx] <= pending_table_num):
+                    next_expected_idx += 1
+            pending_table_num = None
+            # Don't consume the pipe row — let it be captured by a future label
+        if is_pipe_row and pending_table_num is not None:
+            raw_rows = []
+            while i < len(lines):
+                s = lines[i].strip()
+                if s.startswith("|") and s.count("|") >= 2:
+                    raw_rows.append(s)
+                    i += 1
+                elif not s:
+                    if i + 1 < len(lines) and lines[i + 1].strip().startswith("|"):
+                        i += 1
+                        continue
+                    break
+                else:
+                    break
+
+            parsed_rows = []
+            for row in raw_rows:
+                cells = [c.strip() for c in row.split("|")]
+                if cells and cells[0] == "":
+                    cells = cells[1:]
+                if cells and cells[-1] == "":
+                    cells = cells[:-1]
+                if all(re.match(r'^[\s\-:]+$', c) or c == "" for c in cells):
+                    continue
+                parsed_rows.append(cells)
+
+            if parsed_rows:
+                # Reject suspiciously large blocks (>100 rows = likely ToC, not data)
+                if len(parsed_rows) > 100:
+                    _log(f"  Tables: skipping T{pending_table_num} — {len(parsed_rows)} rows (likely ToC)")
+                    pending_table_num = None
+                    continue
+                tables.append({
+                    "table_number": pending_table_num,
+                    "table_title": toc_lookup.get(pending_table_num, ""),
+                    "format": "pipe",
+                    "rows": parsed_rows,
+                })
+                found_nums.add(pending_table_num)
+                while (next_expected_idx < len(toc_nums_sorted)
+                       and toc_nums_sorted[next_expected_idx] <= pending_table_num):
+                    next_expected_idx += 1
+                pending_table_num = None
+            continue
+
+        # Track gap since label
+        if pending_table_num is not None:
+            lines_since_label += 1
+            # If no pipes within 15 lines, capture as text table
+            if lines_since_label > 15:
+                # Grab text from the label line forward until next heading/table label
+                label_line = i - lines_since_label
+                text_rows = []
+                for j in range(label_line, len(lines)):
+                    s = lines[j].strip()
+                    # Stop at next "Table N:" label for a DIFFERENT table
+                    if j > label_line + 1:
+                        next_label = _try_table_label(s)
+                        if next_label is not None and next_label != pending_table_num:
+                            break
+                    # Stop at chapter headings (## or #)
+                    if s.startswith("##") and j > label_line + 2:
+                        break
+                    if s:
+                        text_rows.append([s])
+                if len(text_rows) >= 2:
+                    tables.append({
+                        "table_number": pending_table_num,
+                        "table_title": toc_lookup.get(pending_table_num, ""),
+                        "format": "text",
+                        "rows": text_rows,
+                    })
+                    found_nums.add(pending_table_num)
+                    while (next_expected_idx < len(toc_nums_sorted)
+                           and toc_nums_sorted[next_expected_idx] <= pending_table_num):
+                        next_expected_idx += 1
+                pending_table_num = None
+
+        i += 1
+
+    # Second pass: use config missing_tables headings to find remaining tables
+    missing_cfg = config.get("missing_tables", [])
+    for mt in missing_cfg:
+        tnum = mt["table_number"]
+        if tnum in found_nums:
+            continue
+        heading = mt["heading"].lower()
+        # Find the heading in the markdown, then capture text until next heading
+        for li in range(len(lines)):
+            clean = lines[li].strip().lstrip("#").lstrip().lstrip("*").strip().rstrip("*").strip()
+            if fuzz.ratio(clean.lower(), heading) >= 85:
+                text_rows = []
+                for j in range(li, min(li + 40, len(lines))):
+                    s = lines[j].strip()
+                    if s.startswith("#") and j > li + 1:
+                        break
+                    if j > li + 1:
+                        nl = _try_table_label(s)
+                        if nl is not None and nl != tnum:
+                            break
+                    if s:
+                        text_rows.append([s])
+                if len(text_rows) >= 2:
+                    tables.append({
+                        "table_number": tnum,
+                        "table_title": toc_lookup.get(tnum, mt["heading"]),
+                        "format": "text",
+                        "rows": text_rows,
+                    })
+                    found_nums.add(tnum)
+                    _log(f"  Tables: T{tnum} recovered via config heading match")
+                break
+
+    missed = sorted(toc_nums - found_nums)
+    if missed:
+        _log(f"  Tables: missed {len(missed)} — T{', T'.join(str(n) for n in missed)}")
+    _log(f"  Tables: matched {len(found_nums)}/{len(toc_tables)} from ToC")
+    return tables
+
+
+def extract_authority_entries(all_tables: list[dict], config: dict) -> list[dict]:
+    """Extract entry names from authority tables specified in config.
+
+    Config `authority_tables` is a list:
+      [{table: "Table 37", page: 76, type: "proficiency"}, ...]
+
+    Uses table_number to find the right parsed table, then extracts
+    name-like cells from the first column of data rows.
 
     Returns list of dicts: {entry_name, entry_type, source_table}"""
-    authority = config.get("authority_tables", {})
+    authority = config.get("authority_tables", [])
     if not authority:
         return []
 
-    # Build table → page lookup from ToC
-    table_pages = {}
-    for t in toc_tables:
-        table_pages[t["title"].lower()] = t.get("page_number", 0)
+    # Build lookup: table_number → parsed table
+    table_lookup = {t["table_number"]: t for t in all_tables}
+
+    # Values that are metadata/headers, not entry names — from config or defaults
+    default_skip = [
+        "proficiency", "required", "ability", "modifier", "check",
+        "# of slots", "relevant", "slots", "na", "special", "none",
+        "intelligence", "wisdom", "strength", "dexterity", "charisma",
+        "constitution", "roll", "d100", "secondary skill",
+    ]
+    skip_lower = set(s.lower() for s in config.get("authority_skip_values", default_skip))
 
     entries = []
-    md_lower = markdown.lower()
 
-    for entry_type, table_name in authority.items():
-        table_lower = table_name.lower()
+    for auth in authority:
+        table_name = auth["table"]
+        entry_type = auth["type"]
 
-        # Find the page this table is on from the ToC
-        ref_page = None
-        for toc_name, page in table_pages.items():
-            if table_lower in toc_name.lower() or toc_name.lower() in table_lower:
-                ref_page = page
-                break
+        # Extract table number from "Table 37" → 37
+        num_match = re.search(r'\d+', table_name)
+        if not num_match:
+            _log(f"  Warning: can't parse table number from '{table_name}'")
+            continue
+        table_num = int(num_match.group())
 
-        # Find the table content in markdown near that page's content
-        # Use page_texts to find a snippet from the table's page, then locate in markdown
-        search_start = 0
-        if ref_page is not None:
-            for page_idx, printed in page_printed.items():
-                if printed == ref_page:
-                    text = page_texts[page_idx].lower()
-                    # Find a unique line from this page in the markdown
-                    for line in text.split("\n"):
-                        line = line.strip()
-                        if len(line) > 25:
-                            pos = md_lower.find(line[:30])
-                            if pos > 0:
-                                search_start = max(0, pos - 500)
-                                break
-                    break
+        parsed = table_lookup.get(table_num)
+        if not parsed:
+            _log(f"  Warning: {table_name} not found in parsed tables")
+            continue
 
-        # Find the actual table content (not ToC references).
-        # Strategy: find ALL markdown tables in the document, then pick the one
-        # that appears after the table name heading and has real data rows
-        # (not just other table names with page numbers).
-        import re as _re
-
-        # Find all occurrences of the table name
-        search_start = 0
-        table_found = False
-
-        while not table_found:
-            idx = md_lower.find(table_lower, search_start)
-            if idx < 0:
-                break
-
-            # Scan forward for a markdown table
-            lines = markdown[idx:idx + 5000].split("\n")
-            table_rows = []
-            in_table = False
-
-            for line in lines[1:]:  # skip the line with the table name
-                stripped = line.strip()
-                if stripped.startswith("|") and stripped.count("|") >= 3:
-                    in_table = True
-                    table_rows.append(stripped)
-                elif in_table:
-                    if not stripped or not stripped.startswith("|"):
-                        break
-
-            # Filter to data rows (skip separators and headers)
-            skip_words = {"proficiency", "required", "ability", "modifier",
-                          "# of slots", "check", "relevant", "slots",
-                          "clothing", "household"}  # section headers within tables
-            data_rows = []
-            for row in table_rows:
-                cells = [c.strip() for c in row.split("|")]
-                cells = [c for c in cells if c]
-                if not cells:
-                    continue
-                if all(c.replace("-", "").replace(" ", "") == "" for c in cells):
-                    continue  # separator row
-                # Check if this looks like a real data row (has a name-like cell)
-                has_name = False
-                for c in cells:
-                    c_clean = c.strip()
-                    if (len(c_clean) >= 3 and c_clean[0].isupper()
-                            and c_clean.lower() not in skip_words
-                            and not c_clean.lower().startswith("table")):
-                        has_name = True
-                        break
-                if has_name:
-                    data_rows.append(cells)
-
-            # Validate: a real proficiency/equipment table has >5 data rows
-            # with name-like entries. ToC listings have table numbers.
-            if len(data_rows) < 5:
-                search_start = idx + 1
-                continue
-
-            # Check for ToC-like content (cells with page numbers like "name 123")
-            toc_like = sum(1 for cells in data_rows[:5]
-                          for c in cells
-                          if _re.match(r'^.+\s+\d{1,3}\s*$', c.strip()))
-            if toc_like > len(data_rows[:5]):
-                search_start = idx + 1
-                continue
-
-            # Extract entry names from data rows
-            ability_names = {"intelligence", "wisdom", "strength", "dexterity",
-                             "charisma", "constitution", "na", "special", "none"}
-            for cells in data_rows:
-                for cell in cells:
-                    cell = cell.strip()
-                    if not cell or len(cell) < 3:
+        # Extract name-like values from first column of each row group
+        # Tables may have multiple column groups side-by-side (e.g. Table 37
+        # has General|slots|ability|mod | Rogue|slots|ability|mod)
+        for row in parsed["rows"]:
+            for cell in row:
+                cell = cell.strip()
+                # Handle <br> joined cells (Marker uses this for multi-line cells)
+                for part in re.split(r'<br\s*/?>', cell):
+                    part = part.strip()
+                    if not part or len(part) < 3:
                         continue
-                    if not cell[0].isupper():
+                    if not part[0].isupper():
                         continue
-                    if cell.lower() in ability_names:
+                    if part.lower() in skip_lower:
                         continue
-                    # Skip pure numbers/modifiers
-                    stripped_num = cell.replace("-", "").replace("+", "").replace("–", "").replace(" ", "")
-                    if stripped_num.isdigit():
+                    # Skip pure numbers/modifiers/prices
+                    cleaned = part.replace("-", "").replace("+", "").replace("–", "").replace(" ", "").replace(",", "")
+                    if cleaned.isdigit():
                         continue
-                    # Skip cells that look like "name 123" (ToC references)
-                    if _re.match(r'^.+\s+\d{1,3}\s*$', cell):
+                    # Skip price-like values (e.g. "3 sp", "10 gp", "500 gp")
+                    if re.match(r'^\d[\d,]*\s*(?:cp|sp|gp|pp|ep|lbs?\.?|ft\.?)$', part, re.IGNORECASE):
+                        continue
+                    # Skip cells that are just numbers with units
+                    if re.match(r'^[\d,./⁄½¼¾\s\-–+*]+(?:\s*(?:cp|sp|gp|pp|ep|lbs?\.?|ft\.?))?$', part):
+                        continue
+                    # Skip modifier values like "+1", "–2", "0"
+                    if re.match(r'^[+\-–]?\d{1,2}$', part):
+                        continue
+                    # Skip "Table N" references
+                    if re.match(r'^Table\s+\d+', part, re.IGNORECASE):
                         continue
 
                     entries.append({
-                        "entry_name": cell.lower(),
+                        "entry_name": part.lower(),
                         "entry_type": entry_type,
                         "source_table": table_name,
                     })
 
-            table_found = True
+        _log(f"  Authority: {table_name} ({entry_type}) → {sum(1 for e in entries if e['source_table'] == table_name)} raw entries")
 
     # Deduplicate
     seen = set()
@@ -731,7 +984,7 @@ def store_bronze(filepath: Path, config: dict,
                  page_texts: list[str], page_printed: dict[int, int],
                  markdown: str, toc_sections: list[dict],
                  known_entries: list[dict], spell_list: list[dict],
-                 authority_entries: list[dict],
+                 all_tables: list[dict], authority_entries: list[dict],
                  watermarks: dict[str, int]) -> None:
     """Write all raw extraction data to bronze_tabletop schema."""
     conn = duckdb.connect(DB_PATH)
@@ -741,7 +994,7 @@ def store_bronze(filepath: Path, config: dict,
 
     # Delete old data for this file (idempotent re-ingestion)
     for table in ["files", "marker_extractions", "page_texts", "toc_raw",
-                   "known_entries_raw", "spell_list_entries",
+                   "known_entries_raw", "spell_list_entries", "tables_raw",
                    "authority_table_entries", "watermarks"]:
         conn.execute(f"DELETE FROM bronze_tabletop.{table} WHERE source_file = ?", [sf])
 
@@ -783,6 +1036,16 @@ def store_bronze(filepath: Path, config: dict,
              entry.get("sphere")],
         )
 
+    # All parsed tables (every table in the document)
+    import json as _json
+    for tbl in all_tables:
+        for row_idx, cells in enumerate(tbl["rows"]):
+            conn.execute(
+                "INSERT INTO bronze_tabletop.tables_raw VALUES (?, ?, ?, ?, ?, ?)",
+                [sf, tbl["table_number"], tbl["table_title"],
+                 tbl.get("format", "pipe"), row_idx, _json.dumps(cells)],
+            )
+
     # Authority table entries (proficiencies, equipment from specified tables)
     for entry in authority_entries:
         conn.execute(
@@ -806,10 +1069,12 @@ def store_bronze(filepath: Path, config: dict,
             [sf, text, count],
         )
 
+    total_table_rows = sum(len(t["rows"]) for t in all_tables)
     conn.close()
     _log(f"  Bronze stored: {len(page_texts)} pages, {len(toc_sections)} ToC, "
          f"{len(known_entries)} index entries, {len(spell_list)} spell list, "
-         f"{len(authority_entries)} authority table entries, {len(watermarks)} watermarks")
+         f"{len(all_tables)} tables ({total_table_rows} rows), "
+         f"{len(authority_entries)} authority entries, {len(watermarks)} watermarks")
 
 
 # ── Pipeline ─────────────────────────────────────────────────────
@@ -848,11 +1113,11 @@ def extract_pdf(filepath: Path) -> None:
     page_texts, page_printed, total_pages = extract_page_texts(filepath, config)
     step(f"PDF: {total_pages} pages")
 
-    # 2. ToC
-    toc_sections = extract_toc(page_texts, config)
+    # 2. ToC (sections + tables)
+    toc_sections, toc_tables = extract_toc(page_texts, config)
     included = sum(1 for s in toc_sections if not s["is_excluded"])
     excluded = sum(1 for s in toc_sections if s["is_excluded"])
-    step(f"ToC: {included} sections, {excluded} excluded")
+    step(f"ToC: {included} sections, {excluded} excluded, {len(toc_tables)} tables")
 
     # 3. Marker full document (uses disk cache if available)
     _log("  Marker: extracting full document...")
@@ -867,24 +1132,22 @@ def extract_pdf(filepath: Path) -> None:
     spell_list = extract_spell_list_entries(filepath, page_printed, toc_sections)
     step(f"Spell list: {len(spell_list)} entries")
 
-    # 7. Authority tables (proficiencies, equipment from config-specified tables)
-    toc_tables = []
-    for section in toc_sections:
-        # Tables were collected during ToC parsing but not stored separately
-        # Use the toc_raw tables field if available
-        pass
-    authority_entries = extract_authority_tables(
-        markdown, toc_tables, page_texts, page_printed, config)
-    step(f"Authority tables: {len(authority_entries)} entries")
+    # 7. Parse ALL tables from markdown (matched to ToC via page positions)
+    all_tables = extract_all_tables(markdown, toc_tables, page_texts, page_printed, config)
+    step(f"Tables: {len(all_tables)} parsed")
 
-    # 8. Watermarks
+    # 8. Authority entries from config-specified tables
+    authority_entries = extract_authority_entries(all_tables, config)
+    step(f"Authority entries: {len(authority_entries)}")
+
+    # 9. Watermarks
     watermarks = detect_watermarks(page_texts)
     step(f"Watermarks: {len(watermarks)}")
 
-    # 9. Store everything
+    # 10. Store everything
     store_bronze(filepath, config, page_texts, page_printed,
                  markdown, toc_sections, known_entries, spell_list,
-                 authority_entries, watermarks)
+                 all_tables, authority_entries, watermarks)
     step("Stored")
 
     _log(f"  Bronze total: {time.time() - start:.1f}s")

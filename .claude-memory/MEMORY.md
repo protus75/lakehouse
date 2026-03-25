@@ -14,3 +14,4 @@
 - [feedback_one_book_at_a_time.md](feedback_one_book_at_a_time.md) - Only process one book until validation passes, never all 6
 - [project_rag_architecture.md](project_rag_architecture.md) - RAG architecture, medallion layers, validation status
 - [project_gold_enrichments.md](project_gold_enrichments.md) - Gold layer: AI summaries, cross-ref indices, combat/popular annotations
+- [feedback_kill_stale_processes.md](feedback_kill_stale_processes.md) - Check for/kill stale python processes before pipeline runs, monitor GPU
