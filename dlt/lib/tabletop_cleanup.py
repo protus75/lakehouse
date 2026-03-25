@@ -401,19 +401,36 @@ def build_entries(
     Each heading's chapter comes from heading_chapter_map (page-position based).
     known_entries whitelist only applies in spell sections -- non-spell sections
     treat every H3/H4 heading as a new entry."""
-    # Spell level mapping from config
+    # Config lookups
     level_mapping = config.get("spell_level_mapping", {}) if config else {}
+    type_mapping = config.get("entry_type_mapping", {}) if config else {}
+
+    def _toc_spell_class(toc_entry: dict | None) -> str | None:
+        """Determine spell class from ToC entry using entry_type_mapping config.
+        Returns 'wizard', 'priest', or None."""
+        if not toc_entry:
+            return None
+        title = toc_entry.get("title", "")
+        for pattern, entry_type in type_mapping.items():
+            if entry_type == "spell" and pattern.lower() in title.lower():
+                # The mapping key tells us the class: "Wizard Spells" → wizard
+                key_lower = pattern.lower()
+                if "wizard" in key_lower:
+                    return "wizard"
+                if "priest" in key_lower:
+                    return "priest"
+        return None
 
     entries = []
     current_toc = None
     current_page = 0
     current_section = None
-    current_sub_section = None  # tracks level sub-headings like "First-Level Spells"
-    current_spell_class = None  # wizard or priest, from ToC section
-    current_spell_level = None  # from sub-section heading
+    current_sub_section = None
+    current_spell_class = None
+    current_spell_level = None
     current_entry = None
     current_content = []
-    current_school = None  # captured from stripped school/type lines
+    current_school = None
     current_sphere = None
 
     def _extract_school_from_raw(raw_content: str) -> str | None:
@@ -516,18 +533,10 @@ def build_entries(
                 new_toc = hc["toc_entry"]
                 if new_toc != current_toc:
                     current_toc = new_toc
-                    # Set spell_class from ToC title (ground truth)
-                    toc_lower = current_toc.get("title", "").lower()
-                    if "wizard" in toc_lower and "spell" in toc_lower:
-                        current_spell_class = "wizard"
-                        if current_spell_level is None:
-                            current_spell_level = 1
-                    elif "priest" in toc_lower and "spell" in toc_lower:
-                        current_spell_class = "priest"
-                        if current_spell_level is None:
-                            current_spell_level = 1
-                    else:
-                        current_spell_class = None
+                    current_spell_class = _toc_spell_class(current_toc)
+                    if current_spell_class and current_spell_level is None:
+                        current_spell_level = 1
+                    elif not current_spell_class:
                         current_spell_level = None
                 current_page = hc["page"]
 
@@ -546,22 +555,10 @@ def build_entries(
                     current_section = clean_heading
                     current_sub_section = None
                     current_spell_level = None
-                    # Set spell_class from section name, default level to 1
-                    section_lower = clean_heading.lower()
-                    if "wizard" in section_lower and "spell" in section_lower:
-                        current_spell_class = "wizard"
-                        current_spell_level = 1  # default until sub-section heading
-                    elif "priest" in section_lower and "spell" in section_lower:
-                        current_spell_class = "priest"
+                    # Inherit spell_class from ToC (don't re-derive from heading text)
+                    # The ToC is the authority; section headings are just page re-renders
+                    if current_spell_class:
                         current_spell_level = 1
-                    elif current_toc:
-                        toc_lower = current_toc.get("title", "").lower()
-                        if "wizard" in toc_lower:
-                            current_spell_class = "wizard"
-                        elif "priest" in toc_lower:
-                            current_spell_class = "priest"
-                        else:
-                            current_spell_class = None
                     current_entry = None
                     current_content = [line]
             else:
