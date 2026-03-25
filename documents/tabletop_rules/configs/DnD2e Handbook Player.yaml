@@ -129,6 +129,48 @@ section_parsing:
       - '(Necromancy.*)'
       - '(Invocation.*)'
 
+  "Proficiencies":
+    # Proficiency descriptions are "Name: description" in running text
+    # not headings — detect by "CapitalWord(s): " at start of line
+    inline_entry_pattern: '^([A-Z][\w\s,/''()-]+):\s+'
+    # Known proficiency names for validation
+    expected_entries:
+      - "Agriculture"
+      - "Animal Handling"
+      - "Animal Training"
+      - "Blacksmithing"
+      - "Blind-fighting"
+      - "Brewing"
+      - "Carpentry"
+      - "Cobbling"
+      - "Cooking"
+      - "Direction Sense"
+      - "Endurance"
+      - "Engineering"
+      - "Etiquette"
+      - "Fire-building"
+      - "Fishing"
+      - "Healing"
+      - "Herbalism"
+      - "Hunting"
+      - "Leatherworking"
+      - "Mining"
+      - "Mountaineering"
+      - "Navigation"
+      - "Reading/Writing"
+      - "Religion"
+      - "Riding"
+      - "Rope Use"
+      - "Running"
+      - "Seamanship"
+      - "Set Snares"
+      - "Singing"
+      - "Survival"
+      - "Swimming"
+      - "Tracking"
+      - "Weather Sense"
+      - "Weaponsmithing"
+
 validation:
   spell_toc_patterns:
     - "Appendix 3: Wizard Spells"

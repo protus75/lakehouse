@@ -1,10 +1,8 @@
 """Gold: cross-reference index for structured queries.
 
-Extracts entry_type, spell_level from section context.
-School/sphere come from silver_entries (extracted before cleanup strips them).
-Other metadata fields parsed from content.
-
-Enables queries like: "all 3rd level wizard necromancy spells"
+Spell data comes from silver_spell_crosscheck (authoritative, fuzzy-matched across all appendixes).
+Non-spell entry_type comes from entry_type_mapping config.
+Other metadata fields parsed from content for non-spell entries.
 """
 import sys
 sys.path.insert(0, "/workspace")
@@ -29,34 +27,6 @@ def _get_entry_type(toc_title: str, mapping: dict) -> str:
     return "rule"
 
 
-def _get_spell_level(section_title: str, toc_title: str, level_mapping: dict) -> int | None:
-    """Extract spell level from section_title like 'First-Level Spells'.
-    Spells before the first sub-heading default to level 1."""
-    if not section_title:
-        return None
-    section_lower = section_title.lower()
-    for word, level in level_mapping.items():
-        if word in section_lower:
-            return level
-    # If section_title is the main section (no sub-section matched), default to L1
-    if "spell" in section_lower and "level" not in section_lower:
-        return 1
-    return None
-
-
-def _is_valid_spell(entry_title: str | None, content: str) -> bool:
-    """Filter out junk entries that aren't actual spells."""
-    if not entry_title or entry_title == "None":
-        return False
-    junk_titles = {"combat", "divination", "compiled character tables", "spell index",
-                   "wizard spells by school", "priest spells by sphere"}
-    if entry_title.lower() in junk_titles:
-        return False
-    content_lower = content.lower()
-    return any(f in content_lower for f in
-               ["range:", "duration:", "casting time:", "components:", "sphere:"])
-
-
 def model(dbt, session):
     dbt.config(materialized="table")
 
@@ -66,45 +36,71 @@ def model(dbt, session):
 
     configs_dir = Path("/workspace/documents/tabletop_rules/configs")
     entries_df = dbt.ref("silver_entries").df()
+    crosscheck_df = dbt.ref("silver_spell_crosscheck").df()
+
+    # Build spell lookup from crosscheck (authoritative)
+    spell_lookup = {}
+    for _, row in crosscheck_df.iterrows():
+        key = (row["source_file"], row["entry_name"])
+        # Store by (name, class) — some spells are both wizard and priest
+        spell_lookup[(row["source_file"], row["entry_name"], row["entry_class"])] = {
+            "spell_class": row["entry_class"],
+            "spell_level": int(row["entry_level"]) if pd.notna(row["entry_level"]) else None,
+            "school": row["school"],
+            "sphere": row["sphere"],
+            "is_reversible": row["is_reversible"],
+            "ref_page": int(row["ref_page"]) if pd.notna(row["ref_page"]) else None,
+        }
 
     all_rows = []
 
     for sf in entries_df["source_file"].unique():
         config = load_config(Path(sf), configs_dir)
         type_mapping = config.get("entry_type_mapping", {})
-        level_mapping = config.get("spell_level_mapping", {})
 
         sf_entries = entries_df[entries_df["source_file"] == sf]
 
         for _, row in sf_entries.iterrows():
             content = row["content"]
             toc_title = row["toc_title"]
-            section_title = row["section_title"]
             entry_title = row["entry_title"]
+            entry_name = entry_title.lower().strip() if entry_title else ""
 
             entry_type = _get_entry_type(toc_title, type_mapping)
 
-            # Filter junk entries in spell sections
-            if entry_type == "spell" and not _is_valid_spell(entry_title, content):
-                entry_type = "rule"
-
-            spell_level = None
             spell_class = None
+            spell_level = None
+            school = row.get("school")   # from silver (extracted before strip)
+            sphere = row.get("sphere")   # from silver
+            is_reversible = None
+            ref_page = None
 
-            if entry_type == "spell":
-                spell_level = _get_spell_level(section_title, toc_title, level_mapping)
-                toc_lower = toc_title.lower()
-                school = row.get("school")
-                sphere = row.get("sphere")
-                if "wizard" in toc_lower:
-                    spell_class = "wizard"
-                elif "priest" in toc_lower:
-                    spell_class = "priest"
-                    # Correction: priest spells must have a sphere.
-                    # If a "priest" spell has school but no sphere, it's a wizard spell
-                    # misassigned by page-position anchors.
-                    if school and not sphere:
-                        spell_class = "wizard"
+            if entry_type == "spell" and entry_name:
+                # Look up from crosscheck — try with parsed class first, then either
+                parsed_class = row.get("spell_class")
+                xcheck = None
+                if parsed_class:
+                    xcheck = spell_lookup.get((sf, entry_name, parsed_class))
+                if not xcheck:
+                    # Try wizard then priest
+                    xcheck = spell_lookup.get((sf, entry_name, "wizard"))
+                if not xcheck:
+                    xcheck = spell_lookup.get((sf, entry_name, "priest"))
+
+                if xcheck:
+                    spell_class = xcheck["spell_class"]
+                    spell_level = xcheck["spell_level"]
+                    school = xcheck["school"] or school
+                    sphere = xcheck["sphere"] or sphere
+                    is_reversible = xcheck["is_reversible"]
+                    ref_page = xcheck["ref_page"]
+                else:
+                    # Not in crosscheck — use parsed values from silver
+                    spell_class = parsed_class
+                    spell_level = int(row["spell_level"]) if pd.notna(row.get("spell_level")) else None
+                    # Spell not in any index — likely junk, demote to rule
+                    if not spell_class:
+                        entry_type = "rule"
 
             all_rows.append({
                 "entry_id": int(row["entry_id"]),
@@ -113,8 +109,10 @@ def model(dbt, session):
                 "entry_type": entry_type,
                 "spell_level": spell_level,
                 "spell_class": spell_class,
-                "school": row.get("school"),      # from silver (extracted before strip)
-                "sphere": row.get("sphere"),      # from silver (extracted before strip)
+                "school": school,
+                "sphere": sphere,
+                "is_reversible": is_reversible,
+                "ref_page": ref_page,
                 "components": _extract_field(content, "Components") or _extract_field(content, "Component"),
                 "saving_throw": _extract_field(content, "Saving Throw"),
                 "range_text": _extract_field(content, "Range"),
@@ -124,7 +122,7 @@ def model(dbt, session):
 
     return pd.DataFrame(all_rows) if all_rows else pd.DataFrame(
         columns=["entry_id", "source_file", "entry_title", "entry_type",
-                 "spell_level", "spell_class", "school", "sphere",
-                 "components", "saving_throw", "range_text", "duration_text",
-                 "casting_time"]
+                 "spell_level", "spell_class", "school", "sphere", "is_reversible",
+                 "ref_page", "components", "saving_throw", "range_text",
+                 "duration_text", "casting_time"]
     )

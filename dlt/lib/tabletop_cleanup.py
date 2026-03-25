@@ -615,7 +615,28 @@ def build_entries(
                     if inner and current_school is None:
                         current_school = inner
             else:
-                current_content.append(line)
+                # Check for inline entry pattern (e.g. "Healing: A character proficient...")
+                # Used for proficiency descriptions and similar non-heading entries
+                inline_matched = False
+                if config and current_toc and stripped:
+                    toc_title = current_toc.get("title", "")
+                    for sec_key, sec_cfg in (config.get("section_parsing", {}) or {}).items():
+                        if sec_key.lower() not in toc_title.lower():
+                            continue
+                        inline_pat = sec_cfg.get("inline_entry_pattern")
+                        if not inline_pat:
+                            continue
+                        m = re.match(inline_pat, stripped)
+                        if m:
+                            entry_name = m.group(1).strip().rstrip(":")
+                            if len(entry_name) >= 3 and entry_name[0].isupper():
+                                flush()
+                                current_entry = entry_name
+                                current_content = [line]
+                                inline_matched = True
+                        break
+                if not inline_matched:
+                    current_content.append(line)
 
         char_pos += len(line) + 1
 
