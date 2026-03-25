@@ -88,6 +88,17 @@ def init_bronze_schema(conn: duckdb.DuckDBPyConnection) -> None:
     """)
 
     conn.execute("""
+        CREATE TABLE IF NOT EXISTS bronze_tabletop.spell_list_entries (
+            source_file       VARCHAR NOT NULL,
+            entry_name        VARCHAR NOT NULL,
+            entry_class       VARCHAR NOT NULL,
+            entry_level       INTEGER NOT NULL,
+            is_reversible     BOOLEAN NOT NULL,
+            source_section    VARCHAR
+        )
+    """)
+
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS bronze_tabletop.watermarks (
             source_file       VARCHAR NOT NULL,
             watermark_text    VARCHAR NOT NULL,
@@ -362,6 +373,129 @@ def extract_known_entries(page_texts: list[str], page_printed: dict[int, int],
     return entries
 
 
+def extract_spell_list_entries(filepath: Path, page_printed: dict[int, int],
+                               toc_sections: list[dict]) -> list[dict]:
+    """Parse Appendix 1: Spell Lists using pymupdf font info.
+
+    Extracts: name, level, is_reversible (italic), spell_class (wizard/priest).
+    Uses font flags to detect italic (reversible) and bold (level headings)."""
+    import fitz
+
+    # Find spell list sections
+    spell_list_sections = [s for s in toc_sections
+                           if s["is_excluded"] and "spell list" in s["title"].lower()]
+    if not spell_list_sections:
+        return []
+
+    doc = fitz.open(str(filepath))
+
+    # Phase 1: collect raw lines with formatting and x-position
+    # x-position distinguishes: numbers (leftmost), spell names (middle), continuations (indented)
+    raw_lines = []  # (text, x_pos, is_italic, is_bold)
+    for section in spell_list_sections:
+        for page_idx in range(doc.page_count):
+            printed = page_printed.get(page_idx, page_idx)
+            if not (section["page_start"] <= printed <= section["page_end"]):
+                continue
+            page = doc[page_idx]
+            for block in page.get_text("dict")["blocks"]:
+                if "lines" not in block:
+                    continue
+                for line in block["lines"]:
+                    x_pos = line["bbox"][0]
+                    text = ""
+                    italic = False
+                    bold = False
+                    for span in line["spans"]:
+                        t = span["text"].strip()
+                        if t:
+                            text += t + " "
+                            if span["flags"] & 2:
+                                italic = True
+                            if span["flags"] & 16:
+                                bold = True
+                    text = text.strip()
+                    if text and len(text) >= 2:
+                        raw_lines.append((text, x_pos, italic, bold))
+    doc.close()
+
+    if not raw_lines:
+        return []
+
+    # Phase 2: determine base x-position for spell names
+    # Spell names are the most common x-position (excluding numbers and headings)
+    from collections import Counter
+    x_counts = Counter()
+    for text, x, italic, bold in raw_lines:
+        if not bold and not text.isdigit() and len(text) > 3:
+            x_counts[round(x, 0)] += 1
+    if not x_counts:
+        return []
+    base_x = x_counts.most_common(1)[0][0]
+
+    # Phase 3: parse entries using x-position for continuation detection
+    entries = []
+    current_level = None
+    current_class = None
+    pending_name = ""
+    pending_italic = False
+
+    def flush_pending():
+        nonlocal pending_name, pending_italic
+        if pending_name and current_level and current_class:
+            entries.append({
+                "entry_name": pending_name.lower().strip(),
+                "entry_class": current_class,
+                "entry_level": current_level,
+                "is_reversible": pending_italic,
+                "source_section": spell_list_sections[0]["title"],
+            })
+        pending_name = ""
+        pending_italic = False
+
+    for text, x_pos, italic, bold in raw_lines:
+        # Skip sequence numbers and noise
+        if text.isdigit():
+            continue
+        if "spell list" in text.lower() or "order #" in text.lower():
+            continue
+
+        # Bold = level heading
+        if bold and not italic:
+            flush_pending()
+            text_lower = text.lower()
+            for ordinal, num in [("1st", 1), ("2nd", 2), ("3rd", 3), ("4th", 4),
+                                 ("5th", 5), ("6th", 6), ("7th", 7), ("8th", 8), ("9th", 9)]:
+                if text_lower.startswith(ordinal):
+                    current_level = num
+                    if num == 1 and current_class == "wizard":
+                        current_class = "priest"
+                    elif current_class is None:
+                        current_class = "wizard"
+                    break
+            continue
+
+        if not current_level or not current_class:
+            continue
+
+        # Continuation line: x-position > base_x + threshold (indented)
+        is_continuation = round(x_pos, 0) > base_x + 5
+
+        if is_continuation and pending_name:
+            # Append to current spell name
+            pending_name += " " + text
+            pending_italic = pending_italic or italic
+        else:
+            # New spell name — flush previous
+            flush_pending()
+            pending_name = text
+            pending_italic = italic
+
+    flush_pending()
+
+    return [e for e in entries if len(e["entry_name"]) >= 3]
+
+
 def detect_watermarks(page_texts: list[str], threshold: float = 0.3) -> dict[str, int]:
     """Detect watermark lines. Returns {text: count}."""
     line_counts = {}
@@ -387,7 +521,8 @@ def config_hash(config: dict) -> str:
 def store_bronze(filepath: Path, config: dict,
                  page_texts: list[str], page_printed: dict[int, int],
                  markdown: str, toc_sections: list[dict],
-                 known_entries: set[str], watermarks: dict[str, int]) -> None:
+                 known_entries: list[dict], spell_list: list[dict],
+                 watermarks: dict[str, int]) -> None:
     """Write all raw extraction data to bronze_tabletop schema."""
     conn = duckdb.connect(DB_PATH)
     init_bronze_schema(conn)
@@ -396,7 +531,7 @@ def store_bronze(filepath: Path, config: dict,
 
     # Delete old data for this file (idempotent re-ingestion)
     for table in ["files", "marker_extractions", "page_texts",
-                   "toc_raw", "known_entries_raw", "watermarks"]:
+                   "toc_raw", "known_entries_raw", "spell_list_entries", "watermarks"]:
         conn.execute(f"DELETE FROM bronze_tabletop.{table} WHERE source_file = ?", [sf])
 
     # Files
@@ -437,6 +572,15 @@ def store_bronze(filepath: Path, config: dict,
              entry.get("sphere")],
         )
 
+    # Spell list entries (Appendix 1 — with reversible flag)
+    for entry in spell_list:
+        conn.execute(
+            "INSERT INTO bronze_tabletop.spell_list_entries VALUES (?, ?, ?, ?, ?, ?)",
+            [sf, entry["entry_name"], entry["entry_class"],
+             entry["entry_level"], entry["is_reversible"],
+             entry.get("source_section")],
+        )
+
     # Watermarks
     for text, count in watermarks.items():
         conn.execute(
@@ -446,7 +590,8 @@ def store_bronze(filepath: Path, config: dict,
 
     conn.close()
     _log(f"  Bronze stored: {len(page_texts)} pages, {len(toc_sections)} ToC, "
-         f"{len(known_entries)} index entries, {len(watermarks)} watermarks")
+         f"{len(known_entries)} index entries, {len(spell_list)} spell list, "
+         f"{len(watermarks)} watermarks")
 
 
 # ── Pipeline ─────────────────────────────────────────────────────
@@ -500,13 +645,17 @@ def extract_pdf(filepath: Path) -> None:
     known_entries = extract_known_entries(page_texts, page_printed, toc_sections, config)
     step(f"Known entries: {len(known_entries)}")
 
-    # 6. Watermarks
+    # 6. Spell list entries (Appendix 1 — with italic/reversible info)
+    spell_list = extract_spell_list_entries(filepath, page_printed, toc_sections)
+    step(f"Spell list: {len(spell_list)} entries")
+
+    # 7. Watermarks
     watermarks = detect_watermarks(page_texts)
     step(f"Watermarks: {len(watermarks)}")
 
-    # 7. Store everything
+    # 8. Store everything
     store_bronze(filepath, config, page_texts, page_printed,
-                 markdown, toc_sections, known_entries, watermarks)
+                 markdown, toc_sections, known_entries, spell_list, watermarks)
     step("Stored")
 
     _log(f"  Bronze total: {time.time() - start:.1f}s")
