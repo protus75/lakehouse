@@ -9,4 +9,5 @@ sources:
       - name: page_texts
       - name: toc_raw
       - name: known_entries_raw
+      - name: spell_list_entries
       - name: watermarks

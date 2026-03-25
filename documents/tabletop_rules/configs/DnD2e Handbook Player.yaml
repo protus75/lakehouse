@@ -236,6 +236,10 @@ validation:
         - "Table 54"
         - "Table 55"
 
+# Names to exclude from known_entries (watermarks, owner stamps)
+exclude_entry_names:
+  - "richard protus"
+
 chunking:
   max_chars: 800
   overlap: 200

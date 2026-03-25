@@ -158,3 +158,11 @@ gold:
   annotation_entry_types:
     - "spell"
     - "proficiency"
+
+# Manual overrides for known data issues that can't be fixed by parsing.
+# Each entry corrects a specific field for a specific spell.
+# Format: list of {name, class, field, value} dicts.
+manual_overrides: []
+
+# Names to exclude from known_entries (watermarks, junk)
+exclude_entry_names: []
