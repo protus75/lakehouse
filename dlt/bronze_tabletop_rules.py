@@ -88,6 +88,15 @@ def init_bronze_schema(conn: duckdb.DuckDBPyConnection) -> None:
     """)
 
     conn.execute("""
+        CREATE TABLE IF NOT EXISTS bronze_tabletop.authority_table_entries (
+            source_file       VARCHAR NOT NULL,
+            entry_name        VARCHAR NOT NULL,
+            entry_type        VARCHAR NOT NULL,
+            source_table      VARCHAR NOT NULL
+        )
+    """)
+
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS bronze_tabletop.spell_list_entries (
             source_file       VARCHAR NOT NULL,
             entry_name        VARCHAR NOT NULL,
@@ -540,6 +549,162 @@ def extract_spell_list_entries(filepath: Path, page_printed: dict[int, int],
     return [e for e in entries if len(e["entry_name"]) >= 3]
 
 
+def extract_authority_tables(markdown: str, toc_tables: list[dict],
+                             page_texts: list[str], page_printed: dict[int, int],
+                             config: dict) -> list[dict]:
+    """Parse authority tables to extract entry names.
+
+    Config `authority_tables` maps entry_type → table name (e.g. "Table 37").
+    Uses ToC table data to find the page number, then searches the Marker markdown
+    near that page's content for the actual table.
+
+    Returns list of dicts: {entry_name, entry_type, source_table}"""
+    authority = config.get("authority_tables", {})
+    if not authority:
+        return []
+
+    # Build table → page lookup from ToC
+    table_pages = {}
+    for t in toc_tables:
+        table_pages[t["title"].lower()] = t.get("page_number", 0)
+
+    entries = []
+    md_lower = markdown.lower()
+
+    for entry_type, table_name in authority.items():
+        table_lower = table_name.lower()
+
+        # Find the page this table is on from the ToC
+        ref_page = None
+        for toc_name, page in table_pages.items():
+            if table_lower in toc_name.lower() or toc_name.lower() in table_lower:
+                ref_page = page
+                break
+
+        # Find the table content in markdown near that page's content
+        # Use page_texts to find a snippet from the table's page, then locate in markdown
+        search_start = 0
+        if ref_page is not None:
+            for page_idx, printed in page_printed.items():
+                if printed == ref_page:
+                    text = page_texts[page_idx].lower()
+                    # Find a unique line from this page in the markdown
+                    for line in text.split("\n"):
+                        line = line.strip()
+                        if len(line) > 25:
+                            pos = md_lower.find(line[:30])
+                            if pos > 0:
+                                search_start = max(0, pos - 500)
+                                break
+                    break
+
+        # Find the actual table content (not ToC references).
+        # Strategy: find ALL markdown tables in the document, then pick the one
+        # that appears after the table name heading and has real data rows
+        # (not just other table names with page numbers).
+        import re as _re
+
+        # Find all occurrences of the table name
+        search_start = 0
+        table_found = False
+
+        while not table_found:
+            idx = md_lower.find(table_lower, search_start)
+            if idx < 0:
+                break
+
+            # Scan forward for a markdown table
+            lines = markdown[idx:idx + 5000].split("\n")
+            table_rows = []
+            in_table = False
+
+            for line in lines[1:]:  # skip the line with the table name
+                stripped = line.strip()
+                if stripped.startswith("|") and stripped.count("|") >= 3:
+                    in_table = True
+                    table_rows.append(stripped)
+                elif in_table:
+                    if not stripped or not stripped.startswith("|"):
+                        break
+
+            # Filter to data rows (skip separators and headers)
+            skip_words = {"proficiency", "required", "ability", "modifier",
+                          "# of slots", "check", "relevant", "slots",
+                          "clothing", "household"}  # section headers within tables
+            data_rows = []
+            for row in table_rows:
+                cells = [c.strip() for c in row.split("|")]
+                cells = [c for c in cells if c]
+                if not cells:
+                    continue
+                if all(c.replace("-", "").replace(" ", "") == "" for c in cells):
+                    continue  # separator row
+                # Check if this looks like a real data row (has a name-like cell)
+                has_name = False
+                for c in cells:
+                    c_clean = c.strip()
+                    if (len(c_clean) >= 3 and c_clean[0].isupper()
+                            and c_clean.lower() not in skip_words
+                            and not c_clean.lower().startswith("table")):
+                        has_name = True
+                        break
+                if has_name:
+                    data_rows.append(cells)
+
+            # Validate: a real proficiency/equipment table has >5 data rows
+            # with name-like entries. ToC listings have table numbers.
+            if len(data_rows) < 5:
+                search_start = idx + 1
+                continue
+
+            # Check for ToC-like content (cells with page numbers like "name 123")
+            toc_like = sum(1 for cells in data_rows[:5]
+                          for c in cells
+                          if _re.match(r'^.+\s+\d{1,3}\s*$', c.strip()))
+            if toc_like > len(data_rows[:5]):
+                search_start = idx + 1
+                continue
+
+            # Extract entry names from data rows
+            ability_names = {"intelligence", "wisdom", "strength", "dexterity",
+                             "charisma", "constitution", "na", "special", "none"}
+            for cells in data_rows:
+                for cell in cells:
+                    cell = cell.strip()
+                    if not cell or len(cell) < 3:
+                        continue
+                    if not cell[0].isupper():
+                        continue
+                    if cell.lower() in ability_names:
+                        continue
+                    # Skip pure numbers/modifiers
+                    stripped_num = cell.replace("-", "").replace("+", "").replace("–", "").replace(" ", "")
+                    if stripped_num.isdigit():
+                        continue
+                    # Skip cells that look like "name 123" (ToC references)
+                    if _re.match(r'^.+\s+\d{1,3}\s*$', cell):
+                        continue
+
+                    entries.append({
+                        "entry_name": cell.lower(),
+                        "entry_type": entry_type,
+                        "source_table": table_name,
+                    })
+
+            table_found = True
+
+    # Deduplicate
+    seen = set()
+    unique = []
+    for e in entries:
+        key = (e["entry_name"], e["entry_type"])
+        if key not in seen:
+            seen.add(key)
+            unique.append(e)
+
+    return unique
+
+
 def detect_watermarks(page_texts: list[str], threshold: float = 0.3) -> dict[str, int]:
     """Detect watermark lines. Returns {text: count}."""
     line_counts = {}
@@ -566,6 +731,7 @@ def store_bronze(filepath: Path, config: dict,
                  page_texts: list[str], page_printed: dict[int, int],
                  markdown: str, toc_sections: list[dict],
                  known_entries: list[dict], spell_list: list[dict],
+                 authority_entries: list[dict],
                  watermarks: dict[str, int]) -> None:
     """Write all raw extraction data to bronze_tabletop schema."""
     conn = duckdb.connect(DB_PATH)
@@ -574,8 +740,9 @@ def store_bronze(filepath: Path, config: dict,
     sf = filepath.name
 
     # Delete old data for this file (idempotent re-ingestion)
-    for table in ["files", "marker_extractions", "page_texts",
-                   "toc_raw", "known_entries_raw", "spell_list_entries", "watermarks"]:
+    for table in ["files", "marker_extractions", "page_texts", "toc_raw",
+                   "known_entries_raw", "spell_list_entries",
+                   "authority_table_entries", "watermarks"]:
         conn.execute(f"DELETE FROM bronze_tabletop.{table} WHERE source_file = ?", [sf])
 
     # Files
@@ -616,6 +783,13 @@ def store_bronze(filepath: Path, config: dict,
              entry.get("sphere")],
         )
 
+    # Authority table entries (proficiencies, equipment from specified tables)
+    for entry in authority_entries:
+        conn.execute(
+            "INSERT INTO bronze_tabletop.authority_table_entries VALUES (?, ?, ?, ?)",
+            [sf, entry["entry_name"], entry["entry_type"], entry["source_table"]],
+        )
+
     # Spell list entries (Appendix 1 — with reversible flag)
     for entry in spell_list:
         conn.execute(
@@ -635,7 +809,7 @@ def store_bronze(filepath: Path, config: dict,
     conn.close()
     _log(f"  Bronze stored: {len(page_texts)} pages, {len(toc_sections)} ToC, "
          f"{len(known_entries)} index entries, {len(spell_list)} spell list, "
-         f"{len(watermarks)} watermarks")
+         f"{len(authority_entries)} authority table entries, {len(watermarks)} watermarks")
 
 
 # ── Pipeline ─────────────────────────────────────────────────────
@@ -693,13 +867,24 @@ def extract_pdf(filepath: Path) -> None:
     spell_list = extract_spell_list_entries(filepath, page_printed, toc_sections)
     step(f"Spell list: {len(spell_list)} entries")
 
-    # 7. Watermarks
+    # 7. Authority tables (proficiencies, equipment from config-specified tables)
+    toc_tables = []
+    for section in toc_sections:
+        # Tables were collected during ToC parsing but not stored separately
+        # Use the toc_raw tables field if available
+        pass
+    authority_entries = extract_authority_tables(
+        markdown, toc_tables, page_texts, page_printed, config)
+    step(f"Authority tables: {len(authority_entries)} entries")
+
+    # 8. Watermarks
     watermarks = detect_watermarks(page_texts)
     step(f"Watermarks: {len(watermarks)}")
 
-    # 8. Store everything
+    # 9. Store everything
     store_bronze(filepath, config, page_texts, page_printed,
-                 markdown, toc_sections, known_entries, spell_list, watermarks)
+                 markdown, toc_sections, known_entries, spell_list,
+                 authority_entries, watermarks)
     step("Stored")
 
     _log(f"  Bronze total: {time.time() - start:.1f}s")

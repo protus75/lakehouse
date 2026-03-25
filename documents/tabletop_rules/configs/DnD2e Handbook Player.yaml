@@ -133,7 +133,19 @@ section_parsing:
     # Proficiency descriptions are "Name: description" in running text
     # not headings — detect by "CapitalWord(s): " at start of line
     inline_entry_pattern: '^([A-Z][\w\s,/''()-]+):\s+'
-    # Proficiency names come from Table 37 in the book (parsed from bronze)
+
+# Authority tables — parsed from bronze markdown as ground truth for entry names
+# Each entry: {table: name, page: printed page number, type: entry_type}
+authority_tables:
+  - table: "Table 37"
+    page: 76
+    type: proficiency
+  - table: "Table 44"
+    page: 90
+    type: equipment
+  - table: "Table 36"
+    page: 75
+    type: secondary_skill
 
 validation:
   spell_toc_patterns:
