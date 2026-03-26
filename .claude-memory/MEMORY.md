@@ -17,3 +17,10 @@
 - [feedback_kill_stale_processes.md](feedback_kill_stale_processes.md) - Check for/kill stale python processes before pipeline runs, monitor GPU
 - [reference_ollama_setup.md](reference_ollama_setup.md) - Ollama on host, models at D:\ollama\models, llama3:70b + minicpm-v
 - [feedback_no_oneoff_scripts.md](feedback_no_oneoff_scripts.md) - No one-off scripts; integrate into bronze/silver/gold layers with proper tables
+- [feedback_monitor_properly.md](feedback_monitor_properly.md) - Run background, monitor progress, report ETAs, kill stale processes first
+- [feedback_finish_before_moving_on.md](feedback_finish_before_moving_on.md) - Complete full validation before moving on, don't offer menus after partial results
+- [feedback_unload_models.md](feedback_unload_models.md) - Unload Ollama models between passes to free RAM/VRAM before loading next model
+- [feedback_config_first.md](feedback_config_first.md) - CRITICAL: Write config YAML first, then code that reads it — never hardcode then migrate
+- [project_s3_parquet.md](project_s3_parquet.md) - Lakehouse storage is S3 + Parquet, DuckDB is query engine only
+- [feedback_follow_architecture.md](feedback_follow_architecture.md) - CRITICAL: Follow lakehouse architecture, never shortcut with quick hacks
+- [project_architecture_changes.md](project_architecture_changes.md) - Unity Catalog replaces Polaris, Dagster replaces Airflow

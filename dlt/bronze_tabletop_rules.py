@@ -34,11 +34,38 @@ def init_bronze_schema(conn: duckdb.DuckDBPyConnection) -> None:
     conn.execute("CREATE SCHEMA IF NOT EXISTS bronze_tabletop")
 
     conn.execute("""
+        CREATE TABLE IF NOT EXISTS bronze_tabletop.pipeline_runs (
+            run_id            VARCHAR PRIMARY KEY,
+            source_file       VARCHAR NOT NULL,
+            step              VARCHAR NOT NULL,
+            pipeline_version  VARCHAR,
+            config_hash       VARCHAR,
+            status            VARCHAR NOT NULL DEFAULT 'running',
+            started_at        TIMESTAMP NOT NULL,
+            finished_at       TIMESTAMP,
+            row_counts        VARCHAR,
+            error_message     VARCHAR
+        )
+    """)
+
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS bronze_tabletop.catalog (
+            source_file       VARCHAR NOT NULL,
+            table_name        VARCHAR NOT NULL,
+            row_count         INTEGER NOT NULL,
+            refreshed_at      TIMESTAMP NOT NULL,
+            run_id            VARCHAR,
+            PRIMARY KEY (source_file, table_name)
+        )
+    """)
+
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS bronze_tabletop.files (
             source_file     VARCHAR PRIMARY KEY,
             pdf_size_bytes  BIGINT NOT NULL,
             total_pages     INTEGER NOT NULL,
-            config_hash     VARCHAR,
+            config_hash     VARCHAR NOT NULL,
+            run_id          VARCHAR NOT NULL,
             extracted_at    TIMESTAMP NOT NULL
         )
     """)
@@ -48,11 +75,10 @@ def init_bronze_schema(conn: duckdb.DuckDBPyConnection) -> None:
             source_file     VARCHAR PRIMARY KEY,
             markdown_text   VARCHAR NOT NULL,
             char_count      INTEGER NOT NULL,
+            run_id          VARCHAR NOT NULL,
             extracted_at    TIMESTAMP NOT NULL
         )
     """)
-
-    # marker_pages reserved for future per-page extraction if needed
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS bronze_tabletop.page_texts (
@@ -60,6 +86,7 @@ def init_bronze_schema(conn: duckdb.DuckDBPyConnection) -> None:
             page_index        INTEGER NOT NULL,
             page_text         VARCHAR NOT NULL,
             printed_page_num  INTEGER,
+            run_id            VARCHAR NOT NULL,
             PRIMARY KEY (source_file, page_index)
         )
     """)
@@ -71,6 +98,7 @@ def init_bronze_schema(conn: duckdb.DuckDBPyConnection) -> None:
             page_start      INTEGER NOT NULL,
             page_end        INTEGER,
             is_excluded     BOOLEAN DEFAULT FALSE,
+            run_id          VARCHAR NOT NULL,
             PRIMARY KEY (source_file, title)
         )
     """)
@@ -84,7 +112,8 @@ def init_bronze_schema(conn: duckdb.DuckDBPyConnection) -> None:
             ref_page        INTEGER,
             source_section  VARCHAR,
             school          VARCHAR,
-            sphere          VARCHAR
+            sphere          VARCHAR,
+            run_id          VARCHAR NOT NULL
         )
     """)
 
@@ -96,6 +125,7 @@ def init_bronze_schema(conn: duckdb.DuckDBPyConnection) -> None:
             format            VARCHAR NOT NULL,
             row_index         INTEGER NOT NULL,
             cells             VARCHAR NOT NULL,
+            run_id            VARCHAR NOT NULL,
             PRIMARY KEY (source_file, table_number, row_index)
         )
     """)
@@ -105,7 +135,8 @@ def init_bronze_schema(conn: duckdb.DuckDBPyConnection) -> None:
             source_file       VARCHAR NOT NULL,
             entry_name        VARCHAR NOT NULL,
             entry_type        VARCHAR NOT NULL,
-            source_table      VARCHAR NOT NULL
+            source_table      VARCHAR NOT NULL,
+            run_id            VARCHAR NOT NULL
         )
     """)
 
@@ -116,7 +147,8 @@ def init_bronze_schema(conn: duckdb.DuckDBPyConnection) -> None:
             entry_class       VARCHAR NOT NULL,
             entry_level       INTEGER NOT NULL,
             is_reversible     BOOLEAN NOT NULL,
-            source_section    VARCHAR
+            source_section    VARCHAR,
+            run_id            VARCHAR NOT NULL
         )
     """)
 
@@ -125,7 +157,21 @@ def init_bronze_schema(conn: duckdb.DuckDBPyConnection) -> None:
             source_file       VARCHAR NOT NULL,
             watermark_text    VARCHAR NOT NULL,
             occurrence_count  INTEGER NOT NULL,
+            run_id            VARCHAR NOT NULL,
             PRIMARY KEY (source_file, watermark_text)
+        )
+    """)
+
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS bronze_tabletop.validation_results (
+            source_file       VARCHAR NOT NULL,
+            check_name        VARCHAR NOT NULL,
+            status            VARCHAR NOT NULL,
+            message           VARCHAR,
+            details           VARCHAR,
+            run_id            VARCHAR NOT NULL,
+            checked_at        TIMESTAMP NOT NULL,
+            PRIMARY KEY (source_file, check_name)
         )
     """)
 
@@ -135,10 +181,67 @@ def init_bronze_schema(conn: duckdb.DuckDBPyConnection) -> None:
             wrong_text        VARCHAR NOT NULL,
             suggested_fix     VARCHAR NOT NULL,
             context           VARCHAR,
-            status            VARCHAR DEFAULT 'pending',
+            status            VARCHAR DEFAULT 'candidate',
+            model             VARCHAR,
+            run_id            VARCHAR NOT NULL,
             checked_at        TIMESTAMP NOT NULL
         )
     """)
+
+
+# ── Lineage & Catalog ────────────────────────────────────────────
+
+import uuid
+
+
+def start_run(conn, source_file: str, step: str, config: dict) -> str:
+    """Begin a pipeline run. Returns run_id."""
+    run_id = str(uuid.uuid4())[:12]
+    lineage_cfg = config.get("lineage", {})
+    version = lineage_cfg.get("pipeline_version", "unknown")
+    c_hash = config_hash(config)
+    now = datetime.now(timezone.utc)
+    conn.execute(
+        "INSERT INTO bronze_tabletop.pipeline_runs VALUES (?, ?, ?, ?, ?, 'running', ?, NULL, NULL, NULL)",
+        [run_id, source_file, step, version, c_hash, now]
+    )
+    return run_id
+
+
+def finish_run(conn, run_id: str, status: str = "success",
+               row_counts: dict | None = None, error: str | None = None) -> None:
+    """Complete a pipeline run."""
+    now = datetime.now(timezone.utc)
+    conn.execute(
+        "UPDATE bronze_tabletop.pipeline_runs "
+        "SET status = ?, finished_at = ?, row_counts = ?, error_message = ? "
+        "WHERE run_id = ?",
+        [status, now, json.dumps(row_counts) if row_counts else None, error, run_id]
+    )
+
+
+def refresh_catalog(conn, source_file: str, run_id: str, config: dict) -> None:
+    """Snapshot row counts for all bronze tables into the catalog."""
+    lineage_cfg = config.get("lineage", {})
+    tables = lineage_cfg.get("catalog_tables", [])
+    now = datetime.now(timezone.utc)
+    for table in tables:
+        try:
+            row = conn.execute(
+                f"SELECT count(*) FROM bronze_tabletop.{table} WHERE source_file = ?",
+                [source_file]
+            ).fetchone()
+            count = row[0] if row else 0
+        except Exception:
+            count = 0
+        conn.execute(
+            "DELETE FROM bronze_tabletop.catalog WHERE source_file = ? AND table_name = ?",
+            [source_file, table]
+        )
+        conn.execute(
+            "INSERT INTO bronze_tabletop.catalog VALUES (?, ?, ?, ?, ?)",
+            [source_file, table, count, now, run_id]
+        )
 
 
 # ── Extraction Functions ─────────────────────────────────────────
@@ -401,6 +504,9 @@ def extract_known_entries(page_texts: list[str], page_printed: dict[int, int],
     entries = []
     seen = set()
 
+    grouped_class_map = config.get("grouped_index_class_map", {})
+    index_abbrevs = config.get("spell_index_abbreviations", {})
+
     for section in excluded:
         section_title = section["title"].lower()
         is_school_index = "by school" in section_title
@@ -423,7 +529,8 @@ def extract_known_entries(page_texts: list[str], page_printed: dict[int, int],
                     # Grouped index: headings are school/sphere names,
                     # lines underneath are 'SpellName (1st)' or 'SpellName (2nd)'
                     # A heading is a short line with no parenthetical and starts uppercase
-                    if stripped[0].isupper() and "(" not in stripped and len(stripped) < 30:
+                    max_heading = config.get("spell_list_layout", {}).get("max_grouped_heading_length", 30)
+                    if stripped[0].isupper() and "(" not in stripped and len(stripped) < max_heading:
                         current_group = stripped
                         continue
 
@@ -443,7 +550,7 @@ def extract_known_entries(page_texts: list[str], page_printed: dict[int, int],
 
                     entry = {
                         "entry_name": name.lower(),
-                        "entry_class": "wizard" if is_school_index else "priest",
+                        "entry_class": grouped_class_map.get("by_school", "wizard") if is_school_index else grouped_class_map.get("by_sphere", "priest"),
                         "entry_level": level,
                         "ref_page": None,
                         "source_section": section["title"],
@@ -476,10 +583,10 @@ def extract_known_entries(page_texts: list[str], page_printed: dict[int, int],
                             parts = inner.split()
                             if parts:
                                 cls = parts[0].lower()
-                                if cls in ("pr", "pri", "priest"):
-                                    entry_class = "priest"
-                                elif cls in ("wiz", "wizard"):
-                                    entry_class = "wizard"
+                                for class_name, abbrevs in index_abbrevs.items():
+                                    if cls in abbrevs:
+                                        entry_class = class_name
+                                        break
                                 if len(parts) >= 2 and parts[1].isdigit():
                                     entry_level = int(parts[1])
                         name = raw_title[:paren_start].strip()
@@ -508,11 +615,13 @@ def extract_known_entries(page_texts: list[str], page_printed: dict[int, int],
 
 
 def extract_spell_list_entries(filepath: Path, page_printed: dict[int, int],
-                               toc_sections: list[dict]) -> list[dict]:
+                               toc_sections: list[dict],
+                               config: dict | None = None) -> list[dict]:
     """Parse Appendix 1: Spell Lists using pymupdf font info.
 
     Extracts: name, level, is_reversible (italic), spell_class (wizard/priest).
     Uses font flags to detect italic (reversible) and bold (level headings)."""
+    config = config or {}
     import fitz
 
     # Find spell list sections
@@ -561,16 +670,22 @@ def extract_spell_list_entries(filepath: Path, page_printed: dict[int, int],
         return []
 
     # Phase 2: find bold headings to identify class and level columns
+    class_keywords = config.get("spell_class_keywords", {"wizard": ["wizard", "mage"], "priest": ["priest", "cleric"]})
+    layout = config.get("spell_list_layout", {})
+    col_match_tol = layout.get("column_match_tolerance", 25)
+    col_collect_tol = layout.get("column_collect_tolerance", 30)
+    skip_patterns = [s.lower() for s in layout.get("skip_patterns", ["order #"])]
+
     class_headings = []  # (abs_y, class_name)
     level_columns = []   # (abs_y, x, level_num)
     for abs_y, x, text, italic, bold in all_lines:
         if not bold:
             continue
         text_lower = text.lower().strip()
-        if "wizard" in text_lower and "spell" in text_lower:
-            class_headings.append((abs_y, "wizard"))
-        elif "priest" in text_lower and "spell" in text_lower:
-            class_headings.append((abs_y, "priest"))
+        for class_name, keywords in class_keywords.items():
+            if any(kw in text_lower for kw in keywords) and "spell" in text_lower:
+                class_headings.append((abs_y, class_name))
+                break
         for ordinal, num in [("1st", 1), ("2nd", 2), ("3rd", 3), ("4th", 4),
                              ("5th", 5), ("6th", 6), ("7th", 7), ("8th", 8), ("9th", 9)]:
             if text_lower.startswith(ordinal):
@@ -599,7 +714,7 @@ def extract_spell_list_entries(filepath: Path, page_printed: dict[int, int],
         # - Above the next level heading at same x, or next class heading
         next_y = float("inf")
         for other_y, other_x, _ in level_columns:
-            if other_y > col_y and abs(other_x - col_x) < 25:
+            if other_y > col_y and abs(other_x - col_x) < col_match_tol:
                 next_y = min(next_y, other_y)
                 break
         for h_y, _ in class_headings:
@@ -612,12 +727,12 @@ def extract_spell_list_entries(filepath: Path, page_printed: dict[int, int],
                 continue
             if abs_y <= col_y or abs_y >= next_y:
                 continue
-            if abs(round(x) - col_x) > 30:
+            if abs(round(x) - col_x) > col_collect_tol:
                 continue
             if len(text) < 2:
                 continue
             text_stripped = text.strip()
-            if "order #" in text_stripped.lower() or text_stripped.startswith("*"):
+            if any(sp in text_stripped.lower() for sp in skip_patterns) or text_stripped.startswith("*"):
                 continue
             col_spans.append((abs_y, x, text_stripped, italic))
 
@@ -1024,14 +1139,9 @@ def extract_authority_entries(all_tables: list[dict], config: dict) -> list[dict
     # Build lookup: table_number → parsed table
     table_lookup = {t["table_number"]: t for t in all_tables}
 
-    # Values that are metadata/headers, not entry names — from config or defaults
-    default_skip = [
-        "proficiency", "required", "ability", "modifier", "check",
-        "# of slots", "relevant", "slots", "na", "special", "none",
-        "intelligence", "wisdom", "strength", "dexterity", "charisma",
-        "constitution", "roll", "d100", "secondary skill",
-    ]
-    skip_lower = set(s.lower() for s in config.get("authority_skip_values", default_skip))
+    # Values that are metadata/headers, not entry names — from config
+    skip_lower = set(s.lower() for s in config.get("authority_skip_values", []))
+    skip_regexes = [re.compile(p, re.IGNORECASE) for p in config.get("authority_skip_patterns", [])]
 
     for auth in authority:
         table_name = auth["table"]
@@ -1071,17 +1181,8 @@ def extract_authority_entries(all_tables: list[dict], config: dict) -> list[dict
                     cleaned = part.replace("-", "").replace("+", "").replace("–", "").replace(" ", "").replace(",", "")
                     if cleaned.isdigit():
                         continue
-                    # Skip price-like values (e.g. "3 sp", "10 gp", "500 gp")
-                    if re.match(r'^\d[\d,]*\s*(?:cp|sp|gp|pp|ep|lbs?\.?|ft\.?)$', part, re.IGNORECASE):
-                        continue
-                    # Skip cells that are just numbers with units
-                    if re.match(r'^[\d,./⁄½¼¾\s\-–+*]+(?:\s*(?:cp|sp|gp|pp|ep|lbs?\.?|ft\.?))?$', part):
-                        continue
-                    # Skip modifier values like "+1", "–2", "0"
-                    if re.match(r'^[+\-–]?\d{1,2}$', part):
-                        continue
-                    # Skip "Table N" references
-                    if re.match(r'^Table\s+\d+', part, re.IGNORECASE):
+                    # Skip values matching config patterns (prices, units, modifiers, table refs)
+                    if any(rx.match(part) for rx in skip_regexes):
                         continue
 
                     entries.append({
@@ -1126,7 +1227,7 @@ def config_hash(config: dict) -> str:
 
 # ── Store to Bronze ──────────────────────────────────────────────
 
-def store_bronze(filepath: Path, config: dict,
+def store_bronze(filepath: Path, config: dict, run_id: str,
                  page_texts: list[str], page_printed: dict[int, int],
                  markdown: str, toc_sections: list[dict],
                  known_entries: list[dict], spell_list: list[dict],
@@ -1146,81 +1247,89 @@ def store_bronze(filepath: Path, config: dict,
 
     # Files
     conn.execute(
-        "INSERT INTO bronze_tabletop.files VALUES (?, ?, ?, ?, ?)",
-        [sf, filepath.stat().st_size, len(page_texts), config_hash(config), now],
+        "INSERT INTO bronze_tabletop.files VALUES (?, ?, ?, ?, ?, ?)",
+        [sf, filepath.stat().st_size, len(page_texts), config_hash(config), run_id, now],
     )
 
     # Marker extraction
     conn.execute(
-        "INSERT INTO bronze_tabletop.marker_extractions VALUES (?, ?, ?, ?)",
-        [sf, markdown, len(markdown), now],
+        "INSERT INTO bronze_tabletop.marker_extractions VALUES (?, ?, ?, ?, ?)",
+        [sf, markdown, len(markdown), run_id, now],
     )
 
     # Page texts
     for page_idx, text in enumerate(page_texts):
         printed = page_printed.get(page_idx, page_idx)
         conn.execute(
-            "INSERT INTO bronze_tabletop.page_texts VALUES (?, ?, ?, ?)",
-            [sf, page_idx, text, printed],
+            "INSERT INTO bronze_tabletop.page_texts VALUES (?, ?, ?, ?, ?)",
+            [sf, page_idx, text, printed, run_id],
         )
 
     # ToC
     for section in toc_sections:
         conn.execute(
-            "INSERT INTO bronze_tabletop.toc_raw VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO bronze_tabletop.toc_raw VALUES (?, ?, ?, ?, ?, ?)",
             [sf, section["title"], section["page_start"],
-             section["page_end"], section["is_excluded"]],
+             section["page_end"], section["is_excluded"], run_id],
         )
 
     # Known entries (full metadata from all index appendixes)
     for entry in known_entries:
         conn.execute(
-            "INSERT INTO bronze_tabletop.known_entries_raw VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO bronze_tabletop.known_entries_raw VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             [sf, entry["entry_name"], entry.get("entry_class"),
              entry.get("entry_level"), entry.get("ref_page"),
              entry.get("source_section"), entry.get("school"),
-             entry.get("sphere")],
+             entry.get("sphere"), run_id],
         )
 
     # All parsed tables (every table in the document)
-    import json as _json
     for tbl in all_tables:
         for row_idx, cells in enumerate(tbl["rows"]):
             conn.execute(
-                "INSERT INTO bronze_tabletop.tables_raw VALUES (?, ?, ?, ?, ?, ?)",
+                "INSERT INTO bronze_tabletop.tables_raw VALUES (?, ?, ?, ?, ?, ?, ?)",
                 [sf, tbl["table_number"], tbl["table_title"],
-                 tbl.get("format", "pipe"), row_idx, _json.dumps(cells)],
+                 tbl.get("format", "pipe"), row_idx, json.dumps(cells), run_id],
             )
 
     # Authority table entries (proficiencies, equipment from specified tables)
     for entry in authority_entries:
         conn.execute(
-            "INSERT INTO bronze_tabletop.authority_table_entries VALUES (?, ?, ?, ?)",
-            [sf, entry["entry_name"], entry["entry_type"], entry["source_table"]],
+            "INSERT INTO bronze_tabletop.authority_table_entries VALUES (?, ?, ?, ?, ?)",
+            [sf, entry["entry_name"], entry["entry_type"], entry["source_table"], run_id],
         )
 
     # Spell list entries (Appendix 1 — with reversible flag)
     for entry in spell_list:
         conn.execute(
-            "INSERT INTO bronze_tabletop.spell_list_entries VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO bronze_tabletop.spell_list_entries VALUES (?, ?, ?, ?, ?, ?, ?)",
             [sf, entry["entry_name"], entry["entry_class"],
              entry["entry_level"], entry["is_reversible"],
-             entry.get("source_section")],
+             entry.get("source_section"), run_id],
         )
 
     # Watermarks
     for text, count in watermarks.items():
         conn.execute(
-            "INSERT INTO bronze_tabletop.watermarks VALUES (?, ?, ?)",
-            [sf, text, count],
+            "INSERT INTO bronze_tabletop.watermarks VALUES (?, ?, ?, ?)",
+            [sf, text, count, run_id],
         )
 
-    total_table_rows = sum(len(t["rows"]) for t in all_tables)
+    # Refresh catalog
+    row_counts = {
+        "page_texts": len(page_texts), "toc_raw": len(toc_sections),
+        "known_entries_raw": len(known_entries), "spell_list_entries": len(spell_list),
+        "tables_raw": sum(len(t["rows"]) for t in all_tables),
+        "authority_table_entries": len(authority_entries), "watermarks": len(watermarks),
+    }
+    refresh_catalog(conn, sf, run_id, config)
     conn.close()
-    _log(f"  Bronze stored: {len(page_texts)} pages, {len(toc_sections)} ToC, "
-         f"{len(known_entries)} index entries, {len(spell_list)} spell list, "
-         f"{len(all_tables)} tables ({total_table_rows} rows), "
-         f"{len(authority_entries)} authority entries, {len(watermarks)} watermarks")
+
+    _log(f"  Bronze stored (run {run_id}): {row_counts['page_texts']} pages, "
+         f"{row_counts['toc_raw']} ToC, {row_counts['known_entries_raw']} index entries, "
+         f"{row_counts['spell_list_entries']} spell list, "
+         f"{len(all_tables)} tables ({row_counts['tables_raw']} rows), "
+         f"{row_counts['authority_table_entries']} authority, {row_counts['watermarks']} watermarks")
 
 
 # ── Pipeline ─────────────────────────────────────────────────────
@@ -1249,90 +1358,121 @@ def extract_pdf(filepath: Path) -> None:
         [filepath.name],
     ).fetchone()
     current_hash = config_hash(config)
-    conn.close()
 
     if existing and existing[0] == current_hash:
+        conn.close()
         _log(f"  Bronze: already extracted (config unchanged), skipping")
         return
 
-    # 1. Page texts + printed page numbers
-    page_texts, page_printed, total_pages = extract_page_texts(filepath, config)
-    step(f"PDF: {total_pages} pages")
+    # Start pipeline run
+    run_id = start_run(conn, filepath.name, "extract", config)
+    conn.close()
+    _log(f"  Run: {run_id}")
 
-    # 2. ToC (sections + tables)
-    toc_sections, toc_tables = extract_toc(page_texts, config)
-    included = sum(1 for s in toc_sections if not s["is_excluded"])
-    excluded = sum(1 for s in toc_sections if s["is_excluded"])
-    step(f"ToC: {included} sections, {excluded} excluded, {len(toc_tables)} tables")
+    try:
+        # 1. Page texts + printed page numbers
+        page_texts, page_printed, total_pages = extract_page_texts(filepath, config)
+        step(f"PDF: {total_pages} pages")
 
-    # 3. Marker full document (uses disk cache if available)
-    _log("  Marker: extracting full document...")
-    markdown = extract_marker_markdown(filepath)
-    step(f"Marker doc: {len(markdown):,} chars")
+        # 2. ToC (sections + tables)
+        toc_sections, toc_tables = extract_toc(page_texts, config)
+        included = sum(1 for s in toc_sections if not s["is_excluded"])
+        excluded = sum(1 for s in toc_sections if s["is_excluded"])
+        step(f"ToC: {included} sections, {excluded} excluded, {len(toc_tables)} tables")
 
-    # 5. Known entries from indexes
-    known_entries = extract_known_entries(page_texts, page_printed, toc_sections, config)
-    step(f"Known entries: {len(known_entries)}")
+        # 3. Marker full document (uses disk cache if available)
+        _log("  Marker: extracting full document...")
+        markdown = extract_marker_markdown(filepath)
+        step(f"Marker doc: {len(markdown):,} chars")
 
-    # 6. Spell list entries (Appendix 1 — with italic/reversible info)
-    spell_list = extract_spell_list_entries(filepath, page_printed, toc_sections)
-    step(f"Spell list: {len(spell_list)} entries")
+        # 4. Known entries from indexes
+        known_entries = extract_known_entries(page_texts, page_printed, toc_sections, config)
+        step(f"Known entries: {len(known_entries)}")
 
-    # 7. Parse ALL tables from markdown (matched to ToC via page positions)
-    all_tables = extract_all_tables(markdown, toc_tables, page_texts, page_printed, config)
-    step(f"Tables: {len(all_tables)} parsed")
+        # 5. Spell list entries (Appendix 1 — with italic/reversible info)
+        spell_list = extract_spell_list_entries(filepath, page_printed, toc_sections, config)
+        step(f"Spell list: {len(spell_list)} entries")
 
-    # 8. Authority entries from config-specified tables
-    authority_entries = extract_authority_entries(all_tables, config)
-    step(f"Authority entries: {len(authority_entries)}")
+        # 6. Parse ALL tables from markdown (matched to ToC via page positions)
+        all_tables = extract_all_tables(markdown, toc_tables, page_texts, page_printed, config)
+        step(f"Tables: {len(all_tables)} parsed")
 
-    # 9. Watermarks
-    watermarks = detect_watermarks(page_texts)
-    step(f"Watermarks: {len(watermarks)}")
+        # 7. Authority entries from config-specified tables
+        authority_entries = extract_authority_entries(all_tables, config)
+        step(f"Authority entries: {len(authority_entries)}")
 
-    # 10. Store everything
-    store_bronze(filepath, config, page_texts, page_printed,
-                 markdown, toc_sections, known_entries, spell_list,
-                 all_tables, authority_entries, watermarks)
-    step("Stored")
+        # 8. Watermarks
+        watermarks = detect_watermarks(page_texts)
+        step(f"Watermarks: {len(watermarks)}")
+
+        # 9. Store everything
+        store_bronze(filepath, config, run_id, page_texts, page_printed,
+                     markdown, toc_sections, known_entries, spell_list,
+                     all_tables, authority_entries, watermarks)
+        step("Stored")
+
+        # Complete the run
+        conn = duckdb.connect(DB_PATH)
+        row_counts = {
+            "page_texts": len(page_texts), "toc_raw": len(toc_sections),
+            "known_entries_raw": len(known_entries), "spell_list_entries": len(spell_list),
+            "tables_raw": sum(len(t["rows"]) for t in all_tables),
+            "authority_table_entries": len(authority_entries), "watermarks": len(watermarks),
+        }
+        finish_run(conn, run_id, "success", row_counts)
+        conn.close()
+
+    except Exception as e:
+        conn = duckdb.connect(DB_PATH)
+        finish_run(conn, run_id, "failed", error=str(e))
+        conn.close()
+        raise
 
     _log(f"  Bronze total: {time.time() - start:.1f}s")
 
 
 # ── OCR Validation ─────────────────────────────────────────────
 
-OCR_PROMPT = (
-    'You are proofreading OCR-scanned text from a tabletop RPG rulebook '
-    '(AD&D 2nd Edition).\n\n'
-    'Identify ONLY clear OCR errors and misspellings. For each error, '
-    'output a JSON object with "wrong" and "correct" fields.\n\n'
-    'Rules:\n'
-    '- Do NOT flag game terms, archaic spellings, or proper nouns\n'
-    '- Do NOT flag markdown formatting, abbreviations, or dice notation\n'
-    '- ONLY flag words clearly garbled by OCR (wrong letters, merged words)\n'
-    '- Output ONLY a JSON array. Empty array [] if no errors.\n\n'
-    'Example: [{{"wrong": "Tumans", "correct": "Humans"}}]\n\n'
-    'Text:\n---\n{text}\n---\n\nJSON array:'
-)
-
-
-def _call_ollama(prompt: str, config: dict) -> str | None:
-    """Call Ollama API. URL and model from config or defaults."""
+def _unload_ollama_model(model: str, config: dict) -> None:
+    """Unload a model from Ollama to free RAM/VRAM."""
     import requests
-    url = config.get("ollama_url", "http://host.docker.internal:11434")
-    model = config.get("ollama_model", "llama3:70b")
+    url = config.get("ocr_check", {}).get("ollama_url", "http://host.docker.internal:11434")
     try:
-        resp = requests.post(
-            f"{url}/api/generate",
-            json={"model": model, "prompt": prompt, "stream": False,
-                  "options": {"temperature": 0.0, "num_predict": 500}},
-            timeout=120,
-        )
-        resp.raise_for_status()
-        return resp.json().get("response", "").strip()
-    except Exception as e:
-        _log(f"  Ollama error: {e}")
-        return None
+        requests.post(f"{url}/api/generate", json={"model": model, "keep_alive": 0}, timeout=30)
+        _log(f"  Unloaded model: {model}")
+    except Exception:
+        pass
+
+
+def _call_ollama(prompt: str, config: dict, model_override: str | None = None,
+                 max_tokens_override: int | None = None) -> str | None:
+    """Call Ollama API with retries. All settings from config ocr_check section."""
+    import requests
+    import time as _time
+    ocr_cfg = config.get("ocr_check", {})
+    url = ocr_cfg.get("ollama_url", "http://host.docker.internal:11434")
+    model = model_override
+    if not model:
+        raise ValueError("model_override is required — caller must specify which model to use")
+    timeout = ocr_cfg.get("timeout", 180)
+    retries = ocr_cfg.get("retries", 3)
+    temperature = ocr_cfg.get("temperature", 0.0)
+    max_tokens = max_tokens_override or ocr_cfg.get("bronze_max_tokens", 500)
+    for attempt in range(1, retries + 1):
+        try:
+            resp = requests.post(
+                f"{url}/api/generate",
+                json={"model": model, "prompt": prompt, "stream": False,
+                      "options": {"temperature": temperature, "num_predict": max_tokens}},
+                timeout=timeout,
+            )
+            resp.raise_for_status()
+            return resp.json().get("response", "").strip()
+        except Exception as e:
+            _log(f"  Ollama error (attempt {attempt}/{retries}): {e}")
+            if attempt < retries:
+                _time.sleep(5)
+    return None
 
 
 def _parse_ocr_response(text: str) -> list[dict]:
@@ -1349,21 +1489,35 @@ def _parse_ocr_response(text: str) -> list[dict]:
         return []
 
 
-def check_ocr(source_file: str, sample: int = 0) -> None:
+def check_ocr(source_file: str, sample: int = 0, resume: bool = True) -> None:
     """Bronze validation: scan markdown for OCR issues using Ollama.
 
     Reads already-extracted markdown, applies existing content_substitutions,
     sends text chunks to LLM, stores findings in bronze_tabletop.ocr_issues.
+    Supports resume — skips chunks already checked (by hash) in ocr_progress.
     """
+    import time as _time
     conn = duckdb.connect(DB_PATH)
     init_bronze_schema(conn)
 
+    # Progress tracking table (no run_id — progress spans multiple runs by design)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS bronze_tabletop.ocr_progress (
+            source_file   VARCHAR NOT NULL,
+            chunk_hash    VARCHAR NOT NULL,
+            chunk_index   INTEGER NOT NULL,
+            checked_at    TIMESTAMP NOT NULL,
+            PRIMARY KEY (source_file, chunk_hash)
+        )
+    """)
+
     configs_dir = DOCUMENTS_DIR.parent / "configs"
     config = load_config(Path(source_file), configs_dir)
+    run_id = start_run(conn, source_file, "check_ocr", config)
 
     row = conn.execute(
-        f"SELECT markdown_text FROM bronze_tabletop.marker_extractions "
-        f"WHERE source_file = ?", [source_file]
+        "SELECT markdown_text FROM bronze_tabletop.marker_extractions "
+        "WHERE source_file = ?", [source_file]
     ).fetchone()
     if not row:
         _log(f"No markdown found for {source_file}")
@@ -1376,12 +1530,16 @@ def check_ocr(source_file: str, sample: int = 0) -> None:
         if len(sub) == 2:
             md = md.replace(sub[0], sub[1])
 
-    # Chunk into ~3000 char segments, skip table-heavy chunks
+    # Chunk into segments, skip table-heavy chunks
+    ocr_cfg = config.get("ocr_check", {})
+    chunk_size = ocr_cfg.get("chunk_size", 3000)
+    table_threshold = ocr_cfg.get("table_line_threshold", 0.5)
+
     paragraphs = md.split("\n\n")
     chunks = []
     current = ""
     for para in paragraphs:
-        if len(current) + len(para) + 2 > 3000 and current:
+        if len(current) + len(para) + 2 > chunk_size and current:
             chunks.append(current)
             current = para
         else:
@@ -1393,7 +1551,7 @@ def check_ocr(source_file: str, sample: int = 0) -> None:
     for chunk in chunks:
         pipe_lines = sum(1 for line in chunk.split("\n") if line.strip().startswith("|"))
         total_lines = max(1, len(chunk.split("\n")))
-        if pipe_lines / total_lines <= 0.5:
+        if pipe_lines / total_lines <= table_threshold:
             text_chunks.append(chunk)
 
     if sample and sample < len(text_chunks):
@@ -1401,23 +1559,65 @@ def check_ocr(source_file: str, sample: int = 0) -> None:
         random.seed(42)
         text_chunks = random.sample(text_chunks, sample)
 
-    _log(f"OCR check: {source_file} — {len(text_chunks)} text chunks"
-         f"{f' (sampled from {len(chunks)})' if sample else ''}")
+    # Check which chunks already processed (resume support)
+    done_hashes = set()
+    if resume:
+        rows = conn.execute(
+            "SELECT chunk_hash FROM bronze_tabletop.ocr_progress WHERE source_file = ?",
+            [source_file]
+        ).fetchall()
+        done_hashes = {r[0] for r in rows}
 
-    # Clear previous issues for this file
-    conn.execute(
-        "DELETE FROM bronze_tabletop.ocr_issues WHERE source_file = ?",
-        [source_file]
-    )
+    chunk_hashes = [hashlib.md5(c.encode()).hexdigest()[:12] for c in text_chunks]
+    remaining = [(i, c, h) for i, (c, h) in enumerate(zip(text_chunks, chunk_hashes))
+                 if h not in done_hashes]
+
+    total = len(text_chunks)
+    skipped = total - len(remaining)
+
+    _log(f"OCR check: {source_file} — {total} text chunks"
+         f"{f' (sampled from {len(chunks)})' if sample else ''}"
+         f"{f', resuming ({skipped} already done)' if skipped else ''}")
+
+    if not remaining:
+        _log("  All chunks already checked. Use --no-resume to rerun.")
+        return
 
     all_errors = {}
-    from datetime import datetime
     now = datetime.now()
+    start_time = _time.time()
+    failures = 0
+    bronze_prompt = ocr_cfg.get("bronze_prompt",
+        "Identify OCR errors. Output JSON array of {{\"wrong\": ..., \"correct\": ...}}.\n\n"
+        "Text:\n---\n{text}\n---\n\nJSON array:")
+    bronze_model = ocr_cfg.get("bronze_model", "llama3:8b")
+    max_consecutive_failures = ocr_cfg.get("max_consecutive_failures", 5)
 
-    for i, chunk in enumerate(text_chunks):
-        prompt = OCR_PROMPT.format(text=chunk)
-        print(f"  Chunk {i + 1}/{len(text_chunks)}...", end=" ", flush=True)
-        response = _call_ollama(prompt, config)
+    _log(f"  Using model: {bronze_model}")
+
+    for seq, (i, chunk, chunk_hash) in enumerate(remaining):
+        prompt = bronze_prompt.format(text=chunk)
+        elapsed = _time.time() - start_time
+        rate = elapsed / max(seq, 1)
+        eta_s = rate * (len(remaining) - seq)
+        eta_min = eta_s / 60
+        print(f"  Chunk {i + 1}/{total} ({seq + 1}/{len(remaining)} remaining, "
+              f"ETA {eta_min:.0f}m)... ", end="", flush=True)
+
+        bronze_max_tokens = ocr_cfg.get("bronze_max_tokens", 500)
+        response = _call_ollama(prompt, config, model_override=bronze_model,
+                                max_tokens_override=bronze_max_tokens)
+
+        if response is None:
+            failures += 1
+            print(f"FAILED ({failures} consecutive)")
+            if failures >= max_consecutive_failures:
+                _log(f"  Aborting: {max_consecutive_failures} consecutive failures. "
+                     f"Progress saved — rerun to resume.")
+                break
+            continue
+
+        failures = 0  # reset on success
         errors = _parse_ocr_response(response)
 
         if errors:
@@ -1425,7 +1625,6 @@ def check_ocr(source_file: str, sample: int = 0) -> None:
                 wrong = err.get("wrong", "")
                 correct = err.get("correct", "")
                 if wrong and correct and wrong != correct and wrong not in all_errors:
-                    # Find context line
                     ctx = ""
                     for line in md.split("\n"):
                         if wrong in line:
@@ -1436,37 +1635,385 @@ def check_ocr(source_file: str, sample: int = 0) -> None:
         else:
             print("clean")
 
-    # Store in bronze table
-    for wrong, (correct, ctx) in all_errors.items():
+        # Record progress and store issues incrementally
         conn.execute(
-            "INSERT INTO bronze_tabletop.ocr_issues VALUES (?, ?, ?, ?, 'pending', ?)",
-            [source_file, wrong, correct, ctx, now]
+            "INSERT OR REPLACE INTO bronze_tabletop.ocr_progress VALUES (?, ?, ?, ?)",
+            [source_file, chunk_hash, i, now]
+        )
+        for wrong, (correct, ctx) in all_errors.items():
+            conn.execute(
+                "DELETE FROM bronze_tabletop.ocr_issues "
+                "WHERE source_file = ? AND wrong_text = ?",
+                [source_file, wrong]
+            )
+            conn.execute(
+                "INSERT INTO bronze_tabletop.ocr_issues VALUES (?, ?, ?, ?, 'candidate', ?, ?, ?)",
+                [source_file, wrong, correct, ctx, bronze_model, run_id, now]
+            )
+
+    total_time = _time.time() - start_time
+    checked = len(remaining) - failures
+    _log(f"  OCR check complete: {len(all_errors)} candidates found, "
+         f"{checked} chunks checked in {total_time / 60:.1f}m")
+
+    # Finish run, refresh catalog, free model
+    finish_run(conn, run_id, "success",
+               {"candidates": len(all_errors), "chunks_checked": checked})
+    refresh_catalog(conn, source_file, run_id, config)
+    _unload_ollama_model(bronze_model, config)
+
+
+def review_ocr(source_file: str) -> None:
+    """Silver pass: review OCR candidates with the large model.
+
+    Reads 'candidate' issues from bronze_tabletop.ocr_issues,
+    sends each to the silver model for confirmation, updates status
+    to 'confirmed' or 'rejected'.
+    """
+    import time as _time
+    conn = duckdb.connect(DB_PATH)
+    init_bronze_schema(conn)
+
+    configs_dir = DOCUMENTS_DIR.parent / "configs"
+    config = load_config(Path(source_file), configs_dir)
+    run_id = start_run(conn, source_file, "review_ocr", config)
+    ocr_cfg = config.get("ocr_check", {})
+    silver_model = ocr_cfg.get("silver_model", "llama3:70b")
+    silver_prompt = ocr_cfg.get("silver_prompt",
+        'Review this OCR error: "{wrong}" -> "{correct}". Context: {context}\n'
+        'Respond with JSON: {{"verdict": "confirmed" or "rejected", "reason": "brief"}}')
+
+    candidates = conn.execute(
+        "SELECT wrong_text, suggested_fix, context FROM bronze_tabletop.ocr_issues "
+        "WHERE source_file = ? AND status = 'candidate'",
+        [source_file]
+    ).fetchall()
+
+    if not candidates:
+        _log(f"No OCR candidates to review for {source_file}")
+        return
+
+    _log(f"OCR review: {source_file} — {len(candidates)} candidates, using {silver_model}")
+    start_time = _time.time()
+    confirmed = 0
+    rejected = 0
+    now = datetime.now()
+
+    for i, (wrong, correct, ctx) in enumerate(candidates):
+        prompt = silver_prompt.format(wrong=wrong, correct=correct, context=ctx or "")
+        print(f"  [{i + 1}/{len(candidates)}] '{wrong}' -> '{correct}'... ", end="", flush=True)
+
+        silver_max_tokens = ocr_cfg.get("silver_max_tokens", 300)
+        response = _call_ollama(prompt, config, model_override=silver_model,
+                                max_tokens_override=silver_max_tokens)
+        if response is None:
+            print("FAILED")
+            continue
+
+        # Parse verdict
+        verdict = "rejected"
+        reason = ""
+        try:
+            start = response.find("{")
+            end = response.rfind("}")
+            if start >= 0 and end > start:
+                result = json.loads(response[start:end + 1])
+                verdict = result.get("verdict", "rejected").lower()
+                reason = result.get("reason", "")
+        except json.JSONDecodeError:
+            if "confirmed" in response.lower():
+                verdict = "confirmed"
+
+        if verdict == "confirmed":
+            confirmed += 1
+            print(f"CONFIRMED — {reason}")
+        else:
+            rejected += 1
+            print(f"rejected — {reason}")
+
+        conn.execute(
+            "UPDATE bronze_tabletop.ocr_issues "
+            "SET status = ?, model = ?, checked_at = ? "
+            "WHERE source_file = ? AND wrong_text = ?",
+            [verdict, silver_model, now, source_file, wrong]
         )
 
-    _log(f"  OCR check complete: {len(all_errors)} issues stored in bronze_tabletop.ocr_issues")
+    total_time = _time.time() - start_time
+    _log(f"  OCR review complete: {confirmed} confirmed, {rejected} rejected "
+         f"in {total_time / 60:.1f}m")
+
+    # Finish run, refresh catalog, free model
+    finish_run(conn, run_id, "success",
+               {"confirmed": confirmed, "rejected": rejected})
+    refresh_catalog(conn, source_file, run_id, config)
+    _unload_ollama_model(silver_model, config)
 
 
-def run(directory: Path | None = None) -> None:
-    """Extract all PDFs in directory to bronze layer."""
+# ── Bronze Validation ──────────────────────────────────────────
+
+def _store_validation(conn, source_file: str, check_name: str,
+                      status: str, message: str, run_id: str,
+                      details: str = "") -> None:
+    """Upsert a validation result."""
+    now = datetime.now(timezone.utc)
+    conn.execute(
+        "DELETE FROM bronze_tabletop.validation_results "
+        "WHERE source_file = ? AND check_name = ?",
+        [source_file, check_name]
+    )
+    conn.execute(
+        "INSERT INTO bronze_tabletop.validation_results VALUES (?, ?, ?, ?, ?, ?, ?)",
+        [source_file, check_name, status, message, details, run_id, now]
+    )
+
+
+def validate_bronze(source_file: str) -> None:
+    """Run all bronze validation checks for a source file.
+
+    Checks: table completeness, entry coverage, spell cross-check,
+    content gaps, duplicate entries. Results stored in
+    bronze_tabletop.validation_results.
+    """
+    conn = duckdb.connect(DB_PATH)
+    init_bronze_schema(conn)
+    sf = source_file
+
+    configs_dir = DOCUMENTS_DIR.parent / "configs"
+    config = load_config(Path(sf), configs_dir)
+    run_id = start_run(conn, sf, "validate", config)
+    val_cfg = config.get("bronze_validation", {})
+
+    _log(f"Validating bronze: {sf} (run {run_id})")
+    passed = 0
+    warned = 0
+    failed = 0
+
+    # ── 1. Table completeness ──
+    toc_tables = conn.execute(
+        "SELECT title FROM bronze_tabletop.toc_raw "
+        "WHERE source_file = ? AND title LIKE 'Table %'",
+        [sf]
+    ).fetchall()
+    toc_table_nums = set()
+    for (title,) in toc_tables:
+        m = re.search(r'\d+', title)
+        if m:
+            toc_table_nums.add(int(m.group()))
+
+    parsed_table_nums = set()
+    if toc_table_nums:
+        rows = conn.execute(
+            "SELECT DISTINCT table_number FROM bronze_tabletop.tables_raw WHERE source_file = ?",
+            [sf]
+        ).fetchall()
+        parsed_table_nums = {r[0] for r in rows}
+
+    if toc_table_nums:
+        missing = sorted(toc_table_nums - parsed_table_nums)
+        pct = len(parsed_table_nums) / len(toc_table_nums) * 100
+        min_pct = val_cfg.get("min_table_match_pct", 80)
+        if pct >= min_pct and not missing:
+            status, msg = "pass", f"{len(parsed_table_nums)}/{len(toc_table_nums)} tables parsed (100%)"
+            passed += 1
+        elif pct >= min_pct:
+            status, msg = "warn", f"{len(parsed_table_nums)}/{len(toc_table_nums)} tables parsed ({pct:.0f}%), missing: T{', T'.join(str(n) for n in missing)}"
+            warned += 1
+        else:
+            status, msg = "fail", f"Only {pct:.0f}% tables parsed ({len(parsed_table_nums)}/{len(toc_table_nums)}), missing: T{', T'.join(str(n) for n in missing)}"
+            failed += 1
+        _store_validation(conn, sf, "table_completeness", status, msg, run_id,
+                          json.dumps({"missing": missing, "pct": round(pct, 1)}))
+        _log(f"  Table completeness: {status} — {msg}")
+
+    # ── 2. Spell index vs spell list cross-check ──
+    index_spells = set()
+    rows = conn.execute(
+        "SELECT entry_name, entry_class FROM bronze_tabletop.known_entries_raw "
+        "WHERE source_file = ? AND entry_class IS NOT NULL",
+        [sf]
+    ).fetchall()
+    for name, cls in rows:
+        index_spells.add((name.lower().strip(), cls.lower().strip()))
+
+    list_spells = set()
+    rows = conn.execute(
+        "SELECT entry_name, entry_class FROM bronze_tabletop.spell_list_entries "
+        "WHERE source_file = ?",
+        [sf]
+    ).fetchall()
+    for name, cls in rows:
+        list_spells.add((name.lower().strip(), cls.lower().strip()))
+
+    if index_spells and list_spells:
+        in_index_only = sorted(index_spells - list_spells)
+        in_list_only = sorted(list_spells - index_spells)
+        max_mismatch = val_cfg.get("max_spell_mismatch", 10)
+        total_diff = len(in_index_only) + len(in_list_only)
+
+        if total_diff == 0:
+            status, msg = "pass", f"Spell index and list match perfectly ({len(index_spells)} spells)"
+            passed += 1
+        elif total_diff <= max_mismatch:
+            status, msg = "warn", f"{total_diff} mismatches (index-only: {len(in_index_only)}, list-only: {len(in_list_only)})"
+            warned += 1
+        else:
+            status, msg = "fail", f"{total_diff} mismatches (index-only: {len(in_index_only)}, list-only: {len(in_list_only)})"
+            failed += 1
+        details = json.dumps({
+            "index_only": in_index_only[:20],
+            "list_only": in_list_only[:20],
+            "index_count": len(index_spells),
+            "list_count": len(list_spells),
+        })
+        _store_validation(conn, sf, "spell_cross_check", status, msg, run_id, details)
+        _log(f"  Spell cross-check: {status} — {msg}")
+
+    # ── 3. Content gap detection ──
+    page_rows = conn.execute(
+        "SELECT printed_page_num FROM bronze_tabletop.page_texts "
+        "WHERE source_file = ? AND printed_page_num IS NOT NULL "
+        "ORDER BY printed_page_num",
+        [sf]
+    ).fetchall()
+    if page_rows:
+        pages = [r[0] for r in page_rows]
+        max_gap = val_cfg.get("max_page_gap", 5)
+        gaps = []
+        for j in range(1, len(pages)):
+            gap = pages[j] - pages[j - 1]
+            if gap > max_gap:
+                gaps.append((pages[j - 1], pages[j], gap))
+
+        if not gaps:
+            status, msg = "pass", f"No page gaps > {max_gap} in {len(pages)} pages"
+            passed += 1
+        else:
+            status, msg = "warn", f"{len(gaps)} page gaps > {max_gap}: {', '.join(f'p{a}-{b} ({c} pages)' for a, b, c in gaps)}"
+            warned += 1
+        _store_validation(conn, sf, "content_gaps", status, msg, run_id,
+                          json.dumps({"gaps": gaps}))
+        _log(f"  Content gaps: {status} — {msg}")
+
+    # ── 4. Duplicate entry detection ──
+    sig_chars = val_cfg.get("duplicate_signature_chars", 200)
+    toc_rows = conn.execute(
+        "SELECT title FROM bronze_tabletop.toc_raw "
+        "WHERE source_file = ? AND is_excluded = false",
+        [sf]
+    ).fetchall()
+    # Check known_entries for dupes
+    entry_rows = conn.execute(
+        "SELECT entry_name, COUNT(*) as cnt FROM bronze_tabletop.known_entries_raw "
+        "WHERE source_file = ? GROUP BY entry_name HAVING cnt > 1",
+        [sf]
+    ).fetchall()
+    dupes = [(name, cnt) for name, cnt in entry_rows]
+
+    if not dupes:
+        status, msg = "pass", "No duplicate entry names in known_entries"
+        passed += 1
+    else:
+        status, msg = "warn", f"{len(dupes)} duplicate entry names: {', '.join(f'{n}({c}x)' for n, c in dupes[:10])}"
+        warned += 1
+    _store_validation(conn, sf, "duplicate_entries", status, msg, run_id,
+                      json.dumps({"duplicates": dupes[:50]}))
+    _log(f"  Duplicate entries: {status} — {msg}")
+
+    # ── 5. Authority entry coverage ──
+    authority = conn.execute(
+        "SELECT entry_name, entry_type FROM bronze_tabletop.authority_table_entries "
+        "WHERE source_file = ?",
+        [sf]
+    ).fetchall()
+    if authority:
+        authority_names = {(name.lower(), etype) for name, etype in authority}
+        known_names = set()
+        for (name,) in conn.execute(
+            "SELECT entry_name FROM bronze_tabletop.known_entries_raw WHERE source_file = ?", [sf]
+        ).fetchall():
+            known_names.add(name.lower())
+
+        not_in_known = [(n, t) for n, t in authority_names if n not in known_names]
+        if not not_in_known:
+            status, msg = "pass", f"All {len(authority_names)} authority entries found in known_entries"
+            passed += 1
+        else:
+            status, msg = "warn", f"{len(not_in_known)}/{len(authority_names)} authority entries not in known_entries"
+            warned += 1
+        _store_validation(conn, sf, "authority_coverage", status, msg, run_id,
+                          json.dumps({"missing": not_in_known[:30]}))
+        _log(f"  Authority coverage: {status} — {msg}")
+
+    status = "success" if failed == 0 else "failed"
+    finish_run(conn, run_id, status,
+               {"passed": passed, "warned": warned, "failed": failed})
+    refresh_catalog(conn, sf, run_id, config)
+    conn.close()
+    _log(f"  Validation summary: {passed} passed, {warned} warnings, {failed} failed")
+
+
+def run(directory: Path | None = None, force: bool = False) -> None:
+    """Extract new/changed PDFs to bronze layer.
+
+    Change detection: skips a PDF if its file size and config hash
+    match what's already stored in bronze_tabletop.files.
+    Use force=True to re-extract everything.
+    """
     doc_dir = directory or DOCUMENTS_DIR
     files = sorted(doc_dir.glob("*.pdf"))
     if not files:
         _log(f"No PDFs in {doc_dir}")
         return
-    _log(f"Bronze: {len(files)} PDFs ({sum(f.stat().st_size for f in files) / 1024 / 1024:.1f} MB)")
+
+    conn = duckdb.connect(DB_PATH)
+    init_bronze_schema(conn)
+
+    # Load existing extraction state
+    existing = {}
+    for row in conn.execute("SELECT source_file, pdf_size_bytes, config_hash FROM bronze_tabletop.files").fetchall():
+        existing[row[0]] = (row[1], row[2])
+    conn.close()
+
+    to_extract = []
+    skipped = []
+    configs_dir = DOCUMENTS_DIR.parent / "configs"
+
     for f in files:
+        sf = f.name
+        current_size = f.stat().st_size
+        config = load_config(f, configs_dir)
+        current_hash = config_hash(config)
+
+        if not force and sf in existing:
+            prev_size, prev_hash = existing[sf]
+            if current_size == prev_size and current_hash == prev_hash:
+                skipped.append(sf)
+                continue
+
+        to_extract.append(f)
+
+    total_mb = sum(f.stat().st_size for f in files) / 1024 / 1024
+    _log(f"Bronze: {len(files)} PDFs ({total_mb:.1f} MB), "
+         f"{len(to_extract)} new/changed, {len(skipped)} unchanged")
+
+    if not to_extract:
+        _log("Nothing to extract.")
+        return
+
+    for f in to_extract:
         extract_pdf(f)
-    _log(f"\nBronze done: {len(files)} files")
+    _log(f"\nBronze done: {len(to_extract)} files extracted")
 
 
 if __name__ == "__main__":
     import sys
     if "--check-ocr" in sys.argv:
-        # Usage: python -m dlt.bronze_tabletop_rules --check-ocr Player [--sample 50]
+        # Usage: python -m dlt.bronze_tabletop_rules --check-ocr Player [--sample 50] [--no-resume]
         args = [a for a in sys.argv[1:] if a != "--check-ocr"]
         book_filter = next((a for a in args if not a.startswith("--")), None)
         sample_idx = next((i for i, a in enumerate(args) if a == "--sample"), None)
         sample_n = int(args[sample_idx + 1]) if sample_idx is not None else 0
+        do_resume = "--no-resume" not in sys.argv
 
         conn = duckdb.connect(DB_PATH)
         init_bronze_schema(conn)
@@ -1476,7 +2023,37 @@ if __name__ == "__main__":
         files = conn.execute(query).fetchall()
         conn.close()
         for (sf,) in files:
-            check_ocr(sf, sample=sample_n)
+            check_ocr(sf, sample=sample_n, resume=do_resume)
+    elif "--review-ocr" in sys.argv:
+        # Usage: python -m dlt.bronze_tabletop_rules --review-ocr Player
+        args = [a for a in sys.argv[1:] if a != "--review-ocr"]
+        book_filter = next((a for a in args if not a.startswith("--")), None)
+
+        conn = duckdb.connect(DB_PATH)
+        init_bronze_schema(conn)
+        query = "SELECT DISTINCT source_file FROM bronze_tabletop.ocr_issues WHERE status = 'candidate'"
+        if book_filter:
+            query += f" AND source_file LIKE '%{book_filter}%'"
+        files = conn.execute(query).fetchall()
+        conn.close()
+        for (sf,) in files:
+            review_ocr(sf)
+    elif "--validate" in sys.argv:
+        # Usage: python -m dlt.bronze_tabletop_rules --validate Player
+        args = [a for a in sys.argv[1:] if a != "--validate"]
+        book_filter = next((a for a in args if not a.startswith("--")), None)
+
+        conn = duckdb.connect(DB_PATH)
+        init_bronze_schema(conn)
+        query = "SELECT DISTINCT source_file FROM bronze_tabletop.files"
+        if book_filter:
+            query += f" WHERE source_file LIKE '%{book_filter}%'"
+        files = conn.execute(query).fetchall()
+        conn.close()
+        for (sf,) in files:
+            validate_bronze(sf)
+    elif "--force" in sys.argv:
+        run(force=True)
     elif len(sys.argv) > 1:
         extract_pdf(Path(sys.argv[1]))
     else:

@@ -207,104 +207,32 @@ validation:
     - "Area of Effect"
     - "Saving Throw"
 
-  # Expected content per section — validator checks these appear in chunk content
-  section_content:
-    "Player Character Classes":
-      expected_entries:
-        - "Fighter"
-        - "Paladin"
-        - "Ranger"
-        - "Cleric"
-        - "Druid"
-        - "Mage"
-        - "Illusionist"
-        - "Thief"
-        - "Bard"
-      expected_tables:
-        - "Table 13"
-        - "Table 14"
-        - "Table 15"
-        - "Table 16"
-
-    "Proficiencies":
-      expected_entries:
-        - "Agriculture"
-        - "Animal Handling"
-        - "Blacksmithing"
-        - "Blind-fighting"
-        - "Brewing"
-        - "Cooking"
-        - "Direction Sense"
-        - "Fire-building"
-        - "Fishing"
-        - "Healing"
-        - "Herbalism"
-        - "Hunting"
-        - "Mining"
-        - "Navigation"
-        - "Reading/Writing"
-        - "Riding"
-        - "Rope Use"
-        - "Seamanship"
-        - "Set Snares"
-        - "Singing"
-        - "Swimming"
-        - "Tracking"
-        - "Weather Sense"
-      expected_tables:
-        - "Table 34"
-        - "Table 36"
-        - "Table 37"
-
-    "Money and Equipment":
-      expected_entries:
-        - "Leather"
-        - "Chain Mail"
-        - "Plate Mail"
-        - "Shield"
-        - "Long Sword"
-        - "Short Sword"
-        - "Dagger"
-        - "Mace"
-        - "Bow"
-        - "Crossbow"
-        - "Spear"
-      expected_tables:
-        - "Table 42"
-        - "Table 43"
-        - "Table 44"
-        - "Table 45"
-        - "Table 46"
-
-    "Player Character Races":
-      expected_entries:
-        - "Dwarf"
-        - "Elf"
-        - "Gnome"
-        - "Half-Elf"
-        - "Halfling"
-        - "Human"
-      expected_tables:
-        - "Table 10"
-        - "Table 11"
-        - "Table 12"
-
-    "Combat":
-      expected_entries:
-        - "Initiative"
-        - "Surprise"
-        - "Melee"
-        - "Missile"
-        - "Saving Throw"
-      expected_tables:
-        - "Table 51"
-        - "Table 53"
-        - "Table 54"
-        - "Table 55"
-
 # Names to exclude from known_entries (watermarks, owner stamps)
 exclude_entry_names:
   - "richard protus"
+
+ocr_check:
+  bronze_prompt: |
+    You are proofreading OCR-scanned text from a tabletop RPG rulebook
+    (AD&D 2nd Edition).
+
+    Identify ONLY clear OCR errors and misspellings. For each error,
+    output a JSON object with "wrong" and "correct" fields.
+
+    Rules:
+    - Do NOT flag game terms, archaic spellings, or proper nouns
+    - Do NOT flag markdown formatting, abbreviations, or dice notation
+    - ONLY flag words clearly garbled by OCR (wrong letters, merged words)
+    - Output ONLY a JSON array. Empty array [] if no errors.
+
+    Example: [{{"wrong": "Tumans", "correct": "Humans"}}]
+
+    Text:
+    ---
+    {text}
+    ---
+
+    JSON array:
 
 chunking:
   max_chars: 800

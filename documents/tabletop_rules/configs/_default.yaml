@@ -6,6 +6,24 @@ book:
   game_system: "Unknown"
   content_type: "rules"
 
+# Pipeline lineage and catalog settings
+lineage:
+  # Pipeline version — bump when extraction logic changes materially
+  pipeline_version: "0.2.0"
+  # Which bronze tables to track in the catalog
+  catalog_tables:
+    - files
+    - marker_extractions
+    - page_texts
+    - toc_raw
+    - known_entries_raw
+    - spell_list_entries
+    - tables_raw
+    - authority_table_entries
+    - watermarks
+    - ocr_issues
+    - validation_results
+
 toc:
   chapter_patterns:
     - '(?:Chapter|Appendix|Part|Section)\s+\d*\s*:?\s*[A-Za-z].*'
@@ -60,6 +78,117 @@ whitelist_sections: []
 # No entry types defined — generic parsing only
 entry_types: {}
 
+# Spell class detection — maps keywords found in bold headings to class names
+# Used by extract_spell_list_entries to identify wizard vs priest spell columns
+spell_class_keywords:
+  wizard: ["wizard", "mage"]
+  priest: ["priest", "cleric"]
+
+# Spell class mapping for grouped indexes (by school = wizard, by sphere = priest)
+# Used by extract_known_entries for "Spells by School" / "Spells by Sphere" sections
+grouped_index_class_map:
+  by_school: "wizard"
+  by_sphere: "priest"
+
+# Spell index class abbreviations — maps short codes to class names
+# Used in standard index lines like "Name (Pr 4)"
+spell_index_abbreviations:
+  priest: ["pr", "pri", "priest"]
+  wizard: ["wiz", "wizard"]
+
+# Spell list layout thresholds (pixel tolerances for PDF column detection)
+spell_list_layout:
+  max_grouped_heading_length: 30
+  column_match_tolerance: 25
+  column_collect_tolerance: 30
+  skip_patterns: ["order #"]
+
+# Authority table cell filtering — skip values that are metadata/headers, not entries
+authority_skip_values:
+  - "proficiency"
+  - "required"
+  - "ability"
+  - "modifier"
+  - "check"
+  - "# of slots"
+  - "relevant"
+  - "slots"
+  - "na"
+  - "special"
+  - "none"
+  - "intelligence"
+  - "wisdom"
+  - "strength"
+  - "dexterity"
+  - "charisma"
+  - "constitution"
+  - "roll"
+  - "d100"
+  - "secondary skill"
+
+# Regex patterns for authority table cells to skip (prices, units, modifiers, table refs)
+authority_skip_patterns:
+  - '^\d[\d,]*\s*(?:cp|sp|gp|pp|ep|lbs?\.?|ft\.?)$'
+  - '^[\d,./⁄½¼¾\s\-–+*]+(?:\s*(?:cp|sp|gp|pp|ep|lbs?\.?|ft\.?))?$'
+  - '^[+\-–]?\d{1,2}$'
+  - '^Table\s+\d+'
+
+# OCR validation settings — two-pass architecture:
+#   Bronze (fast model): high-recall scan, flags candidates
+#   Silver (large model): reviews candidates, confirms or rejects
+ocr_check:
+  ollama_url: "http://host.docker.internal:11434"
+  # Bronze pass: fast model for scanning all chunks
+  bronze_model: "llama3:8b"
+  # Silver pass: large model for reviewing flagged candidates
+  silver_model: "llama3:70b"
+  chunk_size: 3000
+  table_line_threshold: 0.5
+  max_consecutive_failures: 5
+  timeout: 180
+  retries: 3
+  temperature: 0.0
+  bronze_max_tokens: 500
+  silver_max_tokens: 300
+  bronze_prompt: |
+    You are proofreading OCR-scanned text from a tabletop RPG rulebook.
+
+    Identify ONLY clear OCR errors and misspellings. For each error,
+    output a JSON object with "wrong" and "correct" fields.
+
+    Rules:
+    - Do NOT flag game terms, archaic spellings, or proper nouns
+    - Do NOT flag markdown formatting, abbreviations, or dice notation
+    - ONLY flag words clearly garbled by OCR (wrong letters, merged words)
+    - Output ONLY a JSON array. Empty array [] if no errors.
+
+    Example: [{{"wrong": "Tumans", "correct": "Humans"}}]
+
+    Text:
+    ---
+    {text}
+    ---
+
+    JSON array:
+  silver_prompt: |
+    You are reviewing a potential OCR error flagged by a first-pass scan
+    of a tabletop RPG rulebook.
+
+    The scanner flagged "{wrong}" and suggested it should be "{correct}".
+
+    Here is the surrounding text for context:
+    ---
+    {context}
+    ---
+
+    Is this a genuine OCR error? Consider:
+    - Could this be a valid game term, proper noun, or archaic spelling?
+    - Does the suggested correction make sense in context?
+    - Is this garbled text from a rendering artifact (not a simple OCR error)?
+
+    Respond with ONLY a JSON object:
+    {{"verdict": "confirmed" or "rejected", "reason": "brief explanation"}}
+
 cross_references:
   appendix_indexes: []
   generated_indexes: []
@@ -79,6 +208,16 @@ prompts:
     {content}
     SUMMARY:
   entry_summary: ""
+
+bronze_validation:
+  # Max page gap before flagging as missing content
+  max_page_gap: 5
+  # Min chars for a duplicate signature match
+  duplicate_signature_chars: 200
+  # Table completeness: warn if fewer than this % of ToC tables parsed
+  min_table_match_pct: 80
+  # Spell cross-check: warn if index vs list mismatch exceeds this count
+  max_spell_mismatch: 10
 
 validation:
   spell_toc_patterns:

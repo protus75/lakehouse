@@ -11,3 +11,10 @@ sources:
       - name: known_entries_raw
       - name: spell_list_entries
       - name: watermarks
+      - name: tables_raw
+      - name: authority_table_entries
+      - name: validation_results
+      - name: ocr_issues
+      - name: ocr_progress
+      - name: pipeline_runs
+      - name: catalog
