@@ -140,23 +140,39 @@ def extract_page_texts(filepath: Path, config: dict) -> tuple[list[str], dict[in
     page_texts = []
     page_printed = {}
 
-    for page_idx in range(total_pages):
-        text = doc[page_idx].get_text("text")
-        page_texts.append(text)
+    # First pass: detect raw candidates from bottom/top of each page
+    raw_printed = {}
+    # Use text POSITION to find printed page numbers reliably.
+    # Page numbers live in the bottom margin (93-97% of page height),
+    # below all body content and above watermarks.
+    # This avoids false matches from table data in the body.
+    margin_min_pct = 0.92  # page number must be below 92% of page height
+    margin_max_pct = 0.98  # and above 98% (watermark zone)
 
-        printed = page_idx
-        for line in reversed(text.split("\n")):
-            stripped = line.strip()
-            if stripped and re.match(page_pattern, stripped):
-                printed = int(re.search(r"\d+", stripped).group())
-                break
+    for page_idx in range(total_pages):
+        page = doc[page_idx]
+        page_texts.append(page.get_text("text"))
+        page_height = page.rect.height
+
+        # Collect all text spans in the bottom margin zone
+        margin_texts = []
+        for block in page.get_text("dict")["blocks"]:
+            if "lines" not in block:
+                continue
+            for line in block["lines"]:
+                for span in line["spans"]:
+                    y_pct = span["bbox"][1] / page_height
+                    if margin_min_pct <= y_pct <= margin_max_pct:
+                        text = span["text"].strip()
+                        if text and re.match(page_pattern, text):
+                            margin_texts.append(int(text))
+
+        if margin_texts:
+            # Take the number closest to the bottom (highest Y) — should be
+            # exactly one page number in the margin zone
+            page_printed[page_idx] = margin_texts[-1]
         else:
-            for line in text.split("\n")[:5]:
-                stripped = line.strip()
-                if stripped and re.match(page_pattern, stripped):
-                    printed = int(re.search(r"\d+", stripped).group())
-                    break
-        page_printed[page_idx] = printed
+            page_printed[page_idx] = page_idx
 
     doc.close()
     return page_texts, page_printed, total_pages
