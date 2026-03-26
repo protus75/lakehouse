@@ -47,6 +47,13 @@ docker exec lakehouse-workspace python -u scripts/tabletop_rules/enrich_annotati
 - Authority tables: define which tables provide ground-truth entry names
 - Entry anchors: for entries Marker doesn't render as headings
 
+### Architecture rules
+- **No one-off scripts.** All functionality belongs in a lakehouse layer:
+  - Bronze (`dlt/`): ingestion, extraction, raw validation
+  - Silver/Gold (`dbt/`): transforms, enrichment, quality checks
+- Results always stored in proper tables (`bronze_tabletop.*`, `silver_tabletop.*`, `gold_tabletop.*`)
+- Validation steps (OCR check, page number validation, etc.) are bronze functions that store results in bronze tables
+
 ### Current focus: Player's Handbook only
 - Process one book until validation passes before moving to others
 - 41/41 dbt tests passing

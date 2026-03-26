@@ -1,4 +1,7 @@
 {
+  "env": {
+    "CLAUDE_TMPDIR": "D:\\Claude\\Temp"
+  },
   "permissions": {
     "allow": [
       "WebFetch(domain:pypi.org)",
@@ -13,7 +16,8 @@
       "Bash(docker exec lakehouse-workspace python -c \":*)",
       "Bash(powershell -Command \"Start-Process ''C:\\\\Program Files\\\\Docker\\\\Docker\\\\Docker Desktop.exe''\")",
       "Bash(docker info:*)",
-      "Bash(docker start:*)"
+      "Bash(docker start:*)",
+      "Bash(git add:*)"
     ]
   }
 }

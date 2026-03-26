@@ -16,3 +16,4 @@
 - [project_gold_enrichments.md](project_gold_enrichments.md) - Gold layer: AI summaries, cross-ref indices, combat/popular annotations
 - [feedback_kill_stale_processes.md](feedback_kill_stale_processes.md) - Check for/kill stale python processes before pipeline runs, monitor GPU
 - [reference_ollama_setup.md](reference_ollama_setup.md) - Ollama on host, models at D:\ollama\models, llama3:70b + minicpm-v
+- [feedback_no_oneoff_scripts.md](feedback_no_oneoff_scripts.md) - No one-off scripts; integrate into bronze/silver/gold layers with proper tables
