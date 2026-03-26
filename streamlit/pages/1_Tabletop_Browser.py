@@ -11,43 +11,41 @@ from lib.tabletop import (
     get_chapter_sections, search_entries, get_table_lookup,
 )
 
-# Style buttons to look like text links
+# Compact styles — kill all Streamlit spacing bloat
 st.markdown("""
 <style>
+    /* Kill whitespace between elements in main area */
+    div[data-testid="stMainBlockContainer"] .stElementContainer {
+        margin: 0 !important; padding: 0 !important;
+    }
+    div[data-testid="stMainBlockContainer"] .stMarkdown { margin: 0 !important; padding: 0 !important; }
+    /* All buttons → text links */
     div[data-testid="stMainBlockContainer"] button[kind="secondary"] {
-        background: none !important;
-        border: none !important;
-        padding: 0 !important;
-        margin: 0 !important;
-        color: #4a9eff !important;
-        font-size: inherit !important;
-        cursor: pointer !important;
-        text-align: left !important;
-        min-height: 0 !important;
-        line-height: 1.4 !important;
+        background: none !important; border: none !important;
+        padding: 0 !important; margin: 0 !important;
+        color: #4a9eff !important; cursor: pointer !important;
+        text-align: left !important; min-height: 0 !important;
+        line-height: 1.6 !important; font-size: 0.9rem !important;
     }
     div[data-testid="stMainBlockContainer"] button[kind="secondary"]:hover {
-        text-decoration: underline !important;
-        background: none !important;
-        border: none !important;
+        text-decoration: underline !important; background: none !important;
     }
     div[data-testid="stMainBlockContainer"] button[kind="secondary"]:focus {
         box-shadow: none !important;
     }
     div[data-testid="stMainBlockContainer"] button[kind="secondary"] p {
-        font-size: inherit !important;
+        font-size: inherit !important; margin: 0 !important;
     }
-    .chapter-link button[kind="secondary"] {
-        font-size: 1.05rem !important;
-        font-weight: 600 !important;
-        color: inherit !important;
+    /* ToC entry styles — inline in HTML */
+    .toc-line { line-height: 1.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .toc-chapter { font-weight: 600; font-size: 1rem; margin-top: 0.3rem; }
+    .toc-line a, .toc-chapter a, .toc-section a, .toc-table-entry a {
+        color: #4a9eff !important; text-decoration: none !important;
     }
-    .chapter-link button[kind="secondary"]:hover { color: #4a9eff !important; }
-    .entry-link { padding-left: 1.5rem; }
-    .entry-link button[kind="secondary"] { font-size: 0.92rem !important; }
-    .section-entry-link { padding-left: 2.5rem; }
-    .section-entry-link button[kind="secondary"] { font-size: 0.9rem !important; }
-    div[data-testid="stMainBlockContainer"] .stElementContainer { margin-bottom: -0.6rem; }
+    .toc-line a:hover, .toc-chapter a:hover, .toc-section a:hover, .toc-table-entry a:hover {
+        text-decoration: underline !important;
+    }
+    .toc-table-entry a { font-style: italic !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -135,6 +133,27 @@ if toc.is_empty():
 toc_rows = list(toc.iter_rows(named=True))
 toc_lookup = {r["toc_id"]: r for r in toc_rows}
 
+# ── Handle HTML link clicks (query params) ───────────────────
+
+if "nav_toc_id" in st.query_params:
+    clicked_id = int(st.query_params["nav_toc_id"])
+    st.query_params.clear()
+    clicked_row = toc_lookup.get(clicked_id)
+    if clicked_row:
+        _nav_to_chapter(clicked_id, clicked_row["title"])
+        st.rerun()
+
+if "nav_entry" in st.query_params:
+    val = st.query_params["nav_entry"]
+    st.query_params.clear()
+    parts = val.split(":", 1)
+    if len(parts) == 2:
+        entry_toc_id = int(parts[0])
+        entry_title = parts[1]
+        entry_toc = toc_lookup.get(entry_toc_id, {})
+        _nav_to_entry(entry_toc_id, entry_toc.get("title", ""), entry_title)
+        st.rerun()
+
 
 # ── Back button (always visible when there's history) ────────
 
@@ -199,8 +218,6 @@ def _show_entry(entry_id, entry_title, source_file, toc_title, content, toc_id=N
             badges.append(idx["school"])
         if idx.get("sphere"):
             badges.append(idx["sphere"])
-        if idx.get("ref_page"):
-            badges.append(f"p.{idx['ref_page']}")
 
     if entry_id:
         annotations = get_annotations(entry_id)
@@ -298,30 +315,26 @@ elif nav["view"] == "chapter":
     _show_back()
 
     st.header(chapter["title"])
-    st.caption(f"Pages {chapter['page_start']}\u2013{chapter['page_end']}")
     st.divider()
 
     sections = get_chapter_sections(toc_id)
 
     if not sections:
         st.info("No entries in this chapter.")
-    elif len(sections) == 1:
-        for entry_title in sections[0]["entries"]:
-            st.markdown('<div class="entry-link">', unsafe_allow_html=True)
-            if st.button(entry_title, key=f"ce_{toc_id}_{entry_title}"):
-                _nav_to_entry(toc_id, chapter["title"], entry_title)
-                st.rerun()
-            st.markdown('</div>', unsafe_allow_html=True)
     else:
+        html = []
         for sec in sections:
-            sec_label = sec["section"] if sec["section"] else chapter["title"]
-            st.markdown(f"**{sec_label}**")
+            if len(sections) > 1:
+                sec_label = sec["section"] if sec["section"] else chapter["title"]
+                html.append(f'<div style="font-weight:600; margin-top:0.5rem;">{sec_label}</div>')
             for entry_title in sec["entries"]:
-                st.markdown('<div class="section-entry-link">', unsafe_allow_html=True)
-                if st.button(entry_title, key=f"ce_{toc_id}_{sec_label}_{entry_title}"):
-                    _nav_to_entry(toc_id, chapter["title"], entry_title)
-                    st.rerun()
-                st.markdown('</div>', unsafe_allow_html=True)
+                indent = "1.5rem" if len(sections) > 1 else "0"
+                html.append(
+                    f'<div class="toc-line toc-section" style="padding-left:{indent}">'
+                    f'<a href="?nav_entry={toc_id}:{entry_title}" target="_self">{entry_title}</a></div>'
+                )
+        st.markdown("\n".join(html), unsafe_allow_html=True)
+
 
 # ── View: Table of Contents (default) ────────────────────────
 
@@ -331,22 +344,23 @@ else:
     st.markdown("### Table of Contents")
     st.divider()
 
+    # Render entire ToC as one compact HTML block with clickable links
+    html = []
     for row in toc_rows:
-        entries = get_entry_list(row["toc_id"])
-        entry_count = len(entries)
+        depth = int(row.get("depth", 0))
+        is_table = bool(row.get("is_table", False))
+        is_chapter = bool(row.get("is_chapter", False))
+        indent = depth * 1.5
 
-        st.markdown('<div class="chapter-link">', unsafe_allow_html=True)
-        if st.button(
-            f"{row['title']}  \u2014  pp. {row['page_start']}\u2013{row['page_end']}  ({entry_count})",
-            key=f"toc_{row['toc_id']}",
-        ):
-            _nav_to_chapter(row["toc_id"], row["title"])
-            st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
+        if is_chapter:
+            css = "toc-chapter"
+        elif is_table:
+            css = "toc-table-entry"
+        else:
+            css = "toc-section"
 
-        for entry_title in entries:
-            st.markdown('<div class="entry-link">', unsafe_allow_html=True)
-            if st.button(entry_title, key=f"toce_{row['toc_id']}_{entry_title}"):
-                _nav_to_entry(row["toc_id"], row["title"], entry_title)
-                st.rerun()
-            st.markdown('</div>', unsafe_allow_html=True)
+        html.append(
+            f'<div class="toc-line {css}" style="padding-left:{indent}rem">'
+            f'<a href="?nav_toc_id={row["toc_id"]}" target="_self">{row["title"]}</a></div>'
+        )
+    st.markdown("\n".join(html), unsafe_allow_html=True)

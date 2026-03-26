@@ -18,6 +18,8 @@ import re
 from pathlib import Path
 from datetime import datetime, timezone
 
+import yaml
+
 import duckdb
 import fitz  # pymupdf
 import pyarrow as pa
@@ -283,41 +285,179 @@ def extract_marker_pages(filepath: Path, total_pages: int) -> list[str]:
     return pages
 
 
-def extract_toc(page_texts: list[str], config: dict) -> tuple[list[dict], list[dict]]:
-    """Parse ToC from first N pages.
+def _cluster_x_positions(x_values: list[float]) -> dict[float, int]:
+    """Cluster x-positions into depth levels dynamically.
 
-    Returns (sections, toc_tables):
-      sections: [{title, page_start, page_end, is_excluded}, ...]
-      toc_tables: [{table_number, title, page}, ...]
+    Handles multi-column PDF layouts:
+    1. Split x-values into columns using a large gap threshold (>50px)
+    2. Within each column, cluster by indent level (~12px steps)
+    3. Assign depth 0, 1, 2, ... matching indent levels across columns
+
+    Returns {rounded_x: depth} mapping for every input x.
+    """
+    if not x_values:
+        return {}
+
+    sorted_xs = sorted(set(round(x, 1) for x in x_values))
+
+    # Step 1: Split into columns (gaps > 50px between columns)
+    columns = []
+    current_col = [sorted_xs[0]]
+    for x in sorted_xs[1:]:
+        if x - current_col[-1] > 50:
+            columns.append(current_col)
+            current_col = [x]
+        else:
+            current_col.append(x)
+    columns.append(current_col)
+
+    # Step 2: Normalize x-positions relative to each column's left edge,
+    # then cluster all normalized values together to get consistent depths
+    normalized = {}  # original_x -> normalized_x
+    for col_xs in columns:
+        base = col_xs[0]
+        for x in col_xs:
+            normalized[x] = round(x - base)
+
+    # Cluster normalized values into indent levels
+    # Group positions within 10pt of each other (covers 6pt jitter while
+    # keeping 12pt+ real indent steps separate)
+    norm_vals = sorted(set(normalized.values()))
+    norm_clusters = []
+    current = [norm_vals[0]]
+    for v in norm_vals[1:]:
+        if v - current[0] <= 10:
+            current.append(v)
+        else:
+            norm_clusters.append(current)
+            current = [v]
+    norm_clusters.append(current)
+
+    norm_to_depth = {}
+    for depth, cluster in enumerate(norm_clusters):
+        for v in cluster:
+            norm_to_depth[v] = depth
+
+    x_to_depth = {}
+    for x, norm in normalized.items():
+        x_to_depth[x] = norm_to_depth[norm]
+
+    return x_to_depth
+
+
+def extract_toc(page_texts: list[str], config: dict,
+                filepath: "Path | None" = None) -> tuple[list[dict], list[dict]]:
+    """Parse ALL ToC entries from first N pages. Bronze captures everything raw.
+
+    Returns (all_entries, toc_tables):
+      all_entries: [{title, page_start, depth, is_chapter, is_table, is_excluded, parent_title}, ...]
+                   Every line from the ToC pages — chapters, sub-sections, tables, all of it.
+                   depth is derived from PDF x-position clustering (0=top-level, 1=sub, 2=sub-sub...).
+                   is_chapter=True for chapter/appendix-level entries.
+                   parent_title links sub-sections to their parent chapter.
+      toc_tables: [{table_number, title, page}, ...] — tables extracted separately for
+                   backward compatibility with table parsing.
+
+    page_end is computed for chapter-level entries only (next chapter's page_start - 1).
+    Sub-section entries get page_end = page_start (single-page reference from ToC).
     """
     toc_config = config.get("toc", {})
-    chapter_patterns = [re.compile(p, re.IGNORECASE) for p in toc_config.get("chapter_patterns", [])]
     table_pattern_str = toc_config.get("table_pattern", "")
     table_pattern = re.compile(table_pattern_str, re.IGNORECASE) if table_pattern_str else None
     scan_pages = toc_config.get("toc_scan_pages", 15)
     exclude_set = set(t.lower() for t in config.get("exclude_chapters", []))
 
-    sections = []
+    # ── Pass 1: identify ToC pages and extract x-positions for depth detection ──
+    # First find which pages are actually ToC (>30% of lines parse as ToC entries)
+    toc_page_candidates = []
+    for page_idx in range(min(scan_pages, len(page_texts))):
+        lines_on_page = [l for l in page_texts[page_idx].split("\n") if l.strip() and len(l.strip()) > 5]
+        toc_count = sum(1 for l in lines_on_page if _extract_toc_line(l))
+        if lines_on_page and toc_count / len(lines_on_page) > 0.3:
+            toc_page_candidates.append(page_idx)
+
+    toc_line_positions = {}  # title -> x_position
+    if filepath and toc_page_candidates:
+        doc = fitz.open(str(filepath))
+        for page_idx in toc_page_candidates:
+            if page_idx >= len(doc):
+                continue
+            page = doc[page_idx]
+            for block in page.get_text("dict")["blocks"]:
+                if "lines" not in block:
+                    continue
+                for line in block["lines"]:
+                    text = "".join(span["text"] for span in line["spans"]).strip()
+                    if not text or len(text) < 5:
+                        continue
+                    parsed = _extract_toc_line(text)
+                    if parsed and parsed[0] not in toc_line_positions:
+                        toc_line_positions[parsed[0]] = line["bbox"][0]
+        doc.close()
+
+    # Cluster x-positions into depth levels
+    x_to_depth = _cluster_x_positions(list(toc_line_positions.values()))
+
+    # ── Pass 2: extract entries from page texts ──
+    all_entries = []
     toc_tables = []
-    seen_sections = set()
+    seen_titles = set()
     seen_tables = set()
 
-    for page_idx in range(min(scan_pages, len(page_texts))):
-        for line in page_texts[page_idx].split("\n"):
+    for page_idx in toc_page_candidates:
+        raw_lines = page_texts[page_idx].split("\n")
+        # Join split lines: fitz sometimes wraps long ToC entries across two lines
+        # (possibly with blank lines between). Detect: current line doesn't parse
+        # (no page number), a nearby following line does, and the join parses too.
+        joined_lines = []
+        i = 0
+        while i < len(raw_lines):
+            stripped = raw_lines[i].strip()
+            if stripped and not _extract_toc_line(stripped):
+                # Look ahead up to 2 lines, skipping blanks
+                joined = False
+                for skip in range(1, 3):
+                    if i + skip >= len(raw_lines):
+                        break
+                    next_stripped = raw_lines[i + skip].strip()
+                    if not next_stripped:
+                        continue  # skip blank lines
+                    combined = stripped + " " + next_stripped
+                    if _extract_toc_line(combined):
+                        joined_lines.append(combined)
+                        i += skip + 1
+                        joined = True
+                        break
+                    break  # non-blank line that doesn't join — stop looking
+                if joined:
+                    continue
+            joined_lines.append(raw_lines[i])
+            i += 1
+
+        for line in joined_lines:
             parsed = _extract_toc_line(line)
             if not parsed:
                 continue
             title, page = parsed
 
-            # Check for table entries
-            if table_pattern and table_pattern.match(title):
-                # Extract table number from title like "Table 37: Nonweapon Proficiency Groups"
+            # Determine depth from PDF x-position
+            x_pos = toc_line_positions.get(title)
+            if x_pos is not None:
+                depth = x_to_depth.get(round(x_pos, 1), 0)
+            else:
+                depth = 0  # no position info — default to top-level
+
+            # Initial classification guesses (review file overrides these):
+            # depth 0 = chapter, table_pattern match = table, rest = section
+            is_chapter = (depth == 0)
+            is_table = bool(table_pattern and table_pattern.match(title))
+
+            if is_table:
                 num_match = re.search(r'\d+', title)
                 if num_match:
                     table_num = int(num_match.group())
                     if table_num not in seen_tables:
                         seen_tables.add(table_num)
-                        # Title without "Table N:" prefix
                         colon_idx = title.find(":")
                         table_title = title[colon_idx + 1:].strip() if colon_idx >= 0 else title
                         toc_tables.append({
@@ -326,23 +466,78 @@ def extract_toc(page_texts: list[str], config: dict) -> tuple[list[dict], list[d
                             "page": page,
                         })
 
-            # Check for chapter entries
-            for pat in chapter_patterns:
-                if pat.match(title):
-                    if title not in seen_sections:
-                        seen_sections.add(title)
-                        sections.append({
-                            "title": title, "page_start": page,
-                            "is_excluded": title.lower() in exclude_set,
-                        })
-                    break
+            # Store every ToC line (dedup by title+page — same title at different
+            # pages is valid, e.g. "Secondary Skills" section and table)
+            dedup_key = (title, page)
+            if dedup_key not in seen_titles:
+                seen_titles.add(dedup_key)
+                all_entries.append({
+                    "title": title,
+                    "page_start": page,
+                    "depth": depth,
+                    "is_chapter": is_chapter,
+                    "is_table": is_table,
+                    "is_excluded": is_chapter and title.lower() in exclude_set,
+                })
 
-    sections.sort(key=lambda e: e["page_start"])
-    for i, entry in enumerate(sections):
-        entry["page_end"] = sections[i + 1]["page_start"] - 1 if i + 1 < len(sections) else 9999
+    # Sort by page, then assign parent_title and page_end for chapters
+    all_entries.sort(key=lambda e: (e["page_start"], 0 if not e["is_table"] else 1))
+
+    # Fix table depths: set to nearest preceding non-table entry's depth + 1
+    # Tables from the flat table index (page 7) have meaningless depths;
+    # this re-derives depth from their position in the page-ordered entry list.
+    last_section_depth = 0
+    for entry in all_entries:
+        if not entry["is_table"]:
+            last_section_depth = entry["depth"]
+        else:
+            entry["depth"] = last_section_depth + 1
+
+    # Assign parent_title: each sub-section belongs to the most recent chapter
+    current_chapter = None
+    for entry in all_entries:
+        if entry["is_chapter"]:
+            current_chapter = entry["title"]
+            entry["parent_title"] = None
+        else:
+            entry["parent_title"] = current_chapter
+
+    # Compute page_end for chapter-level entries
+    chapters = [e for e in all_entries if e["is_chapter"]]
+    for i, ch in enumerate(chapters):
+        ch["page_end"] = chapters[i + 1]["page_start"] - 1 if i + 1 < len(chapters) else 9999
+
+    # Sub-sections get page_end = page_start (point reference)
+    for entry in all_entries:
+        if not entry["is_chapter"]:
+            entry["page_end"] = entry["page_start"]
+
+    # Apply toc_corrections from config (title fixes, page adjustments, removals)
+    corrections = config.get("toc_corrections", {})
+    if corrections:
+        corrected = []
+        for entry in all_entries:
+            fix = corrections.get(entry["title"], {})
+            if fix.get("remove"):
+                _log(f"  ToC correction: removed '{entry['title']}'")
+                continue
+            if "title" in fix:
+                _log(f"  ToC correction: '{entry['title']}' → '{fix['title']}'")
+                entry["title"] = fix["title"]
+            if "page_start" in fix:
+                entry["page_start"] = fix["page_start"]
+            if "page_end" in fix:
+                entry["page_end"] = fix["page_end"]
+            if "is_excluded" in fix:
+                entry["is_excluded"] = fix["is_excluded"]
+            corrected.append(entry)
+        all_entries = corrected
+
+    _log(f"  ToC: {len(all_entries)} entries ({len(chapters)} chapters, "
+         f"{len(all_entries) - len(chapters)} sub-sections, {len(toc_tables)} tables)")
 
     toc_tables.sort(key=lambda t: t["table_number"])
-    return sections, toc_tables
+    return all_entries, toc_tables
 
 
 def _parse_ordinal_level(text: str) -> int | None:
@@ -1133,14 +1328,18 @@ def store_bronze(filepath: Path, config: dict, run_id: str,
         "run_id": [run_id] * len(page_texts),
     }), **ow)
 
-    # ToC
+    # ToC (all entries: chapters + sub-sections + tables)
     if toc_sections:
         write_iceberg(NAMESPACE, "toc_raw", pa.table({
             "source_file": [sf] * len(toc_sections),
             "title": [s["title"] for s in toc_sections],
             "page_start": [s["page_start"] for s in toc_sections],
             "page_end": [s["page_end"] for s in toc_sections],
+            "depth": pa.array([s.get("depth", 0) for s in toc_sections], type=pa.int32()),
+            "is_chapter": [s.get("is_chapter", True) for s in toc_sections],
+            "is_table": [s.get("is_table", False) for s in toc_sections],
             "is_excluded": [s["is_excluded"] for s in toc_sections],
+            "parent_title": [s.get("parent_title") for s in toc_sections],
             "run_id": [run_id] * len(toc_sections),
         }), **ow)
 
@@ -1259,7 +1458,7 @@ def extract_pdf(filepath: Path) -> None:
         step(f"PDF: {total_pages} pages")
 
         # 2. ToC (sections + tables)
-        toc_sections, toc_tables = extract_toc(page_texts, config)
+        toc_sections, toc_tables = extract_toc(page_texts, config, filepath)
         included = sum(1 for s in toc_sections if not s["is_excluded"])
         excluded = sum(1 for s in toc_sections if s["is_excluded"])
         step(f"ToC: {included} sections, {excluded} excluded, {len(toc_tables)} tables")
@@ -1807,6 +2006,256 @@ def validate_bronze(source_file: str) -> None:
                {"passed": passed, "warned": warned, "failed": failed})
     refresh_catalog(sf, run_id, config)
     _log(f"  Validation summary: {passed} passed, {warned} warnings, {failed} failed")
+
+
+def review_toc(source_file: str | None = None) -> dict:
+    """Review parsed ToC and Marker headings for a book. Returns review report.
+
+    Called by Dagster as a validation gate between bronze and dbt.
+    Checks:
+    1. toc_reviewed flag in config — warns if false (new book needs manual review)
+    2. Dumps parsed ToC sections with page ranges
+    3. Extracts all H1/H2 headings from Marker markdown for section heading review
+    4. Identifies headings not in valid_section_headings config
+
+    Report is logged and stored in bronze_tabletop.validation_results.
+    Returns {"status": "pass"|"needs_review", "toc": [...], "headings": [...]}
+    """
+    from dlt.lib.duckdb_reader import get_reader
+    conn = get_reader(namespaces=[NAMESPACE])
+
+    files = _list_source_files("toc_raw", source_file)
+    if not files:
+        _log("No files found for ToC review")
+        return {"status": "no_files", "files": []}
+
+    all_reports = []
+    for sf in files:
+        configs_dir = DOCUMENTS_DIR.parent / "configs"
+        config = load_config(Path(sf), configs_dir)
+        run_id = start_run(sf, "toc_review", config)
+
+        toc_reviewed = config.get("toc_reviewed", False)
+        valid_headings = set(h.lower() for h in config.get("valid_section_headings", []))
+
+        # Get parsed ToC
+        toc_rows = conn.execute(
+            "SELECT title, page_start, page_end, is_excluded "
+            "FROM bronze_tabletop.toc_raw WHERE source_file = ? ORDER BY page_start",
+            [sf]
+        ).fetchall()
+        toc = [{"title": t, "page_start": ps, "page_end": pe, "is_excluded": ex}
+               for t, ps, pe, ex in toc_rows]
+
+        # Get H1/H2 headings from Marker markdown
+        md_rows = conn.execute(
+            "SELECT markdown_text FROM bronze_tabletop.marker_extractions WHERE source_file = ?",
+            [sf]
+        ).fetchall()
+
+        h1_headings = []
+        h2_headings = []
+        if md_rows:
+            markdown = md_rows[0][0]
+            for m in re.finditer(r"^(#{1,2})\s+(.+)", markdown, re.MULTILINE):
+                level = len(m.group(1))
+                heading = re.sub(r"\*+", "", m.group(2)).strip()
+                if len(heading) < 2:
+                    continue
+                entry = {"heading": heading, "level": level, "position": m.start()}
+                if level == 1:
+                    h1_headings.append(entry)
+                else:
+                    h2_headings.append(entry)
+
+        # Classify headings
+        toc_titles_lower = set(t["title"].lower() for t in toc)
+        toc_desc_lower = set()
+        for t in toc:
+            if ":" in t["title"]:
+                toc_desc_lower.add(t["title"].split(":", 1)[-1].strip().lower())
+
+        unrecognized_h1 = []
+        for h in h1_headings:
+            hl = h["heading"].lower().rstrip(".")
+            if hl in toc_titles_lower or hl in toc_desc_lower or hl in valid_headings:
+                continue
+            # Check if it's a word in any ToC title
+            matched = False
+            for t_lower in toc_desc_lower:
+                if hl in t_lower.split():
+                    matched = True
+                    break
+            if not matched:
+                unrecognized_h1.append(h["heading"])
+
+        unrecognized_h2 = []
+        for h in h2_headings:
+            hl = h["heading"].lower()
+            if hl in valid_headings or hl in toc_titles_lower or hl in toc_desc_lower:
+                continue
+            unrecognized_h2.append(h["heading"])
+
+        # Log report
+        _log(f"\n{'='*60}")
+        _log(f"ToC Review: {sf}")
+        _log(f"  toc_reviewed: {toc_reviewed}")
+        _log(f"  valid_section_headings: {len(valid_headings)} configured")
+        _log(f"{'='*60}")
+
+        _log(f"\n  Parsed ToC ({len(toc)} sections):")
+        for t in toc:
+            excl = " [EXCLUDED]" if t["is_excluded"] else ""
+            _log(f"    pp {t['page_start']:>3}-{t['page_end']:>4}  {t['title']}{excl}")
+
+        _log(f"\n  H1 headings ({len(h1_headings)} total, {len(unrecognized_h1)} unrecognized):")
+        if unrecognized_h1:
+            for h in unrecognized_h1:
+                _log(f"    [?] # {h}")
+        else:
+            _log("    All H1 headings match ToC titles")
+
+        _log(f"\n  H2 headings ({len(h2_headings)} total, {len(unrecognized_h2)} not in valid_section_headings):")
+        # Deduplicate for display
+        seen = set()
+        for h in unrecognized_h2:
+            if h not in seen:
+                seen.add(h)
+                _log(f"    [?] ## {h}")
+
+        # Determine status
+        if not toc_reviewed:
+            status = "needs_review"
+            msg = (f"toc_reviewed=false — review ToC and headings above, then update config:\n"
+                   f"  1. Set toc_reviewed: true\n"
+                   f"  2. Add toc_corrections for any title/page fixes\n"
+                   f"  3. Add valid_section_headings for legitimate H2 sub-sections\n"
+                   f"  4. Re-run bronze to apply corrections")
+            _log(f"\n  STATUS: NEEDS REVIEW")
+            _log(f"  {msg}")
+        else:
+            status = "pass"
+            msg = f"ToC reviewed. {len(toc)} sections, {len(unrecognized_h1)} unrecognized H1, {len(unrecognized_h2)} unrecognized H2"
+            _log(f"\n  STATUS: PASS")
+
+        _store_validation(sf, "toc_review", status, msg, run_id,
+                          json.dumps({"toc": toc, "unrecognized_h1": unrecognized_h1,
+                                      "unrecognized_h2": list(seen)[:50]}))
+        finish_run(run_id, "success")
+
+        all_reports.append({
+            "source_file": sf, "status": status, "toc_reviewed": toc_reviewed,
+            "toc": toc, "h1_headings": h1_headings, "h2_headings": h2_headings,
+            "unrecognized_h1": unrecognized_h1, "unrecognized_h2": list(seen),
+        })
+
+    conn.close()
+    overall = "pass" if all(r["status"] == "pass" for r in all_reports) else "needs_review"
+    return {"status": overall, "files": all_reports}
+
+
+def apply_toc_review(source_file: str) -> None:
+    """Apply a reviewed ToC YAML file back to bronze_tabletop.toc_raw.
+
+    Reads the review file from documents/tabletop_rules/reviews/,
+    replaces the auto-extracted toc_raw data with the human-reviewed version.
+    Entries with type=remove are dropped. All other fields (depth, type,
+    page, page_end, title, excluded) are written as-is.
+
+    Review file path: documents/tabletop_rules/reviews/toc_review_<stem>.yaml
+    where <stem> is the PDF filename without extension, spaces replaced with _.
+    """
+    reviews_dir = DOCUMENTS_DIR.parent / "reviews"
+    # Build set of keywords from the PDF filename for flexible matching
+    sf_words = set(Path(source_file).stem.lower().replace("-", " ").replace("_", " ").split())
+
+    # Find review file: any toc_review_*.yaml where most filename words appear
+    review_path = None
+    for f in reviews_dir.glob("toc_review_*.yaml"):
+        review_words = set(f.stem.lower().replace("toc_review_", "").replace("-", " ").replace("_", " ").split())
+        # Match if at least 2 words overlap or one name contains the other
+        overlap = sf_words & review_words
+        if len(overlap) >= 2 or sf_words <= review_words or review_words <= sf_words:
+            review_path = f
+            break
+    if not review_path or not review_path.exists():
+        _log(f"No review file found for {source_file} in {reviews_dir}")
+        return
+
+    with open(review_path) as f:
+        review = yaml.safe_load(f)
+
+    entries_raw = review.get("entries", [])
+    if not entries_raw:
+        _log(f"Review file {review_path.name} has no entries")
+        return
+
+    # Build toc_raw entries from review, skipping type=remove
+    toc_entries = []
+    current_chapter = None
+
+    sort_idx = 0
+    for entry in entries_raw:
+        if entry.get("type") == "remove":
+            continue
+
+        title = entry["title"]
+        page_start = entry["page"]
+        page_end = entry.get("page_end", page_start)
+        depth = entry.get("depth", 0)
+        is_chapter = (depth == 0)
+        is_table = (entry.get("type") == "table")
+        is_excluded = entry.get("excluded", False)
+
+        if is_chapter:
+            current_chapter = title
+
+        toc_entries.append({
+            "title": title,
+            "page_start": page_start,
+            "page_end": page_end,
+            "sort_order": sort_idx,
+            "depth": depth,
+            "is_chapter": is_chapter,
+            "is_table": is_table,
+            "is_excluded": is_excluded,
+            "parent_title": None if is_chapter else current_chapter,
+        })
+        sort_idx += 1
+
+    # Recompute page_end for chapters (next chapter's page_start - 1)
+    chapters = [e for e in toc_entries if e["is_chapter"]]
+    for i, ch in enumerate(chapters):
+        ch["page_end"] = chapters[i + 1]["page_start"] - 1 if i + 1 < len(chapters) else 9999
+
+    # Write to toc_raw, replacing existing data for this source file
+    sf = source_file
+    run_id = start_run(sf, "toc_review_apply", load_config(Path(sf), DOCUMENTS_DIR.parent / "configs"))
+    now = datetime.now(timezone.utc)
+
+    write_iceberg(NAMESPACE, "toc_raw", pa.table({
+        "source_file": [sf] * len(toc_entries),
+        "title": [e["title"] for e in toc_entries],
+        "page_start": [e["page_start"] for e in toc_entries],
+        "page_end": [e["page_end"] for e in toc_entries],
+        "sort_order": pa.array([e["sort_order"] for e in toc_entries], type=pa.int32()),
+        "depth": pa.array([e["depth"] for e in toc_entries], type=pa.int32()),
+        "is_chapter": [e["is_chapter"] for e in toc_entries],
+        "is_table": [e["is_table"] for e in toc_entries],
+        "is_excluded": [e["is_excluded"] for e in toc_entries],
+        "parent_title": [e["parent_title"] for e in toc_entries],
+        "run_id": [run_id] * len(toc_entries),
+    }), overwrite_filter="source_file", overwrite_filter_value=sf)
+
+    finish_run(run_id, "success", {"toc_entries": len(toc_entries)})
+
+    chapters_count = sum(1 for e in toc_entries if e["is_chapter"])
+    tables_count = sum(1 for e in toc_entries if e["is_table"])
+    excluded_count = sum(1 for e in toc_entries if e["is_excluded"])
+    removed = len(entries_raw) - len(toc_entries)
+    _log(f"Applied ToC review for {sf}: {len(toc_entries)} entries "
+         f"({chapters_count} chapters, {tables_count} tables, "
+         f"{excluded_count} excluded, {removed} removed)")
 
 
 def run(directory: Path | None = None, force: bool = False) -> None:

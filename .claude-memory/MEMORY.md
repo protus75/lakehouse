@@ -28,3 +28,5 @@
 - [project_content_quality.md](project_content_quality.md) - Gold content quality issues blocking enrichment, must fix silver/gold first
 - [feedback_provide_links.md](feedback_provide_links.md) - Always provide URLs when asking user to check web apps
 - [feedback_test_before_asking.md](feedback_test_before_asking.md) - Test code works before asking user to try it
+- [feedback_restart_streamlit.md](feedback_restart_streamlit.md) - ALWAYS restart Streamlit after any code change
+- [project_integer_keys_plan.md](project_integer_keys_plan.md) - Plan: replace unstable auto-increment IDs with hash-based stable integer keys

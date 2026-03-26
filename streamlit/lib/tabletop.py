@@ -18,10 +18,11 @@ def get_books() -> list[str]:
 @st.cache_data(ttl=300)
 def get_toc(source_file: str) -> pl.DataFrame:
     return query(
-        "SELECT toc_id, title, page_start, page_end "
+        "SELECT toc_id, title, page_start, page_end, "
+        "sort_order, depth, is_chapter, is_table, parent_title "
         "FROM gold_tabletop.gold_toc "
         "WHERE source_file = ? AND is_excluded = false "
-        "ORDER BY page_start",
+        "ORDER BY sort_order",
         [source_file],
     )
 

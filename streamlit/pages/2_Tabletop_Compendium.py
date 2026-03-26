@@ -119,8 +119,6 @@ for row_start in range(0, len(df), CARDS_PER_ROW):
                     st.caption(badge_str)
                 if snippet:
                     st.markdown(f"*{snippet}*")
-                if row.get("ref_page"):
-                    st.caption(f"p. {row['ref_page']}")
 
                 if st.button("View", key=f"view_{entry_id}"):
                     st.session_state["compendium_detail"] = entry_id

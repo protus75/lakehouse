@@ -58,6 +58,14 @@ def write_iceberg(
 
     try:
         tbl = catalog.load_table(full_name)
+        # Evolve schema if incoming table has new columns
+        existing_names = {f.name for f in tbl.schema().fields}
+        new_fields = [f for f in arrow_table.schema if f.name not in existing_names]
+        if new_fields:
+            with tbl.update_schema() as update:
+                for field in new_fields:
+                    update.add_column(field.name, field.type)
+            tbl = catalog.load_table(full_name)
     except Exception:
         tbl = catalog.create_table(full_name, schema=arrow_table.schema)
 
