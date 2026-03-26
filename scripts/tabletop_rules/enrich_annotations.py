@@ -17,12 +17,14 @@ from dlt.lib.iceberg_catalog import write_iceberg
 CONFIGS_DIR = Path("/workspace/documents/tabletop_rules/configs")
 
 
-def call_ollama_json(prompt: str, url: str, model: str) -> dict | None:
+def call_ollama_json(prompt: str, url: str, model: str,
+                     options: dict | None = None) -> dict | None:
     try:
+        body = {"model": model, "prompt": prompt, "stream": False}
+        if options:
+            body["options"] = options
         resp = requests.post(
-            f"{url}/api/generate",
-            json={"model": model, "prompt": prompt, "stream": False},
-            timeout=300,
+            f"{url}/api/generate", json=body, timeout=300,
         )
         if resp.status_code == 200:
             text = resp.json().get("response", "").strip()
@@ -48,6 +50,7 @@ def main():
     gold_config = config.get("gold", {})
     ollama_url = gold_config.get("ollama_url", "http://host.docker.internal:11434")
     ollama_model = gold_config.get("ollama_model", "llama3:70b")
+    ollama_options = gold_config.get("ollama_options", {})
     prompt_template = gold_config.get("annotation_prompt", "")
     annotate_types = gold_config.get("annotation_entry_types", ["spell", "proficiency"])
 
@@ -95,7 +98,7 @@ def main():
             content=content,
         )
 
-        result = call_ollama_json(prompt, ollama_url, ollama_model)
+        result = call_ollama_json(prompt, ollama_url, ollama_model, ollama_options)
 
         is_combat = None
         is_popular = None
@@ -107,7 +110,7 @@ def main():
             "entry_id": [entry_id], "source_file": [source_file],
             "entry_title": [entry_title], "is_combat": [is_combat],
             "is_popular": [is_popular], "annotated_at": [now],
-        }))
+        }), overwrite_filter="entry_id", overwrite_filter_value=entry_id)
 
         if (i + 1) % 10 == 0:
             _log(f"  {i + 1}/{len(entries)} annotated")

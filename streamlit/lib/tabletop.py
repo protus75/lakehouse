@@ -31,8 +31,10 @@ def get_toc(source_file: str) -> pl.DataFrame:
 @st.cache_data(ttl=300)
 def get_entry_list(toc_id: int) -> list[str]:
     df = query(
-        "SELECT DISTINCT entry_title FROM gold_tabletop.gold_chunks "
-        "WHERE toc_id = ? ORDER BY entry_title",
+        "SELECT entry_title, MIN(chunk_id) as first_chunk "
+        "FROM gold_tabletop.gold_chunks "
+        "WHERE toc_id = ? AND entry_title IS NOT NULL "
+        "GROUP BY entry_title ORDER BY first_chunk",
         [toc_id],
     )
     return df["entry_title"].to_list()

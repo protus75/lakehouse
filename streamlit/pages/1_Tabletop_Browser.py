@@ -49,7 +49,8 @@ for row in toc.iter_rows(named=True):
 
     with st.sidebar.expander(label, expanded=False):
         for entry_title in entries:
-            if st.button(entry_title, key=f"entry_{row['toc_id']}_{entry_title}"):
+            entry_label = str(entry_title) if entry_title else "(untitled)"
+            if st.button(entry_label, key=f"entry_{row['toc_id']}_{entry_title}"):
                 st.session_state["view_toc_id"] = row["toc_id"]
                 st.session_state["view_toc_title"] = row["title"]
                 st.session_state["view_entry_title"] = entry_title
