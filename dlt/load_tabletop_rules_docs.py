@@ -360,8 +360,10 @@ def parse_pdf(filepath: Path, game_system: str | None = None,
     step("Watermarks stripped")
 
     # 5. Map headings to chapters via ToC state machine
+    toc_all = toc_data["sections"]
+    toc_chapters = [s for s in toc_all if s.get("is_chapter", True)]
     heading_chapter_map = build_heading_chapter_map(
-        markdown, toc_data["sections"],
+        markdown, toc_chapters,
         pdf.page_texts, pdf.page_printed, pdf.total_pages, config,
     )
     step("Heading-chapter map built")
@@ -371,11 +373,11 @@ def parse_pdf(filepath: Path, game_system: str | None = None,
     step(f"Known entries: {len(known_entries)}")
 
     # 7. Build entries from Marker headings with chapter assignments
-    entries = build_entries(markdown, heading_chapter_map, known_entries, config)
+    entries = build_entries(markdown, heading_chapter_map, known_entries, config, toc_all)
     step(f"Entries built: {len(entries)}")
 
     # 8. Sub-headings for query routing
-    collect_sub_headings(entries, toc_data["sections"], config)
+    collect_sub_headings(entries, toc_all, config)
     step("Sub-headings collected")
 
     # 9. Chunk

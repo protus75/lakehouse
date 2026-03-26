@@ -37,7 +37,41 @@ def bronze_tabletop(context: AssetExecutionContext, config: BronzeConfig):
     context.log.info("Bronze extraction complete")
 
 
-@asset(group_name="silver_gold", compute_kind="dbt", deps=[bronze_tabletop])
+@asset(group_name="bronze", compute_kind="python", deps=[bronze_tabletop])
+def toc_review(context: AssetExecutionContext):
+    """Review parsed ToC and Marker headings for manual validation.
+
+    Onboarding gate: blocks pipeline if any book has toc_reviewed=false.
+    On first run for a new book, this asset FAILS — review the Dagster log
+    output, update the book's YAML config, then re-run:
+      1. Set toc_reviewed: true
+      2. Add toc_corrections for any title/page fixes
+      3. Add valid_section_headings for legitimate H2 sub-sections
+    """
+    from dlt.bronze_tabletop_rules import review_toc, apply_toc_review
+    report = review_toc()
+    # Apply reviewed YAML files if they exist
+    for file_report in report.get("files", []):
+        if file_report["status"] == "pass":
+            apply_toc_review(file_report["source_file"])
+            context.log.info(f"Applied ToC review for {file_report['source_file']}")
+    for file_report in report.get("files", []):
+        sf = file_report["source_file"]
+        status = file_report["status"]
+        context.log.info(f"ToC review {sf}: {status}")
+        if file_report.get("unrecognized_h1"):
+            context.log.warning(f"  Unrecognized H1: {file_report['unrecognized_h1']}")
+    if report["status"] == "needs_review":
+        needs = [r["source_file"] for r in report["files"] if r["status"] == "needs_review"]
+        raise Exception(
+            f"ToC review required for: {', '.join(needs)}. "
+            f"Review the log output above, then update each book's YAML config "
+            f"(toc_reviewed, toc_corrections, valid_section_headings) and re-run."
+        )
+    context.log.info(f"ToC review passed for all {len(report['files'])} books")
+
+
+@asset(group_name="silver_gold", compute_kind="dbt", deps=[toc_review])
 def dbt_tabletop(context: AssetExecutionContext):
     """Run dbt build for tabletop models (silver + gold)."""
     result = subprocess.run(
@@ -82,14 +116,14 @@ def gold_ai_annotations(context: AssetExecutionContext):
 tabletop_full_pipeline = define_asset_job(
     name="tabletop_full_pipeline",
     selection=[
-        bronze_tabletop, dbt_tabletop, publish_to_iceberg,
+        bronze_tabletop, toc_review, dbt_tabletop, publish_to_iceberg,
         gold_ai_summaries, gold_ai_annotations,
     ],
 )
 
 tabletop_without_enrichment = define_asset_job(
     name="tabletop_without_enrichment",
-    selection=[bronze_tabletop, dbt_tabletop, publish_to_iceberg],
+    selection=[bronze_tabletop, toc_review, dbt_tabletop, publish_to_iceberg],
 )
 
 enrichment_only = define_asset_job(
@@ -100,7 +134,7 @@ enrichment_only = define_asset_job(
 
 defs = Definitions(
     assets=[
-        bronze_tabletop, dbt_tabletop, publish_to_iceberg,
+        bronze_tabletop, toc_review, dbt_tabletop, publish_to_iceberg,
         gold_ai_summaries, gold_ai_annotations,
     ],
     jobs=[tabletop_full_pipeline, tabletop_without_enrichment, enrichment_only],

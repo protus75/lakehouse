@@ -48,20 +48,43 @@ def model(dbt, session):
         page_printed = dict(zip(pages_df["page_index"].tolist(), pages_df["printed_page_num"].tolist()))
         total_pages = len(page_texts)
 
-        # Load ToC
-        toc_df = session.execute(
-            f"SELECT title, page_start, page_end, is_excluded FROM bronze_tabletop.toc_raw WHERE source_file = '{sf}' ORDER BY page_start"
+        # Load full ToC (all entries: chapters + sub-sections)
+        # Check if new schema columns exist (is_chapter, parent_title)
+        col_df = session.execute(
+            "SELECT column_name FROM information_schema.columns "
+            f"WHERE table_schema = 'bronze_tabletop' AND table_name = 'toc_raw'"
         ).fetchdf()
-        toc_sections = []
+        cols = set(col_df["column_name"].tolist())
+        has_new_schema = "is_chapter" in cols
+
+        if has_new_schema:
+            toc_df = session.execute(
+                f"SELECT title, page_start, page_end, is_excluded, is_chapter, parent_title "
+                f"FROM bronze_tabletop.toc_raw WHERE source_file = '{sf}' ORDER BY page_start"
+            ).fetchdf()
+        else:
+            toc_df = session.execute(
+                f"SELECT title, page_start, page_end, is_excluded "
+                f"FROM bronze_tabletop.toc_raw WHERE source_file = '{sf}' ORDER BY page_start"
+            ).fetchdf()
+
+        toc_all = []
+        toc_sections = []  # chapter-level only (for heading-chapter map page ranges)
         for _, row in toc_df.iterrows():
-            toc_sections.append({
+            is_ch = bool(row["is_chapter"]) if has_new_schema else True
+            entry = {
                 "title": row["title"],
                 "page_start": int(row["page_start"]),
                 "page_end": int(row["page_end"]) if row["page_end"] else 9999,
                 "is_excluded": bool(row["is_excluded"]),
+                "is_chapter": is_ch,
+                "parent_title": row.get("parent_title") if has_new_schema else None,
                 "sub_headings": [],
                 "tables": [],
-            })
+            }
+            toc_all.append(entry)
+            if entry["is_chapter"]:
+                toc_sections.append(entry)
 
         # Load known entries — only entries with a class (actual spells from spell index)
         # General index entries without class are excluded to prevent false matches
@@ -82,10 +105,10 @@ def model(dbt, session):
         )
 
         # Build entries
-        entries = build_entries(markdown, heading_chapter_map, known_entries, config)
+        entries = build_entries(markdown, heading_chapter_map, known_entries, config, toc_all)
 
         # Collect sub-headings
-        collect_sub_headings(entries, toc_sections, config)
+        collect_sub_headings(entries, toc_all, config)
 
         # Convert to rows
         for entry in entries:

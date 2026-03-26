@@ -45,7 +45,7 @@ for name in TARGETS:
 # Now run build_entries and check results
 heading_chapter_map = build_heading_chapter_map(markdown, toc_data["sections"], pdf)
 known_entries = extract_known_entries(pdf, toc_data, config)
-entries = build_entries(markdown, heading_chapter_map, known_entries, config)
+entries = build_entries(markdown, heading_chapter_map, known_entries, config, toc_data["sections"])
 
 print(f"\n\n{'='*60}")
 print("ENTRIES FOR TARGETS:")

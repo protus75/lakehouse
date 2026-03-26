@@ -35,6 +35,24 @@ def call_ollama(prompt: str, url: str, model: str,
 def main():
     conn = get_reader()
 
+    # Purge orphaned summaries from previous pipeline runs
+    # (entry_ids change when silver/gold is rebuilt)
+    try:
+        orphaned = conn.execute("""
+            SELECT s.entry_id FROM gold_tabletop.gold_ai_summaries s
+            LEFT JOIN silver_tabletop.silver_entries e ON s.entry_id = e.entry_id
+            WHERE e.entry_id IS NULL
+        """).fetchall()
+        if orphaned:
+            from dlt.lib.iceberg_catalog import get_catalog
+            catalog = get_catalog()
+            tbl = catalog.load_table("gold_tabletop.gold_ai_summaries")
+            orphan_ids = [r[0] for r in orphaned]
+            _log(f"Purging {len(orphan_ids)} orphaned summaries from previous runs")
+            tbl.delete(f"entry_id IN ({','.join(str(i) for i in orphan_ids)})")
+    except Exception as e:
+        _log(f"  Orphan purge skipped: {e}")
+
     # Get entries that need summaries (not already done)
     try:
         entries = conn.execute("""

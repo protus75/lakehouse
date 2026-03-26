@@ -85,6 +85,7 @@ services:
       - ../documents:/workspace/documents
     environment:
       DAGSTER_HOME: /workspace/dagster
+      PYTHONPATH: /workspace
       S3_ENDPOINT: http://seaweedfs-s3:8333
       S3_ACCESS_KEY: lakehouse_key
       S3_SECRET_KEY: lakehouse_secret
@@ -110,6 +111,7 @@ services:
       - ../cache/huggingface:/workspace/.cache/huggingface
     environment:
       DAGSTER_HOME: /workspace/dagster
+      PYTHONPATH: /workspace
       S3_ENDPOINT: http://seaweedfs-s3:8333
       S3_ACCESS_KEY: lakehouse_key
       S3_SECRET_KEY: lakehouse_secret

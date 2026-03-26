@@ -39,6 +39,23 @@ def call_ollama_json(prompt: str, url: str, model: str,
 def main():
     conn = get_reader()
 
+    # Purge orphaned annotations from previous pipeline runs
+    try:
+        orphaned = conn.execute("""
+            SELECT a.entry_id FROM gold_tabletop.gold_ai_annotations a
+            LEFT JOIN silver_tabletop.silver_entries e ON a.entry_id = e.entry_id
+            WHERE e.entry_id IS NULL
+        """).fetchall()
+        if orphaned:
+            from dlt.lib.iceberg_catalog import get_catalog
+            catalog = get_catalog()
+            tbl = catalog.load_table("gold_tabletop.gold_ai_annotations")
+            orphan_ids = [r[0] for r in orphaned]
+            _log(f"Purging {len(orphan_ids)} orphaned annotations from previous runs")
+            tbl.delete(f"entry_id IN ({','.join(str(i) for i in orphan_ids)})")
+    except Exception as e:
+        _log(f"  Orphan purge skipped: {e}")
+
     # Get config
     sf_row = conn.execute("SELECT source_file FROM silver_tabletop.silver_files LIMIT 1").fetchone()
     if not sf_row:

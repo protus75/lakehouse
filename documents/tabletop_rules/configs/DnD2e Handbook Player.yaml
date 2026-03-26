@@ -234,6 +234,40 @@ ocr_check:
 
     JSON array:
 
+# ── ToC review (completed 2026-03-26) ────────────────────────────
+toc_reviewed: true
+
+# H1/H2 headings from Marker that are legitimate section boundaries.
+# Garbage H1 artifacts (# The, # Good., # Characters, # Chapter N, etc.)
+# are NOT listed here and will be treated as content, not section breaks.
+valid_section_headings:
+  # Chapter 1
+  - "Ability Scores"
+  - "Glossary"
+  # Chapter 2
+  - "Table 9: Constitution Saving Throw Bonuses"
+  # Chapter 3
+  - "PC Classes"
+  - "Characters"
+  # Chapter 5
+  - "Proficiencies"
+  # Chapter 6
+  - "Money and Equipment"
+  # Chapter 9
+  - "Combat"
+  - "The Attack"
+  - "Attacking Without Killing"
+  - "Table 57: Armor Modifiers for Wrestling"
+  # Chapter 10-14
+  - "Treasure"
+  - "Encounters"
+  - "NPCs"
+  - "Vision and Light"
+  - "Time and Movement"
+  # Appendix 2
+  - "Notes on Spells"
+  - "Spell Lists"
+
 chunking:
   max_chars: 800
   overlap: 200

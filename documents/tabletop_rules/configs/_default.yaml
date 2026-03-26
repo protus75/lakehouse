@@ -209,6 +209,35 @@ prompts:
     SUMMARY:
   entry_summary: ""
 
+# ── Book onboarding: ToC review ──────────────────────────────────
+# After bronze extracts the ToC from a new book, run:
+#   docker exec lakehouse-workspace python -u scripts/tabletop_rules/review_toc.py "<filename>.pdf"
+# This dumps the parsed ToC in YAML format. Review it, then:
+# 1. Set toc_reviewed: true in the book config
+# 2. Add any corrections under toc_corrections (title fixes, page adjustments, etc.)
+# 3. Add valid_section_headings: list of H2 sub-section headings that appear in the markdown
+#    (prevents Marker page-break artifacts like "# The" from becoming sections)
+# The pipeline will warn if toc_reviewed is false.
+toc_reviewed: false
+
+# Corrections applied on top of parsed ToC — keyed by original parsed title.
+# Supported fields: title (rename), page_start, page_end, is_excluded, remove (drop entry)
+# Example:
+#   toc_corrections:
+#     "Chpater 1: Ability Scores":
+#       title: "Chapter 1: Ability Scores"
+#     "Appendix 99: Junk":
+#       remove: true
+toc_corrections: {}
+
+# H2 sub-section headings that are valid within chapters.
+# Marker generates H2 (##) headings for real sub-sections, but also generates
+# garbage H1 (#) headings from page running headers at page breaks.
+# Only headings listed here (or matching a ToC title / section_parsing key)
+# are accepted as section boundaries. All other H1/H2 headings become content.
+# Populated during ToC review by running review_toc.py which lists all H1/H2 headings.
+valid_section_headings: []
+
 bronze_validation:
   # Max page gap before flagging as missing content
   max_page_gap: 5

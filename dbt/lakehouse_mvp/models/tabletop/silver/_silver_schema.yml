@@ -27,6 +27,9 @@ models:
       - name: toc_title
         tests:
           - not_null
+      - name: section_title
+        tests:
+          - not_null
       - name: content
         tests:
           - not_null

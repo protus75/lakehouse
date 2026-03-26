@@ -1,0 +1,335 @@
+# ToC Review: DnD2e Handbook Player.pdf
+# depth: nesting (0=chapter, 1+=sub). Tables nest under nearest section.
+# type: chapter (depth 0) | section | table | remove
+#   Add excluded: true to skip chapters. When done, tell Claude to apply.
+
+entries:
+  - {depth: 0, type: chapter, page: 8, title: "Welcome to the AD&D™ Game"}
+  - {depth: 1, type: section, page: 8, title: How the Rule Books are Organized}
+  - {depth: 1, type: section, page: 8, title: Learning the Game}
+  - {depth: 1, type: section, page: 8, title: "Coming From the D&D® Game"}
+  - {depth: 1, type: section, page: 9, title: "The AD&D Game Line"}  
+  - {depth: 1, type: section, page: 9, title: A Note About Pronouns}
+  - {depth: 0, type: chapter, page: 10, title: The Real Basics}
+  - {depth: 1, type: section, page: 11, title: The Goal}
+  - {depth: 1, type: section, page: 11, title: Required Materials}
+  - {depth: 1, type: section, page: 11, title: An Example of Play}
+  - {depth: 0, type: chapter, page: 13, title: Glossary}
+  - {depth: 0, type: chapter, page: 16, title: Step-by-Step Character Generation}
+  - {depth: 0, type: chapter, page: 18, title: "Chapter 1: Player Character Ability Scores"}
+  - {depth: 1, type: section, page: 18, title: Rolling Ability Scores}
+  - {depth: 2, type: section, page: 18, title: Alternative Dice-Rolling Methods}
+  - {depth: 1, type: section, page: 19, title: The Ability Scores}
+  - {depth: 2, type: section, page: 19, title: Strength}
+  - {depth: 3, type: table, page: 19, title: "Table 1: Strength"}
+  - {depth: 2, type: section, page: 20, title: Dexterity}
+  - {depth: 3, type: table, page: 20, title: "Table 2: Dexterity"}
+  - {depth: 2, type: section, page: 20, title: Constitution}
+  - {depth: 3, type: table, page: 21, title: "Table 3: Constitution"}
+  - {depth: 2, type: section, page: 22, title: Intelligence}
+  - {depth: 3, type: table, page: 22, title: "Table 4: Intelligence"}
+  - {depth: 2, type: section, page: 23, title: Wisdom}
+  - {depth: 3, type: table, page: 23, title: "Table 5: Wisdom"}
+  - {depth: 2, type: section, page: 23, title: Charisma}
+  - {depth: 2, type: table, page: 25, title: "Table 6: Charisma"}
+  - {depth: 1, type: section, page: 25, title: What the Numbers Mean}
+  - {depth: 0, type: chapter, page: 26, title: "Chapter 2: Player Character Races"}
+  - {depth: 2, type: section, page: 26, title: Minimum and Maximum Ability Scores}
+  - {depth: 2, type: section, page: 27, title: Racial Ability Adjustments}
+  - {depth: 2, type: table, page: 27, title: "Table 7: Racial Ability Requirements"}
+  - {depth: 2, type: table, page: 27, title: "Table 8: Racial Ability Adjustments"}
+  - {depth: 2, type: section, page: 27, title: Class Restrictions and Level Limits}
+  - {depth: 2, type: section, page: 27, title: Languages}
+  - {depth: 1, type: section, page: 27, title: Dwarves}
+  - {depth: 2, type: table, page: 28, title: "Table 9: Constitution Saving Throw Bonuses"}
+  - {depth: 1, type: section, page: 28, title: Elves}
+  - {depth: 1, type: section, page: 30, title: Gnomes}
+  - {depth: 1, type: section, page: 30, title: Half-Elves}
+  - {depth: 1, type: section, page: 31, title: Halflings}
+  - {depth: 1, type: section, page: 32, title: Humans}
+  - {depth: 1, type: section, page: 32, title: Other Characteristics}
+  - {depth: 2, type: table, page: 33, title: "Table 10: Average Height and Weight"}
+  - {depth: 2, type: table, page: 33, title: "Table 11: Age"}
+  - {depth: 2, type: table, page: 33, title: "Table 12: Aging Effects"}
+  - {depth: 0, type: chapter, page: 34, title: "Chapter 3: Player Character Classes"}
+  - {depth: 2, type: section, page: 35, title: Class Ability Score Requirements}
+  - {depth: 3, type: table, page: 35, title: "Table 13: Class Ability Minimums"}
+  - {depth: 1, type: section, page: 36, title: Warrior}
+  - {depth: 2, type: table, page: 36, title: "Table 14: Warrior Experience Levels"}
+  - {depth: 2, type: table, page: 36, title: "Table 15: Warrior Melee Attacks per Round"}
+  - {depth: 2, type: table, page: 38, title: "Table 16: Fighter’s Followers"}
+  - {depth: 2, type: section, page: 36, title: Fighter}
+  - {depth: 2, type: section, page: 38, title: Paladin}
+  - {depth: 3, type: table, page: 40, title: "Table 17: Paladin Spell Progression"}
+  - {depth: 2, type: section, page: 40, title: Ranger}
+  - {depth: 3, type: table, page: 41, title: "Table 18: Ranger Abilities"}
+  - {depth: 3, type: table, page: 41, title: "Table 19: Ranger’s Followers"}
+  - {depth: 1, type: section, page: 42, title: Wizard}
+  - {depth: 2, type: table, page: 42, title: "Table 20: Wizard Experience Levels"}
+  - {depth: 2, type: table, page: 43, title: "Table 21: Wizard Spell Progression"}
+  - {depth: 2, type: section, page: 44, title: Mage}
+  - {depth: 3, type: section, page: 44, title: The Schools of Magic}
+  - {depth: 2, type: section, page: 45, title: Specialist Wizards}
+  - {depth: 3, type: table, page: 45, title: "Table 22: Wizard Specialist Requirements"}
+  - {depth: 2, type: section, page: 46, title: Illusionist}
+  - {depth: 1, type: section, page: 47, title: Priest}
+  - {depth: 2, type: table, page: 47, title: "Table 23: Priest Experience Levels"}
+  - {depth: 2, type: table, page: 47, title: "Table 24: Priest Spell Progression"}
+  - {depth: 2, type: section, page: 48, title: Cleric}
+  - {depth: 2, type: section, page: 49, title: Priests of Specific Mythoi}
+  - {depth: 3, type: section, page: 49, title: Requirements}
+  - {depth: 3, type: section, page: 49, title: Weapons Allowed}
+  - {depth: 3, type: section, page: 49, title: Spells Allowed (Spheres of Influence)}
+  - {depth: 3, type: section, page: 50, title: Granted Powers}
+  - {depth: 3, type: section, page: 50, title: Ethos}
+  - {depth: 3, type: section, page: 50, title: Priest Titles}
+  - {depth: 3, type: section, page: 51, title: Balancing It All}
+  - {depth: 2, type: section, page: 51, title: Druid}
+  - {depth: 3, type: section, page: 52, title: Druid Organization}
+  - {depth: 1, type: section, page: 54, title: Rogue}
+  - {depth: 2, type: table, page: 53, title: "Table 25: Rogue Experience Levels"}
+  - {depth: 2, type: section, page: 54, title: Thief}
+  - {depth: 3, type: table, page: 54, title: "Table 26: Thieving Skill Base Scores"}
+  - {depth: 3, type: table, page: 54, title: "Table 27: Thieving Skill Racial Adjustments"}
+  - {depth: 3, type: table, page: 54, title: "Table 28: Thieving Skill Dexterity Adjustments"}
+  - {depth: 3, type: table, page: 56, title: "Table 29: Thieving Skill Armor Adjustments"}
+  - {depth: 3, type: table, page: 57, title: "Table 30: Backstab Damage Multipliers"}
+  - {depth: 3, type: table, page: 58, title: "Table 31: Thief’s Followers"}
+  - {depth: 2, type: section, page: 58, title: Bard}
+  - {depth: 3, type: table, page: 59, title: "Table 32: Bard Spell Progression"}
+  - {depth: 3, type: table, page: 59, title: "Table 33: Bard Abilities"}
+  - {depth: 1, type: section, page: 61, title: Multi-Class and Dual-Class Characters}
+  - {depth: 2, type: section, page: 61, title: Multi-Class Combinations}
+  - {depth: 2, type: section, page: 61, title: Multi-Class Benefits and Restrictions}
+  - {depth: 2, type: section, page: 62, title: Dual-Class Benefits and Restrictions}
+  - {depth: 0, type: chapter, page: 64, title: "Chapter 4: Alignment"}
+  - {depth: 1, type: section, page: 64, title: "Law, Neutrality, and Chaos"}
+  - {depth: 1, type: section, page: 65, title: "Good, Neutrality, and Evil"}
+  - {depth: 1, type: section, page: 65, title: Alignment Combinations}
+  - {depth: 2, type: section, page: 66, title: Non-Aligned Creatures}
+  - {depth: 1, type: section, page: 66, title: Playing the Character’s Alignment}
+  - {depth: 1, type: section, page: 69, title: Changing Alignment}
+  - {depth: 0, type: chapter, page: 70, title: "Chapter 5: Proficiencies (Optional)"}
+  - {depth: 1, type: section, page: 70, title: Acquiring Proficiencies}
+  - {depth: 1, type: section, page: 71, title: Training}
+  - {depth: 1, type: table, page: 71, title: "Table 34: Proficiency Slots"}
+  - {depth: 1, type: section, page: 71, title: Weapon Proficiencies}
+  - {depth: 2, type: section, page: 72, title: Effects of Weapon Proficiencies}
+  - {depth: 2, type: section, page: 72, title: Related Weapon Bonus}
+  - {depth: 2, type: section, page: 73, title: Weapon Specialization}
+  - {depth: 3, type: table, page: 71, title: "Table 35: Specialist Attacks per Round"}
+  - {depth: 3, type: section, page: 73, title: Cost of Specialization}
+  - {depth: 3, type: section, page: 73, title: Effects of Specialization}
+  - {depth: 1, type: section, page: 73, title: Nonweapon Proficiencies}
+  - {depth: 2, type: section, page: 74, title: Using What You Know}
+  - {depth: 2, type: section, page: 74, title: Secondary Skills}
+  - {depth: 3, type: table, page: 75, title: "Table 36: Secondary Skills"}
+  - {depth: 1, type: section, page: 74, title: Nonweapon Proficiencies}
+  - {depth: 2, type: table, page: 76, title: "Table 37: Nonweapon Proficiency Groups"}
+  - {depth: 2, type: section, page: 75, title: Using Nonweapon Proficiencies}
+  - {depth: 2, type: section, page: 77, title: Nonweapon Proficiency Descriptions}
+  - {depth: 2, type: table, page: 77, title: "Table 38:  Nonweapon Proficiency Group Crossovers"}
+  - {depth: 2, type: table, page: 86, title: "Table 39: Tracking Modifiers"}
+  - {depth: 2, type: table, page: 87, title: "Table 40: Movement While Tracking"}
+  - {depth: 2, type: table, page: 87, title: "Table 41: Weapon Construction"}
+  - {depth: 0, type: chapter, page: 88, title: "Chapter 6: Money and Equipment"}
+  - {depth: 1, type: table, page: 89, title: "Table 42: Standard Exchange Rates"}
+  - {depth: 1, type: section, page: 89, title: Starting Money}
+  - {depth: 2, type: table, page: 89, title: "Table 43: Initial Character Funds"}
+  - {depth: 1, type: table, page: 90, page_end: 91, title: "Table 44: Equipment"}
+  - {depth: 1, type: section, page: 89, title: Equipment Lists}
+  - {depth: 1, type: section, page: 89, title: Equipment Descriptions}
+  - {depth: 2, type: section, page: 89, title: Tack and Harness}
+  - {depth: 2, type: remove, page: 90, title: Clothing}
+  - {depth: 2, type: remove, page: 90, title: Daily Food and Lodging}
+  - {depth: 2, type: remove, page: 90, title: Household Provisioning}
+  - {depth: 2, type: remove, page: 90, title: Transport}
+  - {depth: 2, type: remove, page: 90, title: Animals}
+  - {depth: 2, type: remove, page: 90, title: Services}
+  - {depth: 2, type: remove, page: 91, title: Tack and Harness}
+  - {depth: 2, type: remove, page: 91, title: Miscellaneous Equipment}
+  - {depth: 2, type: section, page: 92, title: Transport}
+  - {depth: 2, type: section, page: 93, title: Miscellaneous Equipment}
+  - {depth: 3, type: table, page: 95, title: "Table 45: Missile Weapon Ranges"}
+  - {depth: 2, type: section, page: 96, title: Weapons}
+  - {depth: 3, type: table, page: 94, page_end: 95, title: Weapons}
+  - {depth: 2, type: section, page: 99, title: Armor}
+  - {depth: 3, type: table, page: 92, title: Armor}
+  - {depth: 3, type: table, page: 99, title: "Table 46: Armor Class Ratings"}
+  - {depth: 3, type: section, page: 101, title: Armor Sizes}
+  - {depth: 3, type: section, page: 101, title: Getting Into and Out of Armor}
+  - {depth: 3, type: section, page: 102, title: Creatures with Natural Armor Classes}
+  - {depth: 1, type: section, page: 102, title: Encumbrance}
+  - {depth: 2, type: table, page: 103, title: "Table 47: Character Encumbrance"}
+  - {depth: 2, type: table, page: 103, title: "Table 48: Modified Movement Rates"}
+  - {depth: 2, type: table, page: 105, title: "Table 49: Carrying Capacities of Animals"}
+  - {depth: 2, type: table, page: 105, title: "Table 50: Stowage Capacity"}
+  - {depth: 2, type: section, page: 102, title: Basic Encumbrance}
+  - {depth: 2, type: section, page: 102, title: Specific Encumbrance}
+  - {depth: 2, type: section, page: 102, title: Encumbrance and Mounts}
+  - {depth: 2, type: section, page: 105, title: Magical Armor and Encumbrance}
+  - {depth: 2, type: section, page: 105, title: Effects of Encumbrance}
+
+  - {depth: 0, type: chapter, page: 106, title: "Chapter 7: Magic"}
+  - {depth: 1, type: section, page: 107, title: Wizard Spells}
+  - {depth: 2, type: section, page: 107, title: Schools of Magic}
+  - {depth: 2, type: section, page: 108, title: Learning Spells}
+  - {depth: 2, type: section, page: 108, title: Illusions}
+  - {depth: 1, type: section, page: 111, title: Priest Spells}
+  - {depth: 1, type: section, page: 111, title: Casting Spells}
+  - {depth: 2, type: section, page: 113, title: Spell Components}
+  - {depth: 1, type: section, page: 113, title: Magical Research}
+  - {depth: 1, type: section, page: 113, title: Spell Descriptions}
+  - {depth: 0, type: chapter, page: 116, title: "Chapter 8: Experience"}
+  - {depth: 1, type: section, page: 117, title: Group Experience Awards}
+  - {depth: 1, type: section, page: 117, title: Individual Experience Awards}
+  - {depth: 1, type: section, page: 117, title: Training}
+  - {depth: 1, type: section, page: 117, title: "Where’s the Specific Info?"}
+  - {depth: 0, type: chapter, page: 118, title: "Chapter 9: Combat"}
+  - {depth: 2, type: section, page: 118, title: More Than Just Hack-and-Slash}
+  - {depth: 1, type: section, page: 118, title: Definitions}
+  - {depth: 1, type: section, page: 119, title: The Attack Roll}
+  - {depth: 2, type: section, page: 119, title: Figuring the To-Hit Number}
+  - {depth: 2, type: section, page: 120, title: Modifiers to the Attack Roll}
+  - {depth: 3, type: table, page: 120, title: "Table 51: Combat Modifiers"}
+  - {depth: 1, type: section, page: 120, title: Weapon Type vs. Armor Modifiers}
+  - {depth: 2, type: section, page: 120, title: The Various Types of Weapons}
+  - {depth: 2, type: table, page: 121, title: "Table 52: Weapon Type vs. Armor Modifiers"}
+  - {depth: 2, type: section, page: 121, title: Impossible To-Hit Numbers}
+  - {depth: 1, type: section, page: 121, title: Calculating THAC0}
+  - {depth: 2, type: table, page: 121, title: "Table 53: Calculated THAC0s"}
+  - {depth: 2, type: table, page: 121, title: "Table 54: THAC0 Advancement"}
+  - {depth: 1, type: section, page: 121, title: Combat and Encounters}
+  - {depth: 1, type: section, page: 122, title: The Combat Round}
+  - {depth: 2, type: section, page: 122, title: What You Can Do in One Round}
+  - {depth: 1, type: section, page: 122, title: The Combat Sequence}
+  - {depth: 1, type: section, page: 124, title: Initiative}
+  - {depth: 2, type: section, page: 124, title: Standard Initiative Procedure}
+  - {depth: 2, type: section, page: 124, title: Initiative Modifiers}
+  - {depth: 3, type: table, page: 125, title: "Table 55: Standard Modifiers to Initiative"}
+  - {depth: 3, type: table, page: 125, title: "Table 56: Optional Modifiers to Initiative"}
+  - {depth: 2, type: section, page: 125, title: Group Initiative}
+  - {depth: 2, type: section, page: 126, title: Individual Initiative}
+  - {depth: 2, type: section, page: 126, title: Multiple Attacks and Initiative}
+  - {depth: 2, type: section, page: 127, title: Spellcasting and Initiative}
+  - {depth: 2, type: section, page: 127, title: Weapon Speed and Initiative}
+  - {depth: 3, type: section, page: 127, title: Magical Weapon Speeds}
+  - {depth: 1, type: section, page: 127, title: Attacking with Two Weapons}
+  - {depth: 1, type: section, page: 127, title: Movement in Combat}
+  - {depth: 2, type: section, page: 128, title: Movement in Melee}
+  - {depth: 2, type: section, page: 128, title: Movement and Missile Combat}
+  - {depth: 2, type: section, page: 128, title: Charging an Opponent}
+  - {depth: 2, type: section, page: 128, title: Retreat}
+  - {depth: 1, type: section, page: 128, title: Attacking Without Killing}
+  - {depth: 2, type: section, page: 128, title: Punching and Wrestling}
+  - {depth: 3, type: table, page: 128, title: "Table 57: Armor Modifiers for Wrestling"}
+  - {depth: 3, type: table, page: 129, title: "Table 58: Punching and Wrestling Results"}
+  - {depth: 2, type: section, page: 129, title: Overbearing}
+  - {depth: 2, type: section, page: 130, title: Weapons in Nonlethal Combat}
+  - {depth: 2, type: section, page: 131, title: Nonlethal Combat and Creatures}
+  - {depth: 1, type: section, page: 131, title: Touch Spells and Combat}
+  - {depth: 1, type: section, page: 131, title: Missile Weapons in Combat}
+  - {depth: 2, type: section, page: 131, title: Range}
+  - {depth: 2, type: section, page: 131, title: Rate of Fire}
+  - {depth: 2, type: section, page: 131, title: Ability Modifiers in Missile Combat}
+  - {depth: 2, type: section, page: 132, title: Firing into a Melee}
+  - {depth: 2, type: section, page: 132, title: Taking Cover Against Missile Fire}
+  - {depth: 3, type: table, page: 132, title: "Table 59: Cover and Concealment Modifiers"}
+  - {depth: 2, type: section, page: 132, title: Grenadelike Missiles}
+  - {depth: 2, type: section, page: 133, title: Types of Grenadelike Missiles}
+  - {depth: 1, type: section, page: 133, title: Special Defenses}
+  - {depth: 1, type: section, page: 133, title: Parrying}
+  - {depth: 1, type: section, page: 133, title: The Saving Throw}
+  - {depth: 2, type: section, page: 133, title: Rolling Saving Throws}
+  - {depth: 3, type: table, page: 134, title: "Table 60: Character Saving Throws"}
+  - {depth: 2, type: section, page: 134, title: Saving Throw Priority}
+  - {depth: 2, type: section, page: 135, title: Voluntarily Failing Saving Throws}
+  - {depth: 2, type: section, page: 135, title: Ability Checks as Saving Throws}
+  - {depth: 2, type: section, page: 135, title: Modifying Saving Throws}
+  - {depth: 1, type: section, page: 135, title: Magic Resistance}
+  - {depth: 2, type: section, page: 136, title: Effects of Magic Resistance}
+  - {depth: 2, type: section, page: 136, title: When Magic Resistance Applies}
+  - {depth: 2, type: section, page: 136, title: Successful Magic Resistance Rolls}
+  - {depth: 1, type: section, page: 136, title: Turning Undead}
+  - {depth: 2, type: table, page: 137, title: "Table 61: Turning Undead"}
+  - {depth: 2, type: section, page: 137, title: Evil Priests and Undead}
+  - {depth: 1, type: section, page: 137, title: Injury and Death}
+  - {depth: 2, type: section, page: 139, title: Wounds}
+  - {depth: 1, type: section, page: 139, title: Special Damage}
+  - {depth: 2, type: section, page: 139, title: Falling}
+  - {depth: 2, type: section, page: 139, title: Paralysis}
+  - {depth: 2, type: section, page: 139, title: Energy Drain}
+  - {depth: 2, type: section, page: 140, title: Poison}
+  - {depth: 3, type: section, page: 140, title: Treating Poison Victims}
+  - {depth: 1, type: section, page: 140, title: Healing}
+  - {depth: 2, type: section, page: 140, title: Natural Healing}
+  - {depth: 2, type: section, page: 141, title: Magical Healing}
+  - {depth: 2, type: section, page: 141, title: Herbalism and Healing Proficiencies}
+  - {depth: 1, type: section, page: 141, title: Character Death}
+  - {depth: 2, type: section, page: 141, title: Death From Poison}
+  - {depth: 2, type: section, page: 141, title: Death From Massive Damage}
+  - {depth: 2, type: section, page: 141, title: Inescapable Death}
+  - {depth: 2, type: section, page: 141, title: Raising the Dead}
+  - {depth: 0, type: chapter, page: 142, title: "Chapter 10: Treasure"}
+  - {depth: 1, type: section, page: 142, title: Treasure Types}
+  - {depth: 1, type: section, page: 143, title: Magical Items}
+  - {depth: 1, type: section, page: 145, title: Dividing and Storing Treasure}
+  - {depth: 0, type: chapter, page: 146, title: "Chapter 11: Encounters"}
+  - {depth: 1, type: section, page: 147, title: The Surprise Roll}
+  - {depth: 2, type: section, page: 148, title: Effects of Surprise}
+  - {depth: 1, type: section, page: 148, title: Encounter Distance}
+  - {depth: 1, type: section, page: 148, title: Encounter Options}
+  - {depth: 0, type: chapter, page: 150, title: "Chapter 12: NPCs"}
+  - {depth: 1, type: section, page: 151, title: Hirelings}
+  - {depth: 1, type: section, page: 151, title: Followers}
+  - {depth: 1, type: section, page: 151, title: Henchmen}
+  - {depth: 1, type: section, page: 153, title: Player Character Obligations}
+  - {depth: 0, type: chapter, page: 154, title: "Chapter 13: Vision and Light"}
+  - {depth: 1, type: section, page: 154, title: Limits of Vision}
+  - {depth: 2, type: table, page: 155, title: "Table 62: Visibility Ranges"}
+  - {depth: 1, type: section, page: 155, title: Light}
+  - {depth: 2, type: table, page: 155, title: "Table 63: Light Sources"}
+  - {depth: 1, type: section, page: 155, title: Infravision}
+  - {depth: 1, type: section, page: 155, title: Using Mirrors}
+  - {depth: 0, type: chapter, page: 156, title: "Chapter 14: Time and Movement"}
+  - {depth: 1, type: section, page: 157, title: Movement}
+  - {depth: 2, type: table, page: 157, title: "Table 64: Base Movement Rates"}
+  - {depth: 2, type: section, page: 157, title: Jogging and Running}
+  - {depth: 2, type: section, page: 158, title: Cross-Country Movement}
+  - {depth: 1, type: section, page: 158, title: Swimming}
+  - {depth: 2, type: section, page: 160, title: Holding Your Breath}
+  - {depth: 1, type: section, page: 160, title: Climbing}
+  - {depth: 2, type: section, page: 160, title: Calculating Success}
+  - {depth: 3, type: table, page: 161, title: "Table 65: Base Climbing Success Rates"}
+  - {depth: 3, type: table, page: 161, title: "Table 66: Climbing Modifiers"}
+  - {depth: 2, type: section, page: 161, title: Climbing Rates}
+  - {depth: 3, type: table, page: 163, title: "Table 67: Rates of Climbing"}
+  - {depth: 2, type: section, page: 162, title: Types of Surfaces}
+  - {depth: 2, type: section, page: 162, title: Actions While Climbing}
+  - {depth: 2, type: section, page: 163, title: Climbing Tools}
+  - {depth: 2, type: section, page: 163, title: Getting Down}
+  - {depth: 0, type: chapter, page: 164, title: "Appendix 1: Spell Lists", excluded: true}
+  - {depth: 0, type: chapter, page: 168, title: "Appendix 2: Notes on Spells"}
+  - {depth: 0, type: chapter, page: 170, title: "Appendix 3: Wizard Spells"}
+  - {depth: 1, type: section, page: 170, title: First-Level Spells}
+  - {depth: 1, type: section, page: 180, title: Second-Level Spells}
+  - {depth: 1, type: section, page: 190, title: Third-Level Spells}
+  - {depth: 1, type: section, page: 198, title: Fourth-Level Spells}
+  - {depth: 1, type: section, page: 209, title: Fifth-Level Spells}
+  - {depth: 1, type: section, page: 220, title: Sixth-Level Spells}
+  - {depth: 1, type: section, page: 232, title: Seventh-Level Spells}
+  - {depth: 1, type: section, page: 238, title: Eighth-Level Spells}
+  - {depth: 1, type: section, page: 245, title: Ninth-Level Spells}
+  - {depth: 0, type: chapter, page: 252, title: "Appendix 4: Priest Spells"}
+  - {depth: 1, type: section, page: 252, title: First-Level Spells}
+  - {depth: 1, type: section, page: 257, title: Second-Level Spells}
+  - {depth: 1, type: section, page: 265, title: Third-Level Spells}
+  - {depth: 1, type: section, page: 273, title: Fourth-Level Spells}
+  - {depth: 1, type: section, page: 280, title: Fifth-Level Spells}
+  - {depth: 1, type: section, page: 287, title: Sixth-Level Spells}
+  - {depth: 1, type: section, page: 292, title: Seventh-Level Spells}
+  - {depth: 0, type: chapter, page: 300, title: "Appendix 5: Wizard Spells by School", excluded: true}
+  - {depth: 0, type: chapter, page: 302, title: "Appendix 6: Priest Spells by Sphere", excluded: true}
+  - {depth: 0, type: chapter, page: 304, title: "Appendix 7: Spell Index", excluded: true}
+  - {depth: 0, type: chapter, page: 308, title: "Appendix 8: Compiled Character Generation Tables", excluded: true}
+  - {depth: 0, type: chapter, page: 314, title: Index, excluded: true}
