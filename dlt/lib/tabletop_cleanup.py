@@ -615,17 +615,34 @@ def build_entries(
                     if inner and current_school is None:
                         current_school = inner
             else:
-                # Check for inline entry pattern (e.g. "Healing: A character proficient...")
-                # Used for proficiency descriptions and similar non-heading entries
-                inline_matched = False
+                # Check for entry anchors and inline patterns in non-heading lines.
+                # Entry anchors: exact names that start a new entry when found at
+                # the beginning of a line (e.g. "Dwarves are short..." → entry "Dwarf")
+                # Inline patterns: regex match (e.g. "Healing: A character..." → entry "Healing")
+                anchor_matched = False
                 if config and current_toc and stripped:
                     toc_title = current_toc.get("title", "")
                     for sec_key, sec_cfg in (config.get("section_parsing", {}) or {}).items():
                         if sec_key.lower() not in toc_title.lower():
                             continue
+
+                        # Check entry anchors first
+                        anchors = sec_cfg.get("entry_anchors", [])
+                        name_map = sec_cfg.get("anchor_name_map", {})
+                        for anchor in anchors:
+                            if stripped.startswith(anchor) or stripped.startswith(f"**{anchor}"):
+                                flush()
+                                current_entry = name_map.get(anchor, anchor)
+                                current_content = [line]
+                                anchor_matched = True
+                                break
+                        if anchor_matched:
+                            break
+
+                        # Check inline entry pattern
                         inline_pat = sec_cfg.get("inline_entry_pattern")
                         if not inline_pat:
-                            continue
+                            break
                         m = re.match(inline_pat, stripped)
                         if m:
                             entry_name = m.group(1).strip().rstrip(":")
@@ -633,9 +650,9 @@ def build_entries(
                                 flush()
                                 current_entry = entry_name
                                 current_content = [line]
-                                inline_matched = True
+                                anchor_matched = True
                         break
-                if not inline_matched:
+                if not anchor_matched:
                     current_content.append(line)
 
         char_pos += len(line) + 1

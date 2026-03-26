@@ -34,6 +34,9 @@ strip_content_patterns:
 content_substitutions:
   - ['D- M', 'DM']
   - ['| Tal | bl | e | 4 |', 'Table 45: Missile Weapon Ranges']
+  - ['Tumans', 'Humans']
+  - ['Cnomes', 'Gnomes']
+  - ['Although humans are treated as a single race **Humans**', 'Humans are treated as a single race']
 
 exclude_chapters:
   - "Appendix 1: Spell Lists"
@@ -128,6 +131,25 @@ section_parsing:
       - '(Illusion.*)'
       - '(Necromancy.*)'
       - '(Invocation.*)'
+
+  "Player Character Races":
+    # Race names don't appear as markdown headings — Marker renders them as
+    # inline text. Detect entry boundaries by matching these anchor names at
+    # the start of a non-heading line.
+    entry_anchors:
+      - "Dwarves"
+      - "Elves"
+      - "Gnomes"
+      - "Half-elves"
+      - "Halflings"
+      - "Humans"
+    anchor_name_map:
+      "Dwarves": "Dwarf"
+      "Elves": "Elf"
+      "Gnomes": "Gnome"
+      "Half-elves": "Half-Elf"
+      "Halflings": "Halfling"
+      "Humans": "Human"
 
   "Proficiencies":
     # Proficiency descriptions are "Name: description" in running text
