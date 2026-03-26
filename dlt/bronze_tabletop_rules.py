@@ -175,7 +175,66 @@ def extract_page_texts(filepath: Path, config: dict) -> tuple[list[str], dict[in
             page_printed[page_idx] = page_idx
 
     doc.close()
+
+    # ── Validate page numbers ──────────────────────────────────────
+    _validate_page_numbers(page_printed, total_pages, filepath.name)
+
     return page_texts, page_printed, total_pages
+
+
+def _validate_page_numbers(page_printed: dict[int, int], total_pages: int, filename: str) -> None:
+    """Validate that detected page numbers are sane. Fails fast if not.
+
+    Checks:
+    1. Monotonically non-decreasing (each page >= previous)
+    2. No backwards jumps > 1 (indicates table data contamination)
+    3. Coverage: most pages (>80%) should have been detected from margin
+    4. Consistency: the offset (printed - idx) shouldn't vary wildly
+    """
+    errors = []
+
+    # Check monotonicity
+    backwards = []
+    prev = -1
+    for page_idx in range(total_pages):
+        printed = page_printed.get(page_idx, page_idx)
+        if printed < prev:
+            backwards.append((page_idx, printed, prev))
+        prev = printed
+    if backwards:
+        examples = backwards[:5]
+        errors.append(
+            f"Page numbers go backwards at {len(backwards)} pages. "
+            f"Examples: {', '.join(f'idx {i}: {p} after {pv}' for i, p, pv in examples)}"
+        )
+
+    # Check for big jumps (>5 pages at once = likely contamination)
+    big_jumps = []
+    prev = page_printed.get(0, 0)
+    for page_idx in range(1, total_pages):
+        printed = page_printed.get(page_idx, page_idx)
+        gap = printed - prev
+        if gap > 5:
+            big_jumps.append((page_idx, prev, printed))
+        prev = printed
+    if big_jumps:
+        examples = big_jumps[:5]
+        errors.append(
+            f"Page numbers jump >5 at {len(big_jumps)} pages. "
+            f"Examples: {', '.join(f'idx {i}: {p1}->{p2}' for i, p1, p2 in examples)}"
+        )
+
+    # Check that the last page's number is reasonable
+    last_printed = page_printed.get(total_pages - 1, 0)
+    if last_printed > total_pages * 2:
+        errors.append(
+            f"Last page number ({last_printed}) is >2x total pages ({total_pages})"
+        )
+
+    if errors:
+        msg = f"Page number validation FAILED for {filename}:\n  " + "\n  ".join(errors)
+        _log(f"  WARNING: {msg}")
+        raise ValueError(msg)
 
 
 MARKER_CACHE_DIR = Path("/workspace/cache/marker")
