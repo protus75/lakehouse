@@ -1,23 +1,19 @@
 ---
 name: project_architecture_changes
-description: Architecture changes from original spec - Unity Catalog replaces Polaris, Dagster replaces Airflow
+description: Storage migration completed 2026-03-26 - SeaweedFS+Iceberg+Dagster replaces DuckDB storage
 type: project
 ---
 
-User-directed architecture changes from original `ai/python_lakehouse_architecture.md` spec (2026-03-26):
+Architecture migration completed 2026-03-26:
 
-**Changed components:**
-- **PyIceberg SQL catalog** (PostgreSQL-backed) replaces Apache Polaris — no Java catalog server needed, pure Python
-- **Dagster** replaces Apache Airflow — better Python-native orchestration, asset-based model fits batch analytics
+**Storage layer:** DuckDB-as-storage → SeaweedFS (S3) + Apache Iceberg (PyIceberg SQL catalog on PostgreSQL)
+- All bronze/silver/gold data written as Iceberg tables to `s3://lakehouse/warehouse/`
+- Writes via `dlt/lib/iceberg_catalog.py` (`write_iceberg()`)
+- Reads via `dlt/lib/duckdb_reader.py` (`get_reader()` — DuckDB views over Iceberg)
+- Config in `config/lakehouse.yaml`
 
-**Unchanged from spec:**
-- SeaweedFS (S3-compatible object storage)
-- Apache Iceberg (table format)
-- DuckDB (query engine only)
-- dlt (ingestion)
-- dbt (transformation)
-- Parquet files on S3
+**Catalog:** Polaris (Java) removed → PyIceberg SQL catalog talks directly to PostgreSQL
+**Orchestration:** Dagster added (webserver port 3000, daemon), assets defined in `dagster/lakehouse_assets/assets.py`
+**dbt:** Still materializes to DuckDB, but reads bronze via Iceberg views (`on-run-start` macro). Post-dbt publish step writes silver/gold to Iceberg.
 
-**Why:** Polaris is Java-heavy with limited Python tooling. PyIceberg SQL catalog is pure Python, uses existing PostgreSQL, no extra server. Can upgrade to Unity Catalog later if governance needed. Dagster's asset-centric model maps directly to medallion layers.
-
-**How to apply:** Remove Polaris containers from docker-compose, configure PyIceberg with SQL catalog on existing PostgreSQL, add Dagster, write Iceberg tables to SeaweedFS via PyIceberg, DuckDB reads via Iceberg REST or direct parquet.
+**Why:** DuckDB single-process lock doesn't scale. Parquet on S3 is open format. PyIceberg is pure Python. Dagster's asset model maps to medallion layers.

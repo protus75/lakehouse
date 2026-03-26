@@ -1,0 +1,4 @@
+load_from:
+  - python_file:
+      relative_path: lakehouse_assets/assets.py
+      working_directory: /workspace/dagster

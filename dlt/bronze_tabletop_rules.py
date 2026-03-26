@@ -20,173 +20,20 @@ from datetime import datetime, timezone
 
 import duckdb
 import fitz  # pymupdf
+import pyarrow as pa
 
 from dlt.lib.tabletop_cleanup import _log, load_config, _extract_toc_line
+from dlt.lib.iceberg_catalog import write_iceberg, read_iceberg, read_iceberg_filtered, table_exists
 
-DB_PATH = "/workspace/db/lakehouse.duckdb"
 DOCUMENTS_DIR = Path("/workspace/documents/tabletop_rules/raw")
 CONFIGS_DIR = Path("/workspace/documents/tabletop_rules/configs")
 
 
 # ── Schema ───────────────────────────────────────────────────────
+# Iceberg tables are created automatically from Arrow schemas via write_iceberg().
+# No init_bronze_schema() needed — PyIceberg handles table creation on first write.
 
-def init_bronze_schema(conn: duckdb.DuckDBPyConnection) -> None:
-    conn.execute("CREATE SCHEMA IF NOT EXISTS bronze_tabletop")
-
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS bronze_tabletop.pipeline_runs (
-            run_id            VARCHAR PRIMARY KEY,
-            source_file       VARCHAR NOT NULL,
-            step              VARCHAR NOT NULL,
-            pipeline_version  VARCHAR,
-            config_hash       VARCHAR,
-            status            VARCHAR NOT NULL DEFAULT 'running',
-            started_at        TIMESTAMP NOT NULL,
-            finished_at       TIMESTAMP,
-            row_counts        VARCHAR,
-            error_message     VARCHAR
-        )
-    """)
-
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS bronze_tabletop.catalog (
-            source_file       VARCHAR NOT NULL,
-            table_name        VARCHAR NOT NULL,
-            row_count         INTEGER NOT NULL,
-            refreshed_at      TIMESTAMP NOT NULL,
-            run_id            VARCHAR,
-            PRIMARY KEY (source_file, table_name)
-        )
-    """)
-
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS bronze_tabletop.files (
-            source_file     VARCHAR PRIMARY KEY,
-            pdf_size_bytes  BIGINT NOT NULL,
-            total_pages     INTEGER NOT NULL,
-            config_hash     VARCHAR NOT NULL,
-            run_id          VARCHAR NOT NULL,
-            extracted_at    TIMESTAMP NOT NULL
-        )
-    """)
-
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS bronze_tabletop.marker_extractions (
-            source_file     VARCHAR PRIMARY KEY,
-            markdown_text   VARCHAR NOT NULL,
-            char_count      INTEGER NOT NULL,
-            run_id          VARCHAR NOT NULL,
-            extracted_at    TIMESTAMP NOT NULL
-        )
-    """)
-
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS bronze_tabletop.page_texts (
-            source_file       VARCHAR NOT NULL,
-            page_index        INTEGER NOT NULL,
-            page_text         VARCHAR NOT NULL,
-            printed_page_num  INTEGER,
-            run_id            VARCHAR NOT NULL,
-            PRIMARY KEY (source_file, page_index)
-        )
-    """)
-
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS bronze_tabletop.toc_raw (
-            source_file     VARCHAR NOT NULL,
-            title           VARCHAR NOT NULL,
-            page_start      INTEGER NOT NULL,
-            page_end        INTEGER,
-            is_excluded     BOOLEAN DEFAULT FALSE,
-            run_id          VARCHAR NOT NULL,
-            PRIMARY KEY (source_file, title)
-        )
-    """)
-
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS bronze_tabletop.known_entries_raw (
-            source_file     VARCHAR NOT NULL,
-            entry_name      VARCHAR NOT NULL,
-            entry_class     VARCHAR,
-            entry_level     INTEGER,
-            ref_page        INTEGER,
-            source_section  VARCHAR,
-            school          VARCHAR,
-            sphere          VARCHAR,
-            run_id          VARCHAR NOT NULL
-        )
-    """)
-
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS bronze_tabletop.tables_raw (
-            source_file       VARCHAR NOT NULL,
-            table_number      INTEGER NOT NULL,
-            table_title       VARCHAR NOT NULL,
-            format            VARCHAR NOT NULL,
-            row_index         INTEGER NOT NULL,
-            cells             VARCHAR NOT NULL,
-            run_id            VARCHAR NOT NULL,
-            PRIMARY KEY (source_file, table_number, row_index)
-        )
-    """)
-
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS bronze_tabletop.authority_table_entries (
-            source_file       VARCHAR NOT NULL,
-            entry_name        VARCHAR NOT NULL,
-            entry_type        VARCHAR NOT NULL,
-            source_table      VARCHAR NOT NULL,
-            run_id            VARCHAR NOT NULL
-        )
-    """)
-
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS bronze_tabletop.spell_list_entries (
-            source_file       VARCHAR NOT NULL,
-            entry_name        VARCHAR NOT NULL,
-            entry_class       VARCHAR NOT NULL,
-            entry_level       INTEGER NOT NULL,
-            is_reversible     BOOLEAN NOT NULL,
-            source_section    VARCHAR,
-            run_id            VARCHAR NOT NULL
-        )
-    """)
-
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS bronze_tabletop.watermarks (
-            source_file       VARCHAR NOT NULL,
-            watermark_text    VARCHAR NOT NULL,
-            occurrence_count  INTEGER NOT NULL,
-            run_id            VARCHAR NOT NULL,
-            PRIMARY KEY (source_file, watermark_text)
-        )
-    """)
-
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS bronze_tabletop.validation_results (
-            source_file       VARCHAR NOT NULL,
-            check_name        VARCHAR NOT NULL,
-            status            VARCHAR NOT NULL,
-            message           VARCHAR,
-            details           VARCHAR,
-            run_id            VARCHAR NOT NULL,
-            checked_at        TIMESTAMP NOT NULL,
-            PRIMARY KEY (source_file, check_name)
-        )
-    """)
-
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS bronze_tabletop.ocr_issues (
-            source_file       VARCHAR NOT NULL,
-            wrong_text        VARCHAR NOT NULL,
-            suggested_fix     VARCHAR NOT NULL,
-            context           VARCHAR,
-            status            VARCHAR DEFAULT 'candidate',
-            model             VARCHAR,
-            run_id            VARCHAR NOT NULL,
-            checked_at        TIMESTAMP NOT NULL
-        )
-    """)
+NAMESPACE = "bronze_tabletop"
 
 
 # ── Lineage & Catalog ────────────────────────────────────────────
@@ -194,54 +41,80 @@ def init_bronze_schema(conn: duckdb.DuckDBPyConnection) -> None:
 import uuid
 
 
-def start_run(conn, source_file: str, step: str, config: dict) -> str:
-    """Begin a pipeline run. Returns run_id."""
+def start_run(source_file: str, step: str, config: dict) -> str:
+    """Begin a pipeline run. Returns run_id. Writes to Iceberg."""
     run_id = str(uuid.uuid4())[:12]
     lineage_cfg = config.get("lineage", {})
     version = lineage_cfg.get("pipeline_version", "unknown")
     c_hash = config_hash(config)
     now = datetime.now(timezone.utc)
-    conn.execute(
-        "INSERT INTO bronze_tabletop.pipeline_runs VALUES (?, ?, ?, ?, ?, 'running', ?, NULL, NULL, NULL)",
-        [run_id, source_file, step, version, c_hash, now]
-    )
+    arrow = pa.table({
+        "run_id": [run_id], "source_file": [source_file], "step": [step],
+        "pipeline_version": [version], "config_hash": [c_hash],
+        "status": ["running"], "started_at": [now],
+        "finished_at": pa.array([None], type=pa.timestamp("us", tz="UTC")),
+        "row_counts": pa.array([None], type=pa.string()),
+        "error_message": pa.array([None], type=pa.string()),
+    })
+    write_iceberg(NAMESPACE, "pipeline_runs", arrow)
     return run_id
 
 
-def finish_run(conn, run_id: str, status: str = "success",
+def finish_run(run_id: str, status: str = "success",
                row_counts: dict | None = None, error: str | None = None) -> None:
-    """Complete a pipeline run."""
+    """Complete a pipeline run. Delete old row and re-insert with updated status."""
     now = datetime.now(timezone.utc)
-    conn.execute(
-        "UPDATE bronze_tabletop.pipeline_runs "
-        "SET status = ?, finished_at = ?, row_counts = ?, error_message = ? "
-        "WHERE run_id = ?",
-        [status, now, json.dumps(row_counts) if row_counts else None, error, run_id]
-    )
+    rc = pa.array([json.dumps(row_counts) if row_counts else None], type=pa.string())
+    err = pa.array([error], type=pa.string())
+    try:
+        existing = read_iceberg(NAMESPACE, "pipeline_runs")
+        mask = pa.compute.equal(existing.column("run_id"), run_id)
+        row_idx = pa.compute.index(mask, True).as_py()
+        if row_idx is not None and row_idx >= 0:
+            row = existing.slice(row_idx, 1)
+            updated = pa.table({
+                "run_id": row.column("run_id"),
+                "source_file": row.column("source_file"),
+                "step": row.column("step"),
+                "pipeline_version": row.column("pipeline_version"),
+                "config_hash": row.column("config_hash"),
+                "status": [status],
+                "started_at": row.column("started_at"),
+                "finished_at": [now],
+                "row_counts": rc,
+                "error_message": err,
+            })
+            write_iceberg(NAMESPACE, "pipeline_runs", updated,
+                          overwrite_filter="run_id", overwrite_filter_value=run_id)
+    except Exception:
+        arrow = pa.table({
+            "run_id": [run_id], "source_file": ["unknown"], "step": ["unknown"],
+            "pipeline_version": pa.array([None], type=pa.string()),
+            "config_hash": pa.array([None], type=pa.string()),
+            "status": [status], "started_at": [now], "finished_at": [now],
+            "row_counts": rc,
+            "error_message": err,
+        })
+        write_iceberg(NAMESPACE, "pipeline_runs", arrow)
 
 
-def refresh_catalog(conn, source_file: str, run_id: str, config: dict) -> None:
+def refresh_catalog(source_file: str, run_id: str, config: dict) -> None:
     """Snapshot row counts for all bronze tables into the catalog."""
     lineage_cfg = config.get("lineage", {})
     tables = lineage_cfg.get("catalog_tables", [])
     now = datetime.now(timezone.utc)
-    for table in tables:
+    for table_name in tables:
         try:
-            row = conn.execute(
-                f"SELECT count(*) FROM bronze_tabletop.{table} WHERE source_file = ?",
-                [source_file]
-            ).fetchone()
-            count = row[0] if row else 0
+            tbl = read_iceberg_filtered(NAMESPACE, table_name, "source_file", source_file)
+            count = len(tbl)
         except Exception:
             count = 0
-        conn.execute(
-            "DELETE FROM bronze_tabletop.catalog WHERE source_file = ? AND table_name = ?",
-            [source_file, table]
-        )
-        conn.execute(
-            "INSERT INTO bronze_tabletop.catalog VALUES (?, ?, ?, ?, ?)",
-            [source_file, table, count, now, run_id]
-        )
+        arrow = pa.table({
+            "source_file": [source_file], "table_name": [table_name],
+            "row_count": [count], "refreshed_at": [now], "run_id": [run_id],
+        })
+        write_iceberg(NAMESPACE, "catalog", arrow,
+                      overwrite_filter="source_file", overwrite_filter_value=source_file)
 
 
 # ── Extraction Functions ─────────────────────────────────────────
@@ -1233,87 +1106,102 @@ def store_bronze(filepath: Path, config: dict, run_id: str,
                  known_entries: list[dict], spell_list: list[dict],
                  all_tables: list[dict], authority_entries: list[dict],
                  watermarks: dict[str, int]) -> None:
-    """Write all raw extraction data to bronze_tabletop schema."""
-    conn = duckdb.connect(DB_PATH)
-    init_bronze_schema(conn)
+    """Write all raw extraction data to bronze Iceberg tables on S3."""
     now = datetime.now(timezone.utc)
     sf = filepath.name
-
-    # Delete old data for this file (idempotent re-ingestion)
-    for table in ["files", "marker_extractions", "page_texts", "toc_raw",
-                   "known_entries_raw", "spell_list_entries", "tables_raw",
-                   "authority_table_entries", "watermarks"]:
-        conn.execute(f"DELETE FROM bronze_tabletop.{table} WHERE source_file = ?", [sf])
+    ow = dict(overwrite_filter="source_file", overwrite_filter_value=sf)
 
     # Files
-    conn.execute(
-        "INSERT INTO bronze_tabletop.files VALUES (?, ?, ?, ?, ?, ?)",
-        [sf, filepath.stat().st_size, len(page_texts), config_hash(config), run_id, now],
-    )
+    write_iceberg(NAMESPACE, "files", pa.table({
+        "source_file": [sf], "pdf_size_bytes": [filepath.stat().st_size],
+        "total_pages": [len(page_texts)], "config_hash": [config_hash(config)],
+        "run_id": [run_id], "extracted_at": [now],
+    }), **ow)
 
     # Marker extraction
-    conn.execute(
-        "INSERT INTO bronze_tabletop.marker_extractions VALUES (?, ?, ?, ?, ?)",
-        [sf, markdown, len(markdown), run_id, now],
-    )
+    write_iceberg(NAMESPACE, "marker_extractions", pa.table({
+        "source_file": [sf], "markdown_text": [markdown],
+        "char_count": [len(markdown)], "run_id": [run_id], "extracted_at": [now],
+    }), **ow)
 
     # Page texts
-    for page_idx, text in enumerate(page_texts):
-        printed = page_printed.get(page_idx, page_idx)
-        conn.execute(
-            "INSERT INTO bronze_tabletop.page_texts VALUES (?, ?, ?, ?, ?)",
-            [sf, page_idx, text, printed, run_id],
-        )
+    write_iceberg(NAMESPACE, "page_texts", pa.table({
+        "source_file": [sf] * len(page_texts),
+        "page_index": list(range(len(page_texts))),
+        "page_text": page_texts,
+        "printed_page_num": [page_printed.get(i, i) for i in range(len(page_texts))],
+        "run_id": [run_id] * len(page_texts),
+    }), **ow)
 
     # ToC
-    for section in toc_sections:
-        conn.execute(
-            "INSERT INTO bronze_tabletop.toc_raw VALUES (?, ?, ?, ?, ?, ?)",
-            [sf, section["title"], section["page_start"],
-             section["page_end"], section["is_excluded"], run_id],
-        )
+    if toc_sections:
+        write_iceberg(NAMESPACE, "toc_raw", pa.table({
+            "source_file": [sf] * len(toc_sections),
+            "title": [s["title"] for s in toc_sections],
+            "page_start": [s["page_start"] for s in toc_sections],
+            "page_end": [s["page_end"] for s in toc_sections],
+            "is_excluded": [s["is_excluded"] for s in toc_sections],
+            "run_id": [run_id] * len(toc_sections),
+        }), **ow)
 
-    # Known entries (full metadata from all index appendixes)
-    for entry in known_entries:
-        conn.execute(
-            "INSERT INTO bronze_tabletop.known_entries_raw VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            [sf, entry["entry_name"], entry.get("entry_class"),
-             entry.get("entry_level"), entry.get("ref_page"),
-             entry.get("source_section"), entry.get("school"),
-             entry.get("sphere"), run_id],
-        )
+    # Known entries
+    if known_entries:
+        write_iceberg(NAMESPACE, "known_entries_raw", pa.table({
+            "source_file": [sf] * len(known_entries),
+            "entry_name": [e["entry_name"] for e in known_entries],
+            "entry_class": [e.get("entry_class") for e in known_entries],
+            "entry_level": pa.array([e.get("entry_level") for e in known_entries], type=pa.int32()),
+            "ref_page": pa.array([e.get("ref_page") for e in known_entries], type=pa.int32()),
+            "source_section": [e.get("source_section") for e in known_entries],
+            "school": [e.get("school") for e in known_entries],
+            "sphere": [e.get("sphere") for e in known_entries],
+            "run_id": [run_id] * len(known_entries),
+        }), **ow)
 
-    # All parsed tables (every table in the document)
+    # Tables
+    table_rows = []
     for tbl in all_tables:
         for row_idx, cells in enumerate(tbl["rows"]):
-            conn.execute(
-                "INSERT INTO bronze_tabletop.tables_raw VALUES (?, ?, ?, ?, ?, ?, ?)",
-                [sf, tbl["table_number"], tbl["table_title"],
-                 tbl.get("format", "pipe"), row_idx, json.dumps(cells), run_id],
-            )
+            table_rows.append({
+                "source_file": sf, "table_number": tbl["table_number"],
+                "table_title": tbl["table_title"], "format": tbl.get("format", "pipe"),
+                "row_index": row_idx, "cells": json.dumps(cells), "run_id": run_id,
+            })
+    if table_rows:
+        write_iceberg(NAMESPACE, "tables_raw", pa.Table.from_pylist(table_rows), **ow)
 
-    # Authority table entries (proficiencies, equipment from specified tables)
-    for entry in authority_entries:
-        conn.execute(
-            "INSERT INTO bronze_tabletop.authority_table_entries VALUES (?, ?, ?, ?, ?)",
-            [sf, entry["entry_name"], entry["entry_type"], entry["source_table"], run_id],
-        )
+    # Authority table entries
+    if authority_entries:
+        write_iceberg(NAMESPACE, "authority_table_entries", pa.table({
+            "source_file": [sf] * len(authority_entries),
+            "entry_name": [e["entry_name"] for e in authority_entries],
+            "entry_type": [e["entry_type"] for e in authority_entries],
+            "source_table": [e["source_table"] for e in authority_entries],
+            "run_id": [run_id] * len(authority_entries),
+        }), **ow)
 
-    # Spell list entries (Appendix 1 — with reversible flag)
-    for entry in spell_list:
-        conn.execute(
-            "INSERT INTO bronze_tabletop.spell_list_entries VALUES (?, ?, ?, ?, ?, ?, ?)",
-            [sf, entry["entry_name"], entry["entry_class"],
-             entry["entry_level"], entry["is_reversible"],
-             entry.get("source_section"), run_id],
-        )
+    # Spell list entries
+    if spell_list:
+        write_iceberg(NAMESPACE, "spell_list_entries", pa.table({
+            "source_file": [sf] * len(spell_list),
+            "entry_name": [e["entry_name"] for e in spell_list],
+            "entry_class": [e["entry_class"] for e in spell_list],
+            "entry_level": [e["entry_level"] for e in spell_list],
+            "is_reversible": [e["is_reversible"] for e in spell_list],
+            "source_section": [e.get("source_section") for e in spell_list],
+            "run_id": [run_id] * len(spell_list),
+        }), **ow)
 
     # Watermarks
-    for text, count in watermarks.items():
-        conn.execute(
-            "INSERT INTO bronze_tabletop.watermarks VALUES (?, ?, ?, ?)",
-            [sf, text, count, run_id],
-        )
+    if watermarks:
+        wm_texts = list(watermarks.keys())
+        wm_counts = list(watermarks.values())
+        write_iceberg(NAMESPACE, "watermarks", pa.table({
+            "source_file": [sf] * len(wm_texts),
+            "watermark_text": wm_texts,
+            "occurrence_count": wm_counts,
+            "run_id": [run_id] * len(wm_texts),
+        }), **ow)
 
     # Refresh catalog
     row_counts = {
@@ -1322,8 +1210,7 @@ def store_bronze(filepath: Path, config: dict, run_id: str,
         "tables_raw": sum(len(t["rows"]) for t in all_tables),
         "authority_table_entries": len(authority_entries), "watermarks": len(watermarks),
     }
-    refresh_catalog(conn, sf, run_id, config)
-    conn.close()
+    refresh_catalog(sf, run_id, config)
 
     _log(f"  Bronze stored (run {run_id}): {row_counts['page_texts']} pages, "
          f"{row_counts['toc_raw']} ToC, {row_counts['known_entries_raw']} index entries, "
@@ -1335,7 +1222,7 @@ def store_bronze(filepath: Path, config: dict, run_id: str,
 # ── Pipeline ─────────────────────────────────────────────────────
 
 def extract_pdf(filepath: Path) -> None:
-    """Extract raw data from a single PDF into bronze layer."""
+    """Extract raw data from a single PDF into bronze Iceberg tables."""
     import time
     start = time.time()
     step_start = start
@@ -1351,22 +1238,19 @@ def extract_pdf(filepath: Path) -> None:
     config = load_config(filepath, CONFIGS_DIR)
 
     # Check if already extracted with same config
-    conn = duckdb.connect(DB_PATH)
-    init_bronze_schema(conn)
-    existing = conn.execute(
-        "SELECT config_hash FROM bronze_tabletop.files WHERE source_file = ?",
-        [filepath.name],
-    ).fetchone()
     current_hash = config_hash(config)
-
-    if existing and existing[0] == current_hash:
-        conn.close()
-        _log(f"  Bronze: already extracted (config unchanged), skipping")
-        return
+    try:
+        existing = read_iceberg_filtered(NAMESPACE, "files", "source_file", filepath.name)
+        if len(existing) > 0:
+            prev_hash = existing.column("config_hash")[0].as_py()
+            if prev_hash == current_hash:
+                _log(f"  Bronze: already extracted (config unchanged), skipping")
+                return
+    except Exception:
+        pass  # Table doesn't exist yet — first run
 
     # Start pipeline run
-    run_id = start_run(conn, filepath.name, "extract", config)
-    conn.close()
+    run_id = start_run(filepath.name, "extract", config)
     _log(f"  Run: {run_id}")
 
     try:
@@ -1412,20 +1296,16 @@ def extract_pdf(filepath: Path) -> None:
         step("Stored")
 
         # Complete the run
-        conn = duckdb.connect(DB_PATH)
         row_counts = {
             "page_texts": len(page_texts), "toc_raw": len(toc_sections),
             "known_entries_raw": len(known_entries), "spell_list_entries": len(spell_list),
             "tables_raw": sum(len(t["rows"]) for t in all_tables),
             "authority_table_entries": len(authority_entries), "watermarks": len(watermarks),
         }
-        finish_run(conn, run_id, "success", row_counts)
-        conn.close()
+        finish_run(run_id, "success", row_counts)
 
     except Exception as e:
-        conn = duckdb.connect(DB_PATH)
-        finish_run(conn, run_id, "failed", error=str(e))
-        conn.close()
+        finish_run(run_id, "failed", error=str(e))
         raise
 
     _log(f"  Bronze total: {time.time() - start:.1f}s")
@@ -1497,33 +1377,21 @@ def check_ocr(source_file: str, sample: int = 0, resume: bool = True) -> None:
     Supports resume — skips chunks already checked (by hash) in ocr_progress.
     """
     import time as _time
-    conn = duckdb.connect(DB_PATH)
-    init_bronze_schema(conn)
-
-    # Progress tracking table (no run_id — progress spans multiple runs by design)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS bronze_tabletop.ocr_progress (
-            source_file   VARCHAR NOT NULL,
-            chunk_hash    VARCHAR NOT NULL,
-            chunk_index   INTEGER NOT NULL,
-            checked_at    TIMESTAMP NOT NULL,
-            PRIMARY KEY (source_file, chunk_hash)
-        )
-    """)
 
     configs_dir = DOCUMENTS_DIR.parent / "configs"
     config = load_config(Path(source_file), configs_dir)
-    run_id = start_run(conn, source_file, "check_ocr", config)
+    run_id = start_run(source_file, "check_ocr", config)
 
-    row = conn.execute(
-        "SELECT markdown_text FROM bronze_tabletop.marker_extractions "
-        "WHERE source_file = ?", [source_file]
-    ).fetchone()
-    if not row:
+    try:
+        md_table = read_iceberg_filtered(NAMESPACE, "marker_extractions", "source_file", source_file)
+    except Exception:
+        _log(f"No markdown found for {source_file}")
+        return
+    if len(md_table) == 0:
         _log(f"No markdown found for {source_file}")
         return
 
-    md = _clean_marker_md(row[0])
+    md = _clean_marker_md(md_table.column("markdown_text")[0].as_py())
 
     # Apply existing substitutions — don't re-flag known issues
     for sub in config.get("content_substitutions", []):
@@ -1562,11 +1430,11 @@ def check_ocr(source_file: str, sample: int = 0, resume: bool = True) -> None:
     # Check which chunks already processed (resume support)
     done_hashes = set()
     if resume:
-        rows = conn.execute(
-            "SELECT chunk_hash FROM bronze_tabletop.ocr_progress WHERE source_file = ?",
-            [source_file]
-        ).fetchall()
-        done_hashes = {r[0] for r in rows}
+        try:
+            progress = read_iceberg_filtered(NAMESPACE, "ocr_progress", "source_file", source_file)
+            done_hashes = {h.as_py() for h in progress.column("chunk_hash")}
+        except Exception:
+            pass
 
     chunk_hashes = [hashlib.md5(c.encode()).hexdigest()[:12] for c in text_chunks]
     remaining = [(i, c, h) for i, (c, h) in enumerate(zip(text_chunks, chunk_hashes))
@@ -1635,21 +1503,20 @@ def check_ocr(source_file: str, sample: int = 0, resume: bool = True) -> None:
         else:
             print("clean")
 
-        # Record progress and store issues incrementally
-        conn.execute(
-            "INSERT OR REPLACE INTO bronze_tabletop.ocr_progress VALUES (?, ?, ?, ?)",
-            [source_file, chunk_hash, i, now]
-        )
+        # Record progress
+        write_iceberg(NAMESPACE, "ocr_progress", pa.table({
+            "source_file": [source_file], "chunk_hash": [chunk_hash],
+            "chunk_index": [i], "checked_at": [now],
+        }))
+
+        # Store issues incrementally
         for wrong, (correct, ctx) in all_errors.items():
-            conn.execute(
-                "DELETE FROM bronze_tabletop.ocr_issues "
-                "WHERE source_file = ? AND wrong_text = ?",
-                [source_file, wrong]
-            )
-            conn.execute(
-                "INSERT INTO bronze_tabletop.ocr_issues VALUES (?, ?, ?, ?, 'candidate', ?, ?, ?)",
-                [source_file, wrong, correct, ctx, bronze_model, run_id, now]
-            )
+            write_iceberg(NAMESPACE, "ocr_issues", pa.table({
+                "source_file": [source_file], "wrong_text": [wrong],
+                "suggested_fix": [correct], "context": [ctx],
+                "status": ["candidate"], "model": [bronze_model],
+                "run_id": [run_id], "checked_at": [now],
+            }), overwrite_filter="source_file", overwrite_filter_value=source_file)
 
     total_time = _time.time() - start_time
     checked = len(remaining) - failures
@@ -1657,9 +1524,9 @@ def check_ocr(source_file: str, sample: int = 0, resume: bool = True) -> None:
          f"{checked} chunks checked in {total_time / 60:.1f}m")
 
     # Finish run, refresh catalog, free model
-    finish_run(conn, run_id, "success",
+    finish_run(run_id, "success",
                {"candidates": len(all_errors), "chunks_checked": checked})
-    refresh_catalog(conn, source_file, run_id, config)
+    refresh_catalog(source_file, run_id, config)
     _unload_ollama_model(bronze_model, config)
 
 
@@ -1671,23 +1538,23 @@ def review_ocr(source_file: str) -> None:
     to 'confirmed' or 'rejected'.
     """
     import time as _time
-    conn = duckdb.connect(DB_PATH)
-    init_bronze_schema(conn)
 
     configs_dir = DOCUMENTS_DIR.parent / "configs"
     config = load_config(Path(source_file), configs_dir)
-    run_id = start_run(conn, source_file, "review_ocr", config)
+    run_id = start_run(source_file, "review_ocr", config)
     ocr_cfg = config.get("ocr_check", {})
     silver_model = ocr_cfg.get("silver_model", "llama3:70b")
     silver_prompt = ocr_cfg.get("silver_prompt",
         'Review this OCR error: "{wrong}" -> "{correct}". Context: {context}\n'
         'Respond with JSON: {{"verdict": "confirmed" or "rejected", "reason": "brief"}}')
 
-    candidates = conn.execute(
-        "SELECT wrong_text, suggested_fix, context FROM bronze_tabletop.ocr_issues "
-        "WHERE source_file = ? AND status = 'candidate'",
-        [source_file]
-    ).fetchall()
+    try:
+        issues_table = read_iceberg_filtered(NAMESPACE, "ocr_issues", "source_file", source_file)
+        issues_df = issues_table.to_pandas()
+        candidates_df = issues_df[issues_df["status"] == "candidate"]
+        candidates = list(candidates_df[["wrong_text", "suggested_fix", "context"]].itertuples(index=False))
+    except Exception:
+        candidates = []
 
     if not candidates:
         _log(f"No OCR candidates to review for {source_file}")
@@ -1714,10 +1581,10 @@ def review_ocr(source_file: str) -> None:
         verdict = "rejected"
         reason = ""
         try:
-            start = response.find("{")
-            end = response.rfind("}")
-            if start >= 0 and end > start:
-                result = json.loads(response[start:end + 1])
+            start_idx = response.find("{")
+            end_idx = response.rfind("}")
+            if start_idx >= 0 and end_idx > start_idx:
+                result = json.loads(response[start_idx:end_idx + 1])
                 verdict = result.get("verdict", "rejected").lower()
                 reason = result.get("reason", "")
         except json.JSONDecodeError:
@@ -1731,40 +1598,37 @@ def review_ocr(source_file: str) -> None:
             rejected += 1
             print(f"rejected — {reason}")
 
-        conn.execute(
-            "UPDATE bronze_tabletop.ocr_issues "
-            "SET status = ?, model = ?, checked_at = ? "
-            "WHERE source_file = ? AND wrong_text = ?",
-            [verdict, silver_model, now, source_file, wrong]
-        )
+        # Update status: read all issues for this file, update the matching one, rewrite
+        write_iceberg(NAMESPACE, "ocr_issues", pa.table({
+            "source_file": [source_file], "wrong_text": [wrong],
+            "suggested_fix": [correct], "context": [ctx or ""],
+            "status": [verdict], "model": [silver_model],
+            "run_id": [run_id], "checked_at": [now],
+        }))
 
     total_time = _time.time() - start_time
     _log(f"  OCR review complete: {confirmed} confirmed, {rejected} rejected "
          f"in {total_time / 60:.1f}m")
 
     # Finish run, refresh catalog, free model
-    finish_run(conn, run_id, "success",
+    finish_run(run_id, "success",
                {"confirmed": confirmed, "rejected": rejected})
-    refresh_catalog(conn, source_file, run_id, config)
+    refresh_catalog(source_file, run_id, config)
     _unload_ollama_model(silver_model, config)
 
 
 # ── Bronze Validation ──────────────────────────────────────────
 
-def _store_validation(conn, source_file: str, check_name: str,
+def _store_validation(source_file: str, check_name: str,
                       status: str, message: str, run_id: str,
                       details: str = "") -> None:
-    """Upsert a validation result."""
+    """Upsert a validation result to Iceberg."""
     now = datetime.now(timezone.utc)
-    conn.execute(
-        "DELETE FROM bronze_tabletop.validation_results "
-        "WHERE source_file = ? AND check_name = ?",
-        [source_file, check_name]
-    )
-    conn.execute(
-        "INSERT INTO bronze_tabletop.validation_results VALUES (?, ?, ?, ?, ?, ?, ?)",
-        [source_file, check_name, status, message, details, run_id, now]
-    )
+    write_iceberg(NAMESPACE, "validation_results", pa.table({
+        "source_file": [source_file], "check_name": [check_name],
+        "status": [status], "message": [message], "details": [details],
+        "run_id": [run_id], "checked_at": [now],
+    }), overwrite_filter="source_file", overwrite_filter_value=source_file)
 
 
 def validate_bronze(source_file: str) -> None:
@@ -1774,13 +1638,13 @@ def validate_bronze(source_file: str) -> None:
     content gaps, duplicate entries. Results stored in
     bronze_tabletop.validation_results.
     """
-    conn = duckdb.connect(DB_PATH)
-    init_bronze_schema(conn)
+    from dlt.lib.duckdb_reader import get_reader
+    conn = get_reader(namespaces=[NAMESPACE])
     sf = source_file
 
     configs_dir = DOCUMENTS_DIR.parent / "configs"
     config = load_config(Path(sf), configs_dir)
-    run_id = start_run(conn, sf, "validate", config)
+    run_id = start_run(sf, "validate", config)
     val_cfg = config.get("bronze_validation", {})
 
     _log(f"Validating bronze: {sf} (run {run_id})")
@@ -1821,7 +1685,7 @@ def validate_bronze(source_file: str) -> None:
         else:
             status, msg = "fail", f"Only {pct:.0f}% tables parsed ({len(parsed_table_nums)}/{len(toc_table_nums)}), missing: T{', T'.join(str(n) for n in missing)}"
             failed += 1
-        _store_validation(conn, sf, "table_completeness", status, msg, run_id,
+        _store_validation(sf, "table_completeness", status, msg, run_id,
                           json.dumps({"missing": missing, "pct": round(pct, 1)}))
         _log(f"  Table completeness: {status} — {msg}")
 
@@ -1865,7 +1729,7 @@ def validate_bronze(source_file: str) -> None:
             "index_count": len(index_spells),
             "list_count": len(list_spells),
         })
-        _store_validation(conn, sf, "spell_cross_check", status, msg, run_id, details)
+        _store_validation(sf, "spell_cross_check", status, msg, run_id, details)
         _log(f"  Spell cross-check: {status} — {msg}")
 
     # ── 3. Content gap detection ──
@@ -1890,18 +1754,11 @@ def validate_bronze(source_file: str) -> None:
         else:
             status, msg = "warn", f"{len(gaps)} page gaps > {max_gap}: {', '.join(f'p{a}-{b} ({c} pages)' for a, b, c in gaps)}"
             warned += 1
-        _store_validation(conn, sf, "content_gaps", status, msg, run_id,
+        _store_validation(sf, "content_gaps", status, msg, run_id,
                           json.dumps({"gaps": gaps}))
         _log(f"  Content gaps: {status} — {msg}")
 
     # ── 4. Duplicate entry detection ──
-    sig_chars = val_cfg.get("duplicate_signature_chars", 200)
-    toc_rows = conn.execute(
-        "SELECT title FROM bronze_tabletop.toc_raw "
-        "WHERE source_file = ? AND is_excluded = false",
-        [sf]
-    ).fetchall()
-    # Check known_entries for dupes
     entry_rows = conn.execute(
         "SELECT entry_name, COUNT(*) as cnt FROM bronze_tabletop.known_entries_raw "
         "WHERE source_file = ? GROUP BY entry_name HAVING cnt > 1",
@@ -1915,7 +1772,7 @@ def validate_bronze(source_file: str) -> None:
     else:
         status, msg = "warn", f"{len(dupes)} duplicate entry names: {', '.join(f'{n}({c}x)' for n, c in dupes[:10])}"
         warned += 1
-    _store_validation(conn, sf, "duplicate_entries", status, msg, run_id,
+    _store_validation(sf, "duplicate_entries", status, msg, run_id,
                       json.dumps({"duplicates": dupes[:50]}))
     _log(f"  Duplicate entries: {status} — {msg}")
 
@@ -1940,20 +1797,20 @@ def validate_bronze(source_file: str) -> None:
         else:
             status, msg = "warn", f"{len(not_in_known)}/{len(authority_names)} authority entries not in known_entries"
             warned += 1
-        _store_validation(conn, sf, "authority_coverage", status, msg, run_id,
+        _store_validation(sf, "authority_coverage", status, msg, run_id,
                           json.dumps({"missing": not_in_known[:30]}))
         _log(f"  Authority coverage: {status} — {msg}")
 
-    status = "success" if failed == 0 else "failed"
-    finish_run(conn, run_id, status,
-               {"passed": passed, "warned": warned, "failed": failed})
-    refresh_catalog(conn, sf, run_id, config)
     conn.close()
+    run_status = "success" if failed == 0 else "failed"
+    finish_run(run_id, run_status,
+               {"passed": passed, "warned": warned, "failed": failed})
+    refresh_catalog(sf, run_id, config)
     _log(f"  Validation summary: {passed} passed, {warned} warnings, {failed} failed")
 
 
 def run(directory: Path | None = None, force: bool = False) -> None:
-    """Extract new/changed PDFs to bronze layer.
+    """Extract new/changed PDFs to bronze Iceberg tables.
 
     Change detection: skips a PDF if its file size and config hash
     match what's already stored in bronze_tabletop.files.
@@ -1965,14 +1822,17 @@ def run(directory: Path | None = None, force: bool = False) -> None:
         _log(f"No PDFs in {doc_dir}")
         return
 
-    conn = duckdb.connect(DB_PATH)
-    init_bronze_schema(conn)
-
-    # Load existing extraction state
+    # Load existing extraction state from Iceberg
     existing = {}
-    for row in conn.execute("SELECT source_file, pdf_size_bytes, config_hash FROM bronze_tabletop.files").fetchall():
-        existing[row[0]] = (row[1], row[2])
-    conn.close()
+    try:
+        files_table = read_iceberg(NAMESPACE, "files")
+        for i in range(len(files_table)):
+            sf = files_table.column("source_file")[i].as_py()
+            size = files_table.column("pdf_size_bytes")[i].as_py()
+            chash = files_table.column("config_hash")[i].as_py()
+            existing[sf] = (size, chash)
+    except Exception:
+        pass  # Table doesn't exist yet — first run
 
     to_extract = []
     skipped = []
@@ -2005,6 +1865,23 @@ def run(directory: Path | None = None, force: bool = False) -> None:
     _log(f"\nBronze done: {len(to_extract)} files extracted")
 
 
+def _list_source_files(table_name: str, book_filter: str | None = None,
+                       status_filter: dict | None = None) -> list[str]:
+    """List distinct source_file values from an Iceberg table."""
+    try:
+        tbl = read_iceberg(NAMESPACE, table_name)
+        df = tbl.to_pandas()
+        if status_filter:
+            for col, val in status_filter.items():
+                df = df[df[col] == val]
+        files = df["source_file"].unique().tolist()
+        if book_filter:
+            files = [f for f in files if book_filter in f]
+        return sorted(files)
+    except Exception:
+        return []
+
+
 if __name__ == "__main__":
     import sys
     if "--check-ocr" in sys.argv:
@@ -2015,42 +1892,21 @@ if __name__ == "__main__":
         sample_n = int(args[sample_idx + 1]) if sample_idx is not None else 0
         do_resume = "--no-resume" not in sys.argv
 
-        conn = duckdb.connect(DB_PATH)
-        init_bronze_schema(conn)
-        query = "SELECT DISTINCT source_file FROM bronze_tabletop.marker_extractions"
-        if book_filter:
-            query += f" WHERE source_file LIKE '%{book_filter}%'"
-        files = conn.execute(query).fetchall()
-        conn.close()
-        for (sf,) in files:
+        for sf in _list_source_files("marker_extractions", book_filter):
             check_ocr(sf, sample=sample_n, resume=do_resume)
     elif "--review-ocr" in sys.argv:
         # Usage: python -m dlt.bronze_tabletop_rules --review-ocr Player
         args = [a for a in sys.argv[1:] if a != "--review-ocr"]
         book_filter = next((a for a in args if not a.startswith("--")), None)
 
-        conn = duckdb.connect(DB_PATH)
-        init_bronze_schema(conn)
-        query = "SELECT DISTINCT source_file FROM bronze_tabletop.ocr_issues WHERE status = 'candidate'"
-        if book_filter:
-            query += f" AND source_file LIKE '%{book_filter}%'"
-        files = conn.execute(query).fetchall()
-        conn.close()
-        for (sf,) in files:
+        for sf in _list_source_files("ocr_issues", book_filter, {"status": "candidate"}):
             review_ocr(sf)
     elif "--validate" in sys.argv:
         # Usage: python -m dlt.bronze_tabletop_rules --validate Player
         args = [a for a in sys.argv[1:] if a != "--validate"]
         book_filter = next((a for a in args if not a.startswith("--")), None)
 
-        conn = duckdb.connect(DB_PATH)
-        init_bronze_schema(conn)
-        query = "SELECT DISTINCT source_file FROM bronze_tabletop.files"
-        if book_filter:
-            query += f" WHERE source_file LIKE '%{book_filter}%'"
-        files = conn.execute(query).fetchall()
-        conn.close()
-        for (sf,) in files:
+        for sf in _list_source_files("files", book_filter):
             validate_bronze(sf)
     elif "--force" in sys.argv:
         run(force=True)

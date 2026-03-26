@@ -1,16 +1,17 @@
 """Embed document chunks from DuckDB into ChromaDB for semantic search."""
 
-import duckdb
+import sys
+sys.path.insert(0, "/workspace")
+from dlt.lib.duckdb_reader import get_reader
 import chromadb
 from chromadb.config import Settings
 
-DB_PATH = "/workspace/db/lakehouse.duckdb"
 CHROMA_PATH = "/workspace/chroma_db"
 
 
 def embed_all() -> None:
     """Read chunks from DuckDB and upsert into ChromaDB with embeddings."""
-    conn = duckdb.connect(DB_PATH, read_only=True)
+    conn = get_reader()
     rows = conn.execute("""
         SELECT chunk_id, source_file, section_title, content
         FROM documents.chunks

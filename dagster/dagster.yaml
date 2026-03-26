@@ -1,0 +1,16 @@
+storage:
+  postgres:
+    postgres_db:
+      hostname: postgres
+      port: 5432
+      username: iceberg
+      password: iceberg_secret
+      db_name: dagster
+
+run_launcher:
+  module: dagster.core.launcher
+  class: DefaultRunLauncher
+
+run_coordinator:
+  module: dagster.core.run_coordinator
+  class: DefaultRunCoordinator

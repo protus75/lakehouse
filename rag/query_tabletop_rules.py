@@ -7,14 +7,15 @@ Stage 3: Answer Generation — LLM answers from the retrieved context
 """
 
 import re
-import duckdb
+import sys
+sys.path.insert(0, "/workspace")
+from dlt.lib.duckdb_reader import get_reader
 import chromadb
 from chromadb.config import Settings
 from chromadb.utils.embedding_functions import SentenceTransformerEmbeddingFunction
 import requests
 from typing import Optional
 
-DB_PATH = "/workspace/db/lakehouse.duckdb"
 CHROMA_PATH = "/workspace/chroma_db"
 COLLECTION_NAME = "tabletop_rules_chunks"
 EMBEDDING_MODEL = "all-mpnet-base-v2"
@@ -26,7 +27,7 @@ DEFAULT_MODEL = "llama3:70b"
 
 def get_toc(source_file: str | None = None) -> list[dict]:
     """Load ToC entries from DuckDB including sub-headings and tables."""
-    conn = duckdb.connect(DB_PATH, read_only=True)
+    conn = get_reader()
     where = "WHERE NOT is_excluded"
     params = []
     if source_file:
@@ -192,7 +193,7 @@ def _search_chromadb(query: str, toc_ids: list[int], n_results: int) -> list[dic
 
 def _search_duckdb(query: str, toc_ids: list[int], n_results: int) -> list[dict]:
     """Keyword search filtered by toc_id."""
-    conn = duckdb.connect(DB_PATH, read_only=True)
+    conn = get_reader()
 
     words = [w for w in query.lower().split() if len(w) > 2]
     if not words:

@@ -13,11 +13,12 @@ Usage:
 """
 
 import re
-import duckdb
+import sys
+sys.path.insert(0, "/workspace")
+from dlt.lib.duckdb_reader import get_reader
 import requests
 from pathlib import Path
 
-DB_PATH = "/workspace/db/lakehouse.duckdb"
 OUTPUT_DIR = Path("/workspace/data/exports")
 OLLAMA_URL = "http://host.docker.internal:11434"
 DEFAULT_MODEL = "llama3:70b"
@@ -379,7 +380,7 @@ def export_markdown(
     if output is None:
         output = str(OUTPUT_DIR / f"{category}.md")
 
-    conn = duckdb.connect(DB_PATH, read_only=True)
+    conn = get_reader()
     query = cat["query"]
     if source_file:
         query = query.replace("ORDER BY", f"AND c.source_file = '{source_file}'\n            ORDER BY")
@@ -582,7 +583,7 @@ def export_markdown(
 def _export_full_book(source_file: str | None, output: str | None) -> str:
     """Export an entire book as markdown."""
     if not source_file:
-        conn = duckdb.connect(DB_PATH, read_only=True)
+        conn = get_reader()
         files = conn.execute(
             "SELECT source_file, document_title FROM documents_tabletop_rules.files ORDER BY source_file"
         ).fetchall()
@@ -596,7 +597,7 @@ def _export_full_book(source_file: str | None, output: str | None) -> str:
         stem = Path(source_file).stem
         output = str(OUTPUT_DIR / f"{stem}.md")
 
-    conn = duckdb.connect(DB_PATH, read_only=True)
+    conn = get_reader()
     rows = conn.execute("""
         SELECT c.entry_title, c.section_title, c.content, c.page_numbers,
                t.title as toc_title

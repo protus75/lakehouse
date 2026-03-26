@@ -3,12 +3,13 @@ Embed tabletop_rules document chunks from DuckDB into ChromaDB.
 Includes toc_id in metadata for filtered section-level search.
 """
 
-import duckdb
+import sys
+sys.path.insert(0, "/workspace")
+from dlt.lib.duckdb_reader import get_reader
 import chromadb
 from chromadb.config import Settings
 from chromadb.utils.embedding_functions import SentenceTransformerEmbeddingFunction
 
-DB_PATH = "/workspace/db/lakehouse.duckdb"
 CHROMA_PATH = "/workspace/chroma_db"
 COLLECTION_NAME = "tabletop_rules_chunks"
 EMBEDDING_MODEL = "all-mpnet-base-v2"
@@ -19,7 +20,7 @@ def embed_all() -> None:
     import time
     start = time.time()
 
-    conn = duckdb.connect(DB_PATH, read_only=True)
+    conn = get_reader()
     rows = conn.execute("""
         SELECT
             c.chunk_id,

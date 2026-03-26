@@ -4,10 +4,11 @@ import re
 from pathlib import Path
 from datetime import datetime, timezone
 
+import sys
+sys.path.insert(0, "/workspace")
 import duckdb
+from dlt.lib.iceberg_catalog import write_iceberg
 from docling.document_converter import DocumentConverter
-
-DB_PATH = "/workspace/db/lakehouse.duckdb"
 DOCUMENTS_DIR = Path("/workspace/documents")
 
 
@@ -124,7 +125,7 @@ def ingest_all(directory: Path | None = None) -> None:
         print(f"No PDF files found in {doc_dir}")
         return
 
-    conn = duckdb.connect(DB_PATH)
+    conn = duckdb.connect()  # deprecated: use bronze pipeline instead
     init_documents_table(conn)
 
     total_chunks = 0

@@ -1,11 +1,12 @@
 """RAG query engine: retrieve document context and answer questions via LLM."""
 
-import duckdb
+import sys
+sys.path.insert(0, "/workspace")
+from dlt.lib.duckdb_reader import get_reader
 import chromadb
 from chromadb.config import Settings
 import requests
 
-DB_PATH = "/workspace/db/lakehouse.duckdb"
 CHROMA_PATH = "/workspace/chroma_db"
 OLLAMA_URL = "http://host.docker.internal:11434"
 DEFAULT_MODEL = "llama3:70b"
@@ -33,7 +34,7 @@ def search_chromadb(query: str, n_results: int = 5) -> list[dict]:
 
 def search_duckdb(query: str, limit: int = 5) -> list[dict]:
     """Keyword search over document chunks in DuckDB."""
-    conn = duckdb.connect(DB_PATH, read_only=True)
+    conn = get_reader()
     # Simple keyword search using LIKE with each word
     words = query.lower().split()
     where_clauses = [f"LOWER(content) LIKE '%{w}%'" for w in words if len(w) > 2]

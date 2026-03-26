@@ -1,18 +1,18 @@
-import streamlit as st
 import sys
+sys.path.insert(0, "/workspace/streamlit")
 sys.path.insert(0, "/workspace")
-from dlt.lib.duckdb_reader import get_reader
+
+import streamlit as st
 import polars as pl
 import plotly.express as px
+from lib.connection import query
 
 st.title("Sales Dashboard")
 
 
 @st.cache_data(ttl=60)
 def load_data() -> pl.DataFrame:
-    conn = get_reader()
-    df = conn.execute("SELECT * FROM marts.daily_revenue").pl()
-    conn.close()
+    df = query("SELECT * FROM marts.daily_revenue")
     df = df.with_columns(pl.col("order_date").cast(pl.Date))
     return df
 

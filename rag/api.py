@@ -4,11 +4,11 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from typing import Optional
-import duckdb
+import sys
+sys.path.insert(0, "/workspace")
+from dlt.lib.duckdb_reader import get_reader
 
 from query_tabletop_rules import ask, get_toc, DEFAULT_MODEL
-
-DB_PATH = "/workspace/db/lakehouse.duckdb"
 app = FastAPI(title="Lakehouse RAG API", version="3.0.0")
 
 
@@ -37,7 +37,7 @@ def ask_question(req: QueryRequest):
 @app.get("/api/categories")
 def get_categories():
     """Get available ToC sections grouped by book."""
-    conn = duckdb.connect(DB_PATH, read_only=True)
+    conn = get_reader()
     rows = conn.execute("""
         SELECT t.toc_id, t.title, t.page_start, t.page_end, t.source_file,
                f.document_title, COUNT(c.chunk_id) as chunk_count
@@ -64,7 +64,7 @@ def get_categories():
 @app.get("/api/entries")
 def get_entries(toc_id: int, search: Optional[str] = None):
     """Get entry titles within a ToC section, optionally filtered by search."""
-    conn = duckdb.connect(DB_PATH, read_only=True)
+    conn = get_reader()
     query = """
         SELECT DISTINCT entry_title
         FROM documents_tabletop_rules.chunks
@@ -84,7 +84,7 @@ def get_entries(toc_id: int, search: Optional[str] = None):
 @app.get("/api/entry")
 def get_entry(toc_id: int, title: str):
     """Get full content of a specific entry."""
-    conn = duckdb.connect(DB_PATH, read_only=True)
+    conn = get_reader()
     rows = conn.execute("""
         SELECT c.entry_title, c.section_title, c.content, c.page_numbers,
                t.title as toc_title, f.document_title
@@ -121,7 +121,7 @@ def get_entry(toc_id: int, title: str):
 @app.get("/api/search")
 def search_all(q: str, limit: int = 20):
     """Search entries across all books."""
-    conn = duckdb.connect(DB_PATH, read_only=True)
+    conn = get_reader()
     rows = conn.execute("""
         SELECT DISTINCT c.entry_title, c.toc_id, t.title as toc_title, f.document_title
         FROM documents_tabletop_rules.chunks c

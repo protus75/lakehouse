@@ -5,13 +5,14 @@ Run: docker exec lakehouse-workspace python -u scripts/tabletop_rules/enrich_sum
 import sys
 sys.path.insert(0, "/workspace")
 
-import duckdb
+import pyarrow as pa
 import requests
 from datetime import datetime, timezone
 from pathlib import Path
 from dlt.lib.tabletop_cleanup import load_config, _log
+from dlt.lib.duckdb_reader import get_reader
+from dlt.lib.iceberg_catalog import write_iceberg
 
-DB_PATH = "/workspace/db/lakehouse.duckdb"
 CONFIGS_DIR = Path("/workspace/documents/tabletop_rules/configs")
 
 
@@ -29,34 +30,28 @@ def call_ollama(prompt: str, url: str, model: str) -> str | None:
     return None
 
 
-def ensure_table(conn):
-    conn.execute("CREATE SCHEMA IF NOT EXISTS gold_tabletop")
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS gold_tabletop.gold_ai_summaries (
-            entry_id        INTEGER PRIMARY KEY,
-            source_file     VARCHAR NOT NULL,
-            entry_title     VARCHAR,
-            entry_type      VARCHAR,
-            summary         VARCHAR NOT NULL,
-            summarized_at   TIMESTAMP NOT NULL
-        )
-    """)
-
-
 def main():
-    conn = duckdb.connect(DB_PATH)
-    ensure_table(conn)
+    conn = get_reader()
 
     # Get entries that need summaries (not already done)
-    entries = conn.execute("""
-        SELECT e.entry_id, e.source_file, e.entry_title, e.content, e.char_count,
-               i.entry_type
-        FROM silver_tabletop.silver_entries e
-        JOIN gold_tabletop.gold_entry_index i ON e.entry_id = i.entry_id
-        LEFT JOIN gold_tabletop.gold_ai_summaries s ON e.entry_id = s.entry_id
-        WHERE s.entry_id IS NULL
-        ORDER BY e.entry_id
-    """).fetchall()
+    try:
+        entries = conn.execute("""
+            SELECT e.entry_id, e.source_file, e.entry_title, e.content, e.char_count,
+                   i.entry_type
+            FROM silver_tabletop.silver_entries e
+            JOIN gold_tabletop.gold_entry_index i ON e.entry_id = i.entry_id
+            LEFT JOIN gold_tabletop.gold_ai_summaries s ON e.entry_id = s.entry_id
+            WHERE s.entry_id IS NULL
+            ORDER BY e.entry_id
+        """).fetchall()
+    except Exception:
+        entries = conn.execute("""
+            SELECT e.entry_id, e.source_file, e.entry_title, e.content, e.char_count,
+                   i.entry_type
+            FROM silver_tabletop.silver_entries e
+            JOIN gold_tabletop.gold_entry_index i ON e.entry_id = i.entry_id
+            ORDER BY e.entry_id
+        """).fetchall()
 
     if not entries:
         _log("All entries already summarized!")
@@ -94,10 +89,11 @@ def main():
         summary = call_ollama(prompt, ollama_url, ollama_model)
 
         if summary:
-            conn.execute(
-                "INSERT OR REPLACE INTO gold_tabletop.gold_ai_summaries VALUES (?, ?, ?, ?, ?, ?)",
-                [entry_id, source_file, entry_title, entry_type, summary, now],
-            )
+            write_iceberg("gold_tabletop", "gold_ai_summaries", pa.table({
+                "entry_id": [entry_id], "source_file": [source_file],
+                "entry_title": [entry_title], "entry_type": [entry_type],
+                "summary": [summary], "summarized_at": [now],
+            }))
 
             if (i + 1) % 10 == 0:
                 _log(f"  {i + 1}/{len(to_process)} summarized")

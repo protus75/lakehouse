@@ -6,13 +6,14 @@ import sys
 sys.path.insert(0, "/workspace")
 
 import json
-import duckdb
+import pyarrow as pa
 import requests
 from datetime import datetime, timezone
 from pathlib import Path
 from dlt.lib.tabletop_cleanup import load_config, _log
+from dlt.lib.duckdb_reader import get_reader
+from dlt.lib.iceberg_catalog import write_iceberg
 
-DB_PATH = "/workspace/db/lakehouse.duckdb"
 CONFIGS_DIR = Path("/workspace/documents/tabletop_rules/configs")
 
 
@@ -33,23 +34,8 @@ def call_ollama_json(prompt: str, url: str, model: str) -> dict | None:
     return None
 
 
-def ensure_table(conn):
-    conn.execute("CREATE SCHEMA IF NOT EXISTS gold_tabletop")
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS gold_tabletop.gold_ai_annotations (
-            entry_id        INTEGER PRIMARY KEY,
-            source_file     VARCHAR NOT NULL,
-            entry_title     VARCHAR,
-            is_combat       BOOLEAN,
-            is_popular      BOOLEAN,
-            annotated_at    TIMESTAMP NOT NULL
-        )
-    """)
-
-
 def main():
-    conn = duckdb.connect(DB_PATH)
-    ensure_table(conn)
+    conn = get_reader()
 
     # Get config
     sf_row = conn.execute("SELECT source_file FROM silver_tabletop.silver_files LIMIT 1").fetchone()
@@ -67,16 +53,26 @@ def main():
 
     # Get entries that need annotations (not already done)
     placeholders = ",".join([f"'{t}'" for t in annotate_types])
-    entries = conn.execute(f"""
-        SELECT e.entry_id, e.source_file, e.entry_title, e.content,
-               i.entry_type
-        FROM silver_tabletop.silver_entries e
-        JOIN gold_tabletop.gold_entry_index i ON e.entry_id = i.entry_id
-        LEFT JOIN gold_tabletop.gold_ai_annotations a ON e.entry_id = a.entry_id
-        WHERE a.entry_id IS NULL
-        AND i.entry_type IN ({placeholders})
-        ORDER BY e.entry_id
-    """).fetchall()
+    try:
+        entries = conn.execute(f"""
+            SELECT e.entry_id, e.source_file, e.entry_title, e.content,
+                   i.entry_type
+            FROM silver_tabletop.silver_entries e
+            JOIN gold_tabletop.gold_entry_index i ON e.entry_id = i.entry_id
+            LEFT JOIN gold_tabletop.gold_ai_annotations a ON e.entry_id = a.entry_id
+            WHERE a.entry_id IS NULL
+            AND i.entry_type IN ({placeholders})
+            ORDER BY e.entry_id
+        """).fetchall()
+    except Exception:
+        entries = conn.execute(f"""
+            SELECT e.entry_id, e.source_file, e.entry_title, e.content,
+                   i.entry_type
+            FROM silver_tabletop.silver_entries e
+            JOIN gold_tabletop.gold_entry_index i ON e.entry_id = i.entry_id
+            WHERE i.entry_type IN ({placeholders})
+            ORDER BY e.entry_id
+        """).fetchall()
 
     if not entries:
         _log("All entries already annotated!")
@@ -107,10 +103,11 @@ def main():
             is_combat = bool(result.get("combat", False))
             is_popular = bool(result.get("popular", False))
 
-        conn.execute(
-            "INSERT OR REPLACE INTO gold_tabletop.gold_ai_annotations VALUES (?, ?, ?, ?, ?, ?)",
-            [entry_id, source_file, entry_title, is_combat, is_popular, now],
-        )
+        write_iceberg("gold_tabletop", "gold_ai_annotations", pa.table({
+            "entry_id": [entry_id], "source_file": [source_file],
+            "entry_title": [entry_title], "is_combat": [is_combat],
+            "is_popular": [is_popular], "annotated_at": [now],
+        }))
 
         if (i + 1) % 10 == 0:
             _log(f"  {i + 1}/{len(entries)} annotated")
