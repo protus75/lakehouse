@@ -13,6 +13,7 @@ Run: docker exec lakehouse-workspace python -u dlt/bronze_tabletop_rules.py
 """
 
 import hashlib
+import json
 import re
 from pathlib import Path
 from datetime import datetime, timezone
@@ -125,6 +126,17 @@ def init_bronze_schema(conn: duckdb.DuckDBPyConnection) -> None:
             watermark_text    VARCHAR NOT NULL,
             occurrence_count  INTEGER NOT NULL,
             PRIMARY KEY (source_file, watermark_text)
+        )
+    """)
+
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS bronze_tabletop.ocr_issues (
+            source_file       VARCHAR NOT NULL,
+            wrong_text        VARCHAR NOT NULL,
+            suggested_fix     VARCHAR NOT NULL,
+            context           VARCHAR,
+            status            VARCHAR DEFAULT 'pending',
+            checked_at        TIMESTAMP NOT NULL
         )
     """)
 
@@ -1287,6 +1299,153 @@ def extract_pdf(filepath: Path) -> None:
     _log(f"  Bronze total: {time.time() - start:.1f}s")
 
 
+# ── OCR Validation ─────────────────────────────────────────────
+
+OCR_PROMPT = (
+    'You are proofreading OCR-scanned text from a tabletop RPG rulebook '
+    '(AD&D 2nd Edition).\n\n'
+    'Identify ONLY clear OCR errors and misspellings. For each error, '
+    'output a JSON object with "wrong" and "correct" fields.\n\n'
+    'Rules:\n'
+    '- Do NOT flag game terms, archaic spellings, or proper nouns\n'
+    '- Do NOT flag markdown formatting, abbreviations, or dice notation\n'
+    '- ONLY flag words clearly garbled by OCR (wrong letters, merged words)\n'
+    '- Output ONLY a JSON array. Empty array [] if no errors.\n\n'
+    'Example: [{{"wrong": "Tumans", "correct": "Humans"}}]\n\n'
+    'Text:\n---\n{text}\n---\n\nJSON array:'
+)
+
+
+def _call_ollama(prompt: str, config: dict) -> str | None:
+    """Call Ollama API. URL and model from config or defaults."""
+    import requests
+    url = config.get("ollama_url", "http://host.docker.internal:11434")
+    model = config.get("ollama_model", "llama3:70b")
+    try:
+        resp = requests.post(
+            f"{url}/api/generate",
+            json={"model": model, "prompt": prompt, "stream": False,
+                  "options": {"temperature": 0.0, "num_predict": 500}},
+            timeout=120,
+        )
+        resp.raise_for_status()
+        return resp.json().get("response", "").strip()
+    except Exception as e:
+        _log(f"  Ollama error: {e}")
+        return None
+
+
+def _parse_ocr_response(text: str) -> list[dict]:
+    """Extract JSON array from LLM response."""
+    if not text:
+        return []
+    start = text.find("[")
+    end = text.rfind("]")
+    if start < 0 or end < 0:
+        return []
+    try:
+        return json.loads(text[start:end + 1])
+    except json.JSONDecodeError:
+        return []
+
+
+def check_ocr(source_file: str, sample: int = 0) -> None:
+    """Bronze validation: scan markdown for OCR issues using Ollama.
+
+    Reads already-extracted markdown, applies existing content_substitutions,
+    sends text chunks to LLM, stores findings in bronze_tabletop.ocr_issues.
+    """
+    conn = duckdb.connect(DB_PATH)
+    init_bronze_schema(conn)
+
+    configs_dir = DOCUMENTS_DIR.parent / "configs"
+    config = load_config(Path(source_file), configs_dir)
+
+    row = conn.execute(
+        f"SELECT markdown_text FROM bronze_tabletop.marker_extractions "
+        f"WHERE source_file = ?", [source_file]
+    ).fetchone()
+    if not row:
+        _log(f"No markdown found for {source_file}")
+        return
+
+    md = _clean_marker_md(row[0])
+
+    # Apply existing substitutions — don't re-flag known issues
+    for sub in config.get("content_substitutions", []):
+        if len(sub) == 2:
+            md = md.replace(sub[0], sub[1])
+
+    # Chunk into ~3000 char segments, skip table-heavy chunks
+    paragraphs = md.split("\n\n")
+    chunks = []
+    current = ""
+    for para in paragraphs:
+        if len(current) + len(para) + 2 > 3000 and current:
+            chunks.append(current)
+            current = para
+        else:
+            current = current + "\n\n" + para if current else para
+    if current:
+        chunks.append(current)
+
+    text_chunks = []
+    for chunk in chunks:
+        pipe_lines = sum(1 for line in chunk.split("\n") if line.strip().startswith("|"))
+        total_lines = max(1, len(chunk.split("\n")))
+        if pipe_lines / total_lines <= 0.5:
+            text_chunks.append(chunk)
+
+    if sample and sample < len(text_chunks):
+        import random
+        random.seed(42)
+        text_chunks = random.sample(text_chunks, sample)
+
+    _log(f"OCR check: {source_file} — {len(text_chunks)} text chunks"
+         f"{f' (sampled from {len(chunks)})' if sample else ''}")
+
+    # Clear previous issues for this file
+    conn.execute(
+        "DELETE FROM bronze_tabletop.ocr_issues WHERE source_file = ?",
+        [source_file]
+    )
+
+    all_errors = {}
+    from datetime import datetime
+    now = datetime.now()
+
+    for i, chunk in enumerate(text_chunks):
+        prompt = OCR_PROMPT.format(text=chunk)
+        print(f"  Chunk {i + 1}/{len(text_chunks)}...", end=" ", flush=True)
+        response = _call_ollama(prompt, config)
+        errors = _parse_ocr_response(response)
+
+        if errors:
+            for err in errors:
+                wrong = err.get("wrong", "")
+                correct = err.get("correct", "")
+                if wrong and correct and wrong != correct and wrong not in all_errors:
+                    # Find context line
+                    ctx = ""
+                    for line in md.split("\n"):
+                        if wrong in line:
+                            ctx = line.strip()[:200]
+                            break
+                    all_errors[wrong] = (correct, ctx)
+            print(f"{len(errors)} issues")
+        else:
+            print("clean")
+
+    # Store in bronze table
+    for wrong, (correct, ctx) in all_errors.items():
+        conn.execute(
+            "INSERT INTO bronze_tabletop.ocr_issues VALUES (?, ?, ?, ?, 'pending', ?)",
+            [source_file, wrong, correct, ctx, now]
+        )
+
+    _log(f"  OCR check complete: {len(all_errors)} issues stored in bronze_tabletop.ocr_issues")
+
+
 def run(directory: Path | None = None) -> None:
     """Extract all PDFs in directory to bronze layer."""
     doc_dir = directory or DOCUMENTS_DIR
@@ -1302,7 +1461,23 @@ def run(directory: Path | None = None) -> None:
 
 if __name__ == "__main__":
     import sys
-    if len(sys.argv) > 1:
+    if "--check-ocr" in sys.argv:
+        # Usage: python -m dlt.bronze_tabletop_rules --check-ocr Player [--sample 50]
+        args = [a for a in sys.argv[1:] if a != "--check-ocr"]
+        book_filter = next((a for a in args if not a.startswith("--")), None)
+        sample_idx = next((i for i, a in enumerate(args) if a == "--sample"), None)
+        sample_n = int(args[sample_idx + 1]) if sample_idx is not None else 0
+
+        conn = duckdb.connect(DB_PATH)
+        init_bronze_schema(conn)
+        query = "SELECT DISTINCT source_file FROM bronze_tabletop.marker_extractions"
+        if book_filter:
+            query += f" WHERE source_file LIKE '%{book_filter}%'"
+        files = conn.execute(query).fetchall()
+        conn.close()
+        for (sf,) in files:
+            check_ocr(sf, sample=sample_n)
+    elif len(sys.argv) > 1:
         extract_pdf(Path(sys.argv[1]))
     else:
         run()
