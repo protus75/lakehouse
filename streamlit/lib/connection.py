@@ -14,7 +14,7 @@ from dlt.lib.duckdb_reader import get_reader
 
 @st.cache_resource
 def _conn():
-    return get_reader()
+    return get_reader(namespaces=["silver_tabletop", "gold_tabletop"])
 
 
 def query(sql: str, params: list | None = None) -> pl.DataFrame:

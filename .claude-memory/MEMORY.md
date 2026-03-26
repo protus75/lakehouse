@@ -5,6 +5,7 @@
 - [feedback_ingestion_over_export.md](feedback_ingestion_over_export.md) - Fix data quality at ingestion with config, never patch in export
 - [feedback_avoid_regex.md](feedback_avoid_regex.md) - STOP using regex, use string ops/Marker/LLM instead
 - [feedback_no_hardcoded_values.md](feedback_no_hardcoded_values.md) - CRITICAL: No hardcoded thresholds/strings in code, everything in YAML config
+- [feedback_no_hardcoded_anything.md](feedback_no_hardcoded_anything.md) - CRITICAL repeated: no hardcoded pixels/offsets/magic numbers, always dynamic or config
 - [feedback_marker_over_docling.md](feedback_marker_over_docling.md) - Use Marker not Docling, Docling was tried and sucked
 - [project_d_drive.md](project_d_drive.md) - All data/models/caches must be on D drive, never C drive
 - [feedback_allow_readonly.md](feedback_allow_readonly.md) - Don't prompt for ANY read-only commands (bash, docker exec, searches)
@@ -23,4 +24,7 @@
 - [feedback_config_first.md](feedback_config_first.md) - CRITICAL: Write config YAML first, then code that reads it — never hardcode then migrate
 - [project_s3_parquet.md](project_s3_parquet.md) - Lakehouse storage is S3 + Parquet, DuckDB is query engine only
 - [feedback_follow_architecture.md](feedback_follow_architecture.md) - CRITICAL: Follow lakehouse architecture, never shortcut with quick hacks
-- [project_architecture_changes.md](project_architecture_changes.md) - Unity Catalog replaces Polaris, Dagster replaces Airflow
+- [project_architecture_changes.md](project_architecture_changes.md) - Storage migration done: SeaweedFS+Iceberg+Dagster
+- [project_content_quality.md](project_content_quality.md) - Gold content quality issues blocking enrichment, must fix silver/gold first
+- [feedback_provide_links.md](feedback_provide_links.md) - Always provide URLs when asking user to check web apps
+- [feedback_test_before_asking.md](feedback_test_before_asking.md) - Test code works before asking user to try it

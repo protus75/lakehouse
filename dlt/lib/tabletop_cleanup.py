@@ -68,9 +68,12 @@ def _extract_toc_line(line: str) -> tuple[str, int] | None:
     if not page_str or int(page_str) == 0:
         return None
 
-    # Title is everything before dot leaders / whitespace + page number
+    # Handle multi-page references like "90, 94" — strip trailing ", NNN" patterns
     before = rstripped[:i + 1].rstrip()
-    # Strip dot leaders: sequences of dots, spaces, dots
+    while before.endswith(",") or (before[-1:].isdigit() and ", " in before[-8:]):
+        before = before.rstrip(" ,0123456789")
+
+    # Strip dot leaders: sequences of dots, spaces, dots, ellipsis chars
     while before and before[-1] in '.… ':
         before = before.rstrip('.… ')
     title = before.strip()
@@ -258,6 +261,9 @@ def _clean_entry_content(content: str, config: dict) -> str:
         if len(sub) == 2:
             content = content.replace(sub[0], sub[1])
 
+    # Strip residual HTML tags from Marker output (e.g. <sup>, <sub>)
+    content = re.sub(r"</?(?:sup|sub|br|hr|em|strong|span|div|p)(?:\s[^>]*)?>", "", content)
+
     # Deduplicate after all other cleaning
     content = _deduplicate_marker_blocks(content, field_names, config)
 
@@ -389,11 +395,61 @@ def _is_whitelist_section(toc_entry: dict | None, config: dict | None) -> bool:
 
 # ── Entry building ───────────────────────────────────────────────
 
+def _is_valid_section_heading(heading: str, toc_sections: list[dict], config: dict) -> bool:
+    """Check if an H1/H2 heading is a legitimate section heading vs Marker artifact.
+
+    Marker generates garbage H1/H2 headings at page boundaries from running headers
+    (e.g. '# The', '# Good.', '# Player'). These must NOT become section boundaries.
+
+    Uses the full ToC (chapters + sub-sections) as ground truth. A heading is valid if:
+    1. It matches any ToC entry title (exact match on full title or descriptive part)
+    2. It matches a section_parsing key or sub-section pattern from config
+    3. It matches a valid_section_headings entry from config (manual overrides)
+    """
+    clean = heading.strip().rstrip(".")
+    if not clean:
+        return False
+    clean_lower = clean.lower()
+
+    # 1. Check against ALL ToC entries (chapters + sub-sections) — exact match
+    for section in toc_sections:
+        title = section.get("title", "")
+        title_lower = title.lower()
+        if clean_lower == title_lower:
+            return True
+        # Also match on descriptive part after "Chapter N:" prefix
+        if ":" in title_lower:
+            title_desc = title_lower.split(":", 1)[-1].strip()
+            if clean_lower == title_desc:
+                return True
+
+    # 2. Check section_parsing keys from config (exact match)
+    for sec_key in (config.get("section_parsing", {}) or {}):
+        if clean_lower == sec_key.lower():
+            return True
+
+    # 3. Check sub-section patterns (e.g. "First-Level Spells")
+    for sec_key, sec_cfg in (config.get("section_parsing", {}) or {}).items():
+        sub_pat = sec_cfg.get("sub_section_pattern", "")
+        if sub_pat and re.match(sub_pat, clean, re.IGNORECASE):
+            return True
+
+    # 4. Check valid_section_headings from config (manual overrides for edge cases)
+    valid_headings = config.get("valid_section_headings", [])
+    if valid_headings:
+        valid_set = set(h.lower() for h in valid_headings)
+        if clean_lower in valid_set:
+            return True
+
+    return False
+
+
 def build_entries(
     markdown: str,
     heading_chapter_map: dict[int, dict],
     known_entries: set[str],
     config: dict = None,
+    toc_sections: list[dict] = None,
 ) -> list[dict]:
     """Parse Marker markdown into entries using heading-chapter map for ToC assignment.
 
@@ -404,6 +460,7 @@ def build_entries(
     # Config lookups
     level_mapping = config.get("spell_level_mapping", {}) if config else {}
     type_mapping = config.get("entry_type_mapping", {}) if config else {}
+    _toc_sections = toc_sections or []
 
     def _toc_spell_class(toc_entry: dict | None) -> str | None:
         """Determine spell class from ToC entry using entry_type_mapping config.
@@ -509,7 +566,7 @@ def build_entries(
             if content and len(content) > min_content:
                 entries.append({
                     "toc_entry": current_toc,
-                    "section_title": current_sub_section or current_section,
+                    "section_title": current_sub_section or current_section or current_toc.get("title", "").split(":", 1)[-1].strip(),
                     "entry_title": current_entry,
                     "content": content,
                     "school": school,
@@ -552,6 +609,10 @@ def build_entries(
                 # e.g. "## Priest Spells" repeated at top of new page mid-entry
                 if current_section and clean_heading.lower() == current_section.lower():
                     pass  # same section -- keep accumulating current entry
+                elif not _is_valid_section_heading(clean_heading, _toc_sections, config or {}):
+                    # Marker artifact: garbage H1/H2 heading from page running header
+                    # (e.g. "# The", "# Good.", "# Player") — treat as content, not section
+                    current_content.append(line)
                 elif current_entry and current_content and config and _has_metadata_but_no_description("\n".join(current_content), config):
                     # Current entry has metadata but no description yet -- the description
                     # likely follows this section heading (Marker inserted it mid-entry).
@@ -830,6 +891,31 @@ def collect_sub_headings(entries: list[dict], toc_sections: list[dict], config: 
 
 # ── Chunking ─────────────────────────────────────────────────────
 
+def _split_preserving_tables(content: str) -> list[str]:
+    """Split content into paragraph blocks, keeping table rows together.
+
+    Tables (contiguous lines starting with '|') are kept as single blocks
+    even if separated by blank lines within the table structure."""
+    raw_blocks = content.split("\n\n")
+    merged = []
+    i = 0
+    while i < len(raw_blocks):
+        block = raw_blocks[i]
+        # If this block contains table rows, merge with adjacent table blocks
+        if any(line.strip().startswith("|") for line in block.split("\n") if line.strip()):
+            while i + 1 < len(raw_blocks):
+                next_block = raw_blocks[i + 1]
+                next_lines = [l.strip() for l in next_block.split("\n") if l.strip()]
+                if next_lines and next_lines[0].startswith("|"):
+                    block = block + "\n\n" + next_block
+                    i += 1
+                else:
+                    break
+        merged.append(block)
+        i += 1
+    return merged
+
+
 def chunk_entries(entries: list[dict], config: dict) -> list[dict]:
     chunking = config.get("chunking", {})
     max_chars = chunking.get("max_chars", 800)
@@ -848,7 +934,7 @@ def chunk_entries(entries: list[dict], config: dict) -> list[dict]:
                 "page_numbers": page_str, "chunk_type": "content",
             })
         else:
-            paragraphs = content.split("\n\n")
+            paragraphs = _split_preserving_tables(content)
             current = ""
             for para in paragraphs:
                 if len(current) + len(para) + 2 > max_chars and current:
@@ -858,7 +944,12 @@ def chunk_entries(entries: list[dict], config: dict) -> list[dict]:
                         "content": current.strip(), "page_numbers": page_str,
                         "chunk_type": "content",
                     })
-                    overlap_text = current.strip()[-overlap:] if overlap > 0 else ""
+                    # Don't overlap into table blocks — overlap only from text content
+                    last_text = current.strip()
+                    if overlap > 0 and not last_text.rstrip().endswith("|"):
+                        overlap_text = last_text[-overlap:]
+                    else:
+                        overlap_text = ""
                     current = overlap_text + "\n\n" + para if overlap_text else para
                 else:
                     current = current + "\n\n" + para if current else para

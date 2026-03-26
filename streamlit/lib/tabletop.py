@@ -128,6 +128,54 @@ def search_entries(search_query: str, limit: int = 20) -> pl.DataFrame:
     )
 
 
+# ── Table lookup ─────────────────────────────────────────────
+
+@st.cache_data(ttl=300)
+def get_table_lookup() -> dict:
+    """Return {table_number: {entry_id, entry_title, toc_id}} for all Table entries."""
+    df = query(
+        "SELECT c.entry_title, c.toc_id, i.entry_id "
+        "FROM gold_tabletop.gold_chunks c "
+        "JOIN gold_tabletop.gold_entry_index i "
+        "  ON c.entry_title = i.entry_title "
+        "WHERE c.entry_title LIKE 'Table %' "
+        "GROUP BY c.entry_title, c.toc_id, i.entry_id "
+        "ORDER BY c.entry_title",
+    )
+    import re
+    lookup = {}
+    for row in df.iter_rows(named=True):
+        m = re.search(r"Table\s+(\d+)", row["entry_title"])
+        if m:
+            lookup[int(m.group(1))] = {
+                "entry_id": row["entry_id"],
+                "entry_title": row["entry_title"],
+                "toc_id": row["toc_id"],
+            }
+    return lookup
+
+
+# ── ToC with sections ────────────────────────────────────────
+
+@st.cache_data(ttl=300)
+def get_chapter_sections(toc_id: int) -> list[dict]:
+    """Get entries grouped by section_title for a chapter."""
+    df = query(
+        "SELECT section_title, entry_title, MIN(chunk_id) as first_chunk "
+        "FROM gold_tabletop.gold_chunks "
+        "WHERE toc_id = ? AND entry_title IS NOT NULL "
+        "GROUP BY section_title, entry_title ORDER BY first_chunk",
+        [toc_id],
+    )
+    if df.is_empty():
+        return []
+    sections: dict[str, list[str]] = {}
+    for row in df.iter_rows(named=True):
+        sec = row["section_title"] or ""
+        sections.setdefault(sec, []).append(row["entry_title"])
+    return [{"section": s, "entries": e} for s, e in sections.items()]
+
+
 # ── Compendium ───────────────────────────────────────────────
 
 @st.cache_data(ttl=300)
