@@ -15,3 +15,4 @@
 - [project_rag_architecture.md](project_rag_architecture.md) - RAG architecture, medallion layers, validation status
 - [project_gold_enrichments.md](project_gold_enrichments.md) - Gold layer: AI summaries, cross-ref indices, combat/popular annotations
 - [feedback_kill_stale_processes.md](feedback_kill_stale_processes.md) - Check for/kill stale python processes before pipeline runs, monitor GPU
+- [reference_ollama_setup.md](reference_ollama_setup.md) - Ollama on host, models at D:\ollama\models, llama3:70b + minicpm-v
