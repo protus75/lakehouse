@@ -105,12 +105,15 @@ services:
       - ../dbt:/workspace/dbt
       - ../scripts:/workspace/scripts
       - ../documents:/workspace/documents
+      - ../db/duckdb:/workspace/db
+      - ../cache/marker:/workspace/cache/marker
+      - ../cache/huggingface:/workspace/.cache/huggingface
     environment:
       DAGSTER_HOME: /workspace/dagster
       S3_ENDPOINT: http://seaweedfs-s3:8333
       S3_ACCESS_KEY: lakehouse_key
       S3_SECRET_KEY: lakehouse_secret
-    command: dagster-daemon run
+    command: dagster-daemon run -w /workspace/dagster/workspace.yaml
     depends_on:
       postgres:
         condition: service_healthy

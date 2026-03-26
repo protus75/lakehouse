@@ -46,6 +46,7 @@ def get_reader(namespaces: list[str] | None = None) -> duckdb.DuckDBPyConnection
     conn.execute(f"SET s3_secret_access_key='{s3_cfg['secret_key']}';")
     conn.execute("SET s3_url_style='path';")
     conn.execute("SET s3_use_ssl=false;")
+    conn.execute("SET unsafe_enable_version_guessing=true;")
 
     warehouse = catalog_cfg["warehouse"]
     catalog = get_catalog()

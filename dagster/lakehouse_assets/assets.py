@@ -4,6 +4,9 @@ Asset graph:
     bronze_tabletop → dbt_tabletop → publish_to_iceberg
         → gold_ai_summaries
         → gold_ai_annotations
+
+Bronze, dbt, and publish run in the Dagster daemon (same volumes).
+Enrichment runs via docker exec on lakehouse-workspace (GPU + Ollama).
 """
 import sys
 sys.path.insert(0, "/workspace")
@@ -58,15 +61,18 @@ def publish_to_iceberg(context: AssetExecutionContext):
 
 @asset(group_name="enrichment", compute_kind="ollama", deps=[publish_to_iceberg])
 def gold_ai_summaries(context: AssetExecutionContext):
-    """AI-generated summaries for gold entries via Ollama."""
+    """AI-generated summaries for gold entries via Ollama. ~45min for 800+ entries."""
     from scripts.tabletop_rules.enrich_summaries import main
     main()
     context.log.info("AI summaries complete")
 
 
-@asset(group_name="enrichment", compute_kind="ollama", deps=[publish_to_iceberg])
+@asset(group_name="enrichment", compute_kind="ollama", deps=[gold_ai_summaries])
 def gold_ai_annotations(context: AssetExecutionContext):
-    """AI-generated combat/popular annotations via Ollama."""
+    """AI-generated combat/popular annotations via Ollama. ~25min for 500+ entries.
+
+    Runs after summaries to avoid competing for Ollama VRAM.
+    """
     from scripts.tabletop_rules.enrich_annotations import main
     main()
     context.log.info("AI annotations complete")
@@ -86,11 +92,16 @@ tabletop_without_enrichment = define_asset_job(
     selection=[bronze_tabletop, dbt_tabletop, publish_to_iceberg],
 )
 
+enrichment_only = define_asset_job(
+    name="enrichment_only",
+    selection=[gold_ai_summaries, gold_ai_annotations],
+)
+
 
 defs = Definitions(
     assets=[
         bronze_tabletop, dbt_tabletop, publish_to_iceberg,
         gold_ai_summaries, gold_ai_annotations,
     ],
-    jobs=[tabletop_full_pipeline, tabletop_without_enrichment],
+    jobs=[tabletop_full_pipeline, tabletop_without_enrichment, enrichment_only],
 )

@@ -29,8 +29,15 @@ dbt/lakehouse_mvp/target/
 dbt/logs/
 dbt/lakehouse_mvp/logs/
 
+# Dagster runtime
+dagster/.nux/
+dagster/.telemetry/
+dagster/logs/
+dagster/storage/
+
 # Environment
 .env
+.claude/settings.local.json
 
 # Data files
 data/*.csv
