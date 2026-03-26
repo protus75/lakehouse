@@ -136,16 +136,31 @@ section_parsing:
 
 # Authority tables — parsed from bronze markdown as ground truth for entry names
 # Each entry: {table: name, page: printed page number, type: entry_type}
+# Authority names — config-based whitelist for entry types without a table source
+authority_names:
+  race:
+    - "Dwarf"
+    - "Elf"
+    - "Gnome"
+    - "Half-Elf"
+    - "Halfling"
+    - "Human"
+
+# Authority tables — parsed from bronze markdown as ground truth for entry names
 authority_tables:
+  - table: "Table 13"
+    page: 39
+    type: class
+    name_column: 0
+  - table: "Table 36"
+    page: 75
+    type: secondary_skill
   - table: "Table 37"
     page: 76
     type: proficiency
   - table: "Table 44"
     page: 90
     type: equipment
-  - table: "Table 36"
-    page: 75
-    type: secondary_skill
 
 # Tables that Marker failed to parse — provide heading text for fuzzy fallback
 # These are text-only tables (no pipe formatting) that the parser couldn't auto-detect

@@ -52,6 +52,18 @@ def model(dbt, session):
             "ref_page": int(row["ref_page"]) if pd.notna(row["ref_page"]) else None,
         }
 
+    # Load authority table entries for whitelist validation
+    authority_df = session.execute(
+        "SELECT source_file, entry_name, entry_type FROM bronze_tabletop.authority_table_entries"
+    ).df()
+    # Build per-file, per-type whitelist: {(source_file, entry_type)} → set of lowercase names
+    authority_whitelist = {}
+    for _, arow in authority_df.iterrows():
+        key = (arow["source_file"], arow["entry_type"])
+        if key not in authority_whitelist:
+            authority_whitelist[key] = set()
+        authority_whitelist[key].add(arow["entry_name"].lower().strip())
+
     all_rows = []
 
     for sf in entries_df["source_file"].unique():
@@ -67,6 +79,17 @@ def model(dbt, session):
             entry_name = entry_title.lower().strip() if entry_title else ""
 
             entry_type = _get_entry_type(toc_title, type_mapping)
+
+            # Entries with no title are always rules
+            if not entry_name:
+                entry_type = "rule"
+
+            # Validate non-spell entries against authority whitelist
+            # If a whitelist exists for this type, only matching names keep the type
+            if entry_type not in ("spell", "rule") and entry_name:
+                whitelist = authority_whitelist.get((sf, entry_type))
+                if whitelist and entry_name not in whitelist:
+                    entry_type = "rule"
 
             spell_class = None
             spell_level = None

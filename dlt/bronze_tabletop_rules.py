@@ -689,21 +689,26 @@ def extract_all_tables(markdown: str, toc_tables: list[dict],
             lines_since_label = 0
 
         # If no table number match, try fuzzy matching heading text to ToC titles.
-        # Only check the next few expected tables to avoid premature matches
-        # (e.g. chapter heading "Nonweapon Proficiencies" matching Table 37
-        #  "Nonweapon Proficiency Groups" before Table 36 is found).
+        # Only match lines that look like table headings (short, formatted lines)
+        # and NOT section headings that happen to share a table title.
+        # Require either: pipes on the next few lines OR "table" in the heading.
         if pending_table_num is None and stripped and next_expected_idx < len(toc_nums_sorted):
             clean_heading = stripped.lstrip("#").lstrip().lstrip("*").strip().rstrip("*").strip()
             if 5 <= len(clean_heading) <= 80:
-                # Only check the NEXT expected table (strict ordering)
-                tnum = toc_nums_sorted[next_expected_idx]
-                if tnum not in found_nums:
-                    title = toc_lookup.get(tnum, "").lower()
-                    if title:
-                        score = fuzz.ratio(clean_heading.lower(), title)
-                        if score >= 85:
-                            pending_table_num = tnum
-                            lines_since_label = 0
+                # Check if pipes follow within 5 lines (actual table, not prose)
+                has_nearby_pipes = any(
+                    j < len(lines) and lines[j].strip().startswith("|")
+                    for j in range(i + 1, min(i + 6, len(lines)))
+                )
+                if has_nearby_pipes:
+                    tnum = toc_nums_sorted[next_expected_idx]
+                    if tnum not in found_nums:
+                        title = toc_lookup.get(tnum, "").lower()
+                        if title:
+                            score = fuzz.ratio(clean_heading.lower(), title)
+                            if score >= 85:
+                                pending_table_num = tnum
+                                lines_since_label = 0
 
         is_pipe_row = stripped.startswith("|") and stripped.count("|") >= 2
 
@@ -914,9 +919,20 @@ def extract_authority_entries(all_tables: list[dict], config: dict) -> list[dict
     name-like cells from the first column of data rows.
 
     Returns list of dicts: {entry_name, entry_type, source_table}"""
+    entries = []
+
+    # Config-based authority names (no table source needed)
+    for entry_type, names in config.get("authority_names", {}).items():
+        for name in names:
+            entries.append({
+                "entry_name": name.lower().strip(),
+                "entry_type": entry_type,
+                "source_table": "config",
+            })
+
     authority = config.get("authority_tables", [])
     if not authority:
-        return []
+        return entries
 
     # Build lookup: table_number → parsed table
     table_lookup = {t["table_number"]: t for t in all_tables}
@@ -929,8 +945,6 @@ def extract_authority_entries(all_tables: list[dict], config: dict) -> list[dict
         "constitution", "roll", "d100", "secondary skill",
     ]
     skip_lower = set(s.lower() for s in config.get("authority_skip_values", default_skip))
-
-    entries = []
 
     for auth in authority:
         table_name = auth["table"]
@@ -948,15 +962,18 @@ def extract_authority_entries(all_tables: list[dict], config: dict) -> list[dict
             _log(f"  Warning: {table_name} not found in parsed tables")
             continue
 
-        # Extract name-like values from first column of each row group
-        # Tables may have multiple column groups side-by-side (e.g. Table 37
-        # has General|slots|ability|mod | Rogue|slots|ability|mod)
+        # Extract name-like values from table cells
+        # name_column: restrict to specific column index (e.g. 0 for first col)
+        # Default: scan all cells (for multi-column tables like T37)
+        name_col = auth.get("name_column")
+
         for row in parsed["rows"]:
-            for cell in row:
-                cell = cell.strip()
+            cells_to_check = [row[name_col]] if name_col is not None and name_col < len(row) else row
+            for cell in cells_to_check:
+                cell = cell.strip().rstrip("*")
                 # Handle <br> joined cells (Marker uses this for multi-line cells)
                 for part in re.split(r'<br\s*/?>', cell):
-                    part = part.strip()
+                    part = part.strip().rstrip("*").strip()
                     if not part or len(part) < 3:
                         continue
                     if not part[0].isupper():
