@@ -5,9 +5,7 @@
   "permissions": {
     "allow": [
       "Bash(cat:*)",
-      "Bash(curl:*)",
       "Bash(docker compose:*)",
-      "Bash(docker exec:*)",
       "Bash(docker images:*)",
       "Bash(docker info:*)",
       "Bash(docker logs:*)",
@@ -28,11 +26,7 @@
       "Bash(ls:*)",
       "Bash(nvidia-smi:*)",
       "Bash(ollama:*)",
-      "Bash(pip install:*)",
-      "Bash(powershell:*)",
-      "Bash(python -c:*)",
-      "Bash(python -u:*)",
-      "Bash(python scripts/:*)",
+      "Bash(python scripts/dagster.py:*)",
       "Bash(python3:*)",
       "Bash(rm scripts/:*)",
       "Bash(tail:*)",
@@ -40,10 +34,6 @@
       "Bash(wsl:*)",
       "Bash(xargs:*)",
       "Skill(update-config:*)",
-      "WebFetch(domain:ollama.com)",
-      "WebFetch(domain:polaris.apache.org)",
-      "WebFetch(domain:pypi.org)",
-      "WebFetch(domain:raw.githubusercontent.com)"
     ]
   },
   "hooks": {
