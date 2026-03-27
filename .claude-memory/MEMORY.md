@@ -1,45 +1,11 @@
-- [user_profile.md](user_profile.md) - User prefers CLI/PowerShell over Jupyter, not familiar with Jupyter
-- [feedback_no_comments_in_commands.md](feedback_no_comments_in_commands.md) - Commands: no inline comments, specify terminal type, use PowerShell syntax, include cd
-- [feedback_no_notepad.md](feedback_no_notepad.md) - Never suggest notepad; use VSCode or Edit tool
-- [feedback_page_numbers.md](feedback_page_numbers.md) - Always read printed page numbers from PDF text, never calculate offsets
-- [feedback_ingestion_over_export.md](feedback_ingestion_over_export.md) - Fix data quality at ingestion with config, never patch in export
-- [feedback_avoid_regex.md](feedback_avoid_regex.md) - STOP using regex, use string ops/Marker/LLM instead
-- [feedback_no_hardcoded_values.md](feedback_no_hardcoded_values.md) - CRITICAL: No hardcoded thresholds/strings in code, everything in YAML config
-- [feedback_no_hardcoded_anything.md](feedback_no_hardcoded_anything.md) - CRITICAL repeated: no hardcoded pixels/offsets/magic numbers, always dynamic or config
-- [feedback_marker_over_docling.md](feedback_marker_over_docling.md) - Use Marker not Docling, Docling was tried and sucked
-- [project_d_drive.md](project_d_drive.md) - All data/models/caches must be on D drive, never C drive
-- [feedback_allow_readonly.md](feedback_allow_readonly.md) - Don't prompt for ANY read-only commands (bash, docker exec, searches)
-- [feedback_monitor_tasks.md](feedback_monitor_tasks.md) - Monitor long tasks, report progress, detect crashes, give ETAs
-- [feedback_memory_location.md](feedback_memory_location.md) - Write memory to .claude-memory/ in repo, not system path
-- [feedback_save_working_state.md](feedback_save_working_state.md) - Save bugs, fixes, debugging state to memory aggressively across sessions
-- [feedback_one_book_at_a_time.md](feedback_one_book_at_a_time.md) - Only process one book until validation passes, never all 6
-- [project_rag_architecture.md](project_rag_architecture.md) - RAG architecture, medallion layers, validation status
-- [project_gold_enrichments.md](project_gold_enrichments.md) - Gold layer: AI summaries, cross-ref indices, combat/popular annotations
-- [feedback_kill_stale_processes.md](feedback_kill_stale_processes.md) - Check for/kill stale python processes before pipeline runs, monitor GPU
-- [reference_ollama_setup.md](reference_ollama_setup.md) - Ollama on host, models at D:\ollama\models, llama3:70b + minicpm-v
-- [feedback_no_oneoff_scripts.md](feedback_no_oneoff_scripts.md) - No one-off scripts; integrate into bronze/silver/gold layers with proper tables
-- [feedback_monitor_properly.md](feedback_monitor_properly.md) - Run background, monitor progress, report ETAs, kill stale processes first
-- [feedback_finish_before_moving_on.md](feedback_finish_before_moving_on.md) - Complete full validation before moving on, don't offer menus after partial results
-- [feedback_unload_models.md](feedback_unload_models.md) - Unload Ollama models between passes to free RAM/VRAM before loading next model
-- [feedback_config_first.md](feedback_config_first.md) - CRITICAL: Write config YAML first, then code that reads it — never hardcode then migrate
-- [project_s3_parquet.md](project_s3_parquet.md) - Lakehouse storage is S3 + Parquet, DuckDB is query engine only
-- [feedback_follow_architecture.md](feedback_follow_architecture.md) - CRITICAL: Follow lakehouse architecture, never shortcut with quick hacks
-- [project_architecture_changes.md](project_architecture_changes.md) - Storage migration done: SeaweedFS+Iceberg+Dagster
-- [project_content_quality.md](project_content_quality.md) - Gold content quality issues blocking enrichment, must fix silver/gold first
-- [feedback_provide_links.md](feedback_provide_links.md) - Always provide URLs when asking user to check web apps
-- [feedback_test_before_asking.md](feedback_test_before_asking.md) - Test code works before asking user to try it
-- [feedback_restart_streamlit.md](feedback_restart_streamlit.md) - ALWAYS restart Streamlit after any code change
-- [project_integer_keys_plan.md](project_integer_keys_plan.md) - Plan: replace unstable auto-increment IDs with hash-based stable integer keys
-- [feedback_use_dagster.md](feedback_use_dagster.md) - CRITICAL: Never run pipeline manually, always use Dagster
-- [feedback_no_jq.md](feedback_no_jq.md) - Never use jq, use python for JSON parsing
-- [feedback_dagster_only.md](feedback_dagster_only.md) - NEVER run dbt/pipeline manually, always Dagster
-- [feedback_no_downloads.md](feedback_no_downloads.md) - CRITICAL: Kill any model downloads immediately, ask first
-- [feedback_zero_validation_errors.md](feedback_zero_validation_errors.md) - ZERO validation errors before features
-- [project_model_seeding.md](project_model_seeding.md) - Model downloads only via dedicated seed pipeline
-- [reference_cache_locations.md](reference_cache_locations.md) - All caches, reset sequence after code changes
-- [feedback_no_warn_hacks.md](feedback_no_warn_hacks.md) - Never set test severity to warn to hide failures
-- [feedback_stop_means_stop.md](feedback_stop_means_stop.md) - Stop all = stop ALL containers/builds/WSL immediately
-- [feedback_kill_all_means_all.md](feedback_kill_all_means_all.md) - Kill all = docker stop + buildx stop + wsl shutdown + verify
-- [feedback_pip_needs_rebuild.md](feedback_pip_needs_rebuild.md) - pip install in container lost on restart, must rebuild image
-- [project_docker_image_split.md](project_docker_image_split.md) - Plan: split into base/daemon/workspace Dockerfiles
-- [project_model_seeding.md](project_model_seeding.md) - Model downloads only via dedicated seed pipeline
+- [user_profile.md](user_profile.md) — User prefers CLI/PowerShell, not Jupyter, experienced Windows dev with RTX 4090
+- [feedback_coding_rules.md](feedback_coding_rules.md) — Generic: no hardcoded values, config-first, no regex, fix at ingestion, follow architecture, never discard data
+- [feedback_tooling.md](feedback_tooling.md) — Generic: PowerShell syntax, VSCode only, no jq, pip needs rebuild, Streamlit restart, test before asking
+- [feedback_pipeline_ops.md](feedback_pipeline_ops.md) — Generic: Dagster only, zero errors, monitor tasks, kill stale, no downloads
+- [feedback_system_ops.md](feedback_system_ops.md) — Generic: stop/kill means immediately, save working state aggressively, memory in repo
+- [project_infrastructure.md](project_infrastructure.md) — D drive, S3+Iceberg migration done, model seeding, Docker image split plan
+- [project_tabletop_rules.md](project_tabletop_rules.md) — Tabletop: PHB only, Marker PDF, Dagster jobs, enrichment, pipeline status, gold plans
+- [project_tabletop_content_quality.md](project_tabletop_content_quality.md) — Tabletop: 25 content quality issues and gold features, priority order
+- [project_tabletop_integer_keys.md](project_tabletop_integer_keys.md) — Tabletop: replace auto-increment IDs with hash-based stable keys (7 phases)
+- [reference_ollama_setup.md](reference_ollama_setup.md) — Ollama on host, D:\ollama\models, llama3:70b + minicpm-v, API endpoints
+- [reference_cache_locations.md](reference_cache_locations.md) — All caches, reset sequence after code changes, pre-run checks
