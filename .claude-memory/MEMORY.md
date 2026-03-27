@@ -2,6 +2,7 @@
 - [user_profile.md](user_profile.md) — User prefers CLI/PowerShell, not Jupyter, experienced Windows dev with RTX 4090
 - [feedback_coding_rules.md](feedback_coding_rules.md) — Fix at ingestion not export, never set test severity to warn (rest moved to CLAUDE.md)
 - [feedback_tooling.md](feedback_tooling.md) — VSCode only, no jq, WSL GPU fix, Streamlit restart, read-only perms, test before asking
+- [feedback_no_cd_prefix.md](feedback_no_cd_prefix.md) — Never cd prefix in Bash tool — breaks allow-list matching
 - [feedback_time_estimates.md](feedback_time_estimates.md) — Always give time estimates for tasks >15s, never leave user waiting blind
 - [feedback_pipeline_ops.md](feedback_pipeline_ops.md) — Kill stale processes before runs, finish before moving on (rest in CLAUDE.md/hooks)
 - [feedback_system_ops.md](feedback_system_ops.md) — Stop means immediately, kill all means ALL, save debug state aggressively

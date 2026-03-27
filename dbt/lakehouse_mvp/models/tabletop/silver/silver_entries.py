@@ -141,9 +141,11 @@ def model(dbt, session):
                 "section_title": entry.get("section_title"),
                 "entry_title": entry.get("entry_title"),
             }
+            # Include content prefix in hash to disambiguate entries with same/NULL titles
+            id_data = {**row_data, "content_prefix": content[:80]}
             all_entries.append({
-                "entry_id": make_id("entry_id", row_data),
-                "toc_id": make_id("toc_id", {"source_file": sf, "title": toc_entry["title"]}),
+                "entry_id": make_id("entry_id", id_data),
+                "toc_id": make_id("toc_id", {"source_file": sf, "title": toc_entry["title"], "parent_title": toc_entry.get("parent_title") or ""}),
                 **row_data,
                 "content": content,
                 "school": entry.get("school"),

@@ -295,6 +295,10 @@ validation:
 ingestion:
   # Minimum entry content length to keep (shorter entries are discarded)
   min_entry_content: 10
+  # Gibberish detection: tokens with vowel ratio below this are gibberish
+  gibberish_min_vowel_ratio: 0.15
+  # Gibberish detection: only check tokens at least this long (skip abbreviations)
+  gibberish_min_length: 5
   # Max length for a line to be considered a mid-word fragment (dedup cleanup)
   max_fragment_length: 60
   # Max length for a lowercase line to be stripped between dedup blocks

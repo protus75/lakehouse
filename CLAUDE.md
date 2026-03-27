@@ -15,6 +15,14 @@ NEVER use regex for content parsing. Use string operations (split, startswith, f
 ### Dagster only — CRITICAL
 NEVER run pipeline steps manually (`docker exec python -m dlt.*`, `dbt build`, `ollama pull`). Always use Dagster jobs/assets via http://localhost:3000. Only exception: small diagnostic/sample queries for debugging.
 
+### Cache reset before EVERY pipeline run — CRITICAL
+ALWAYS clear caches and restart Dagster before launching ANY pipeline. No exceptions, even if "only config changed." Steps:
+1. `find d:/source/lakehouse/lakehouse -name '__pycache__' -exec rm -rf {} +`
+2. `docker restart lakehouse-dagster-daemon lakehouse-dagster-webserver`
+3. Wait 15s for grpc servers
+4. THEN launch pipeline
+Skip this = stale code = wasted pipeline run = wasted user time.
+
 ### Zero validation errors — CRITICAL
 ZERO errors before new features. Never say "good enough." Never commit with known bad data. Never set test severity to `warn` to suppress failures.
 

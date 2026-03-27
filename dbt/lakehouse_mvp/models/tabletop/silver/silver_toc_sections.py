@@ -38,14 +38,24 @@ def model(dbt, session):
     for _, row in entries_df.iterrows():
         sub_map[(row["source_file"], row["toc_title"])] = row["sub_headings"]
 
+    # Build parent lookup: (source_file, title) -> parent_title
+    parent_lookup = {}
+    for _, row in toc_df.iterrows():
+        parent_lookup[(row["source_file"], row["title"])] = row["parent_title"] or ""
+
     rows = []
     for _, row in toc_df.iterrows():
         sf = row["source_file"]
         title = row["title"]
         parent = row["parent_title"]
 
-        toc_id = make_id("toc_id", {"source_file": sf, "title": title})
-        parent_toc_id = make_id("toc_id", {"source_file": sf, "title": parent}) if parent else None
+        toc_id = make_id("toc_id", {"source_file": sf, "title": title, "parent_title": parent or ""})
+        # parent_toc_id must match the parent's own toc_id (which uses the parent's parent)
+        if parent:
+            grandparent = parent_lookup.get((sf, parent), "")
+            parent_toc_id = make_id("toc_id", {"source_file": sf, "title": parent, "parent_title": grandparent})
+        else:
+            parent_toc_id = None
 
         rows.append({
             "toc_id": toc_id,

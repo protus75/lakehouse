@@ -85,20 +85,20 @@ def bronze_ocr_check(context: AssetExecutionContext):
 
 
 @asset(group_name="silver_gold", compute_kind="dbt", deps=[bronze_ocr_check])
-def dbt_tabletop(context: AssetExecutionContext):
-    """Run dbt build for tabletop models (silver + gold)."""
+def dbt_build(context: AssetExecutionContext):
+    """Run dbt models for tabletop (silver + gold). Tests run separately after publish."""
     result = subprocess.run(
-        ["dbt", "build", "--select", "tabletop", "--project-dir", str(DBT_PROJECT_DIR)],
+        ["dbt", "run", "--select", "tabletop", "--project-dir", str(DBT_PROJECT_DIR)],
         capture_output=True, text=True, cwd=str(DBT_PROJECT_DIR),
     )
     context.log.info(result.stdout)
     if result.returncode != 0:
         context.log.error(result.stderr)
-        raise Exception(f"dbt build failed: {result.stderr}")
-    context.log.info("dbt build complete")
+        raise Exception(f"dbt run failed: {result.stderr}")
+    context.log.info("dbt models built")
 
 
-@asset(group_name="silver_gold", compute_kind="python", deps=[dbt_tabletop])
+@asset(group_name="silver_gold", compute_kind="python", deps=[dbt_build])
 def publish_to_iceberg(context: AssetExecutionContext):
     """Publish dbt silver/gold tables to Iceberg on S3."""
     from dlt.publish_to_iceberg import publish
@@ -106,7 +106,67 @@ def publish_to_iceberg(context: AssetExecutionContext):
     context.log.info("Published silver/gold to Iceberg")
 
 
-@asset(group_name="enrichment", compute_kind="ollama", deps=[publish_to_iceberg])
+@asset(group_name="silver_gold", compute_kind="dbt", deps=[publish_to_iceberg])
+def dbt_test(context: AssetExecutionContext):
+    """Run dbt tests and write results to Iceberg. Fails if any tests fail."""
+    import json as _json
+    from datetime import datetime
+    import pyarrow as pa
+    from dlt.lib.iceberg_catalog import write_iceberg
+
+    # Run dbt test with JSON logging for structured results
+    result = subprocess.run(
+        ["dbt", "test", "--select", "tabletop", "--project-dir", str(DBT_PROJECT_DIR),
+         "--log-format", "json"],
+        capture_output=True, text=True, cwd=str(DBT_PROJECT_DIR),
+    )
+
+    # Parse JSON log lines for test results
+    now = datetime.now()
+    test_rows = []
+    for line in result.stdout.strip().split("\n"):
+        line = line.strip()
+        if not line.startswith("{"):
+            continue
+        try:
+            log_entry = _json.loads(line)
+            data = log_entry.get("data", {})
+            # dbt emits TestNodeStatus events with node_info
+            node_info = data.get("node_info", {})
+            if not node_info or node_info.get("resource_type") != "test":
+                continue
+            status = node_info.get("node_status")
+            if not status:
+                continue
+            test_rows.append({
+                "test_name": node_info.get("unique_id", ""),
+                "status": status,
+                "failures": int(data.get("failures", 0) or 0),
+                "message": str(data.get("message", node_info.get("node_finished_at", "")))[:500],
+                "tested_at": now,
+            })
+        except _json.JSONDecodeError:
+            continue
+
+    if test_rows:
+        write_iceberg("meta", "dbt_test_results", pa.table({
+            k: [r[k] for r in test_rows] for k in test_rows[0]
+        }), overwrite_all=True)
+        context.log.info(f"Wrote {len(test_rows)} test results to meta.dbt_test_results")
+
+    passed = sum(1 for r in test_rows if r["status"] == "pass")
+    failed = sum(1 for r in test_rows if r["status"] in ("fail", "error"))
+    skipped = sum(1 for r in test_rows if r["status"] == "skip")
+    context.log.info(f"Tests: {passed} passed, {failed} failed, {skipped} skipped")
+
+    if result.returncode != 0:
+        # Log stderr for readable error context
+        if result.stderr:
+            context.log.error(result.stderr)
+        raise Exception(f"dbt test failed: {failed} failures (results on S3 at meta.dbt_test_results)")
+
+
+@asset(group_name="enrichment", compute_kind="ollama", deps=[dbt_test])
 def gold_ai_summaries(context: AssetExecutionContext):
     """AI-generated summaries for gold entries via Ollama. ~45min for 800+ entries."""
     from scripts.tabletop_rules.enrich_summaries import main
@@ -280,14 +340,14 @@ def seed_marker_cache(context: AssetExecutionContext):
 tabletop_full_pipeline = define_asset_job(
     name="tabletop_full_pipeline",
     selection=[
-        bronze_tabletop, toc_review, bronze_ocr_check, dbt_tabletop,
-        publish_to_iceberg, gold_ai_summaries, gold_ai_annotations,
+        bronze_tabletop, toc_review, bronze_ocr_check, dbt_build,
+        publish_to_iceberg, dbt_test, gold_ai_summaries, gold_ai_annotations,
     ],
 )
 
 tabletop_without_enrichment = define_asset_job(
     name="tabletop_without_enrichment",
-    selection=[bronze_tabletop, toc_review, bronze_ocr_check, dbt_tabletop, publish_to_iceberg],
+    selection=[bronze_tabletop, toc_review, bronze_ocr_check, dbt_build, publish_to_iceberg, dbt_test],
 )
 
 enrichment_only = define_asset_job(
@@ -304,8 +364,8 @@ seed_models = define_asset_job(
 defs = Definitions(
     assets=[
         seed_ollama_models, seed_huggingface_models, seed_marker_cache,
-        bronze_tabletop, toc_review, bronze_ocr_check, dbt_tabletop,
-        publish_to_iceberg, gold_ai_summaries, gold_ai_annotations,
+        bronze_tabletop, toc_review, bronze_ocr_check, dbt_build,
+        publish_to_iceberg, dbt_test, gold_ai_summaries, gold_ai_annotations,
     ],
     jobs=[seed_models, tabletop_full_pipeline, tabletop_without_enrichment, enrichment_only],
 )

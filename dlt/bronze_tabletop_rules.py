@@ -230,14 +230,107 @@ def _validate_page_numbers(page_printed: dict[int, int], total_pages: int, filen
 MARKER_CACHE_DIR = Path("/workspace/documents/tabletop_rules/processed/marker")
 
 
-def _clean_marker_md(md: str) -> str:
-    """Strip image references and rejoin hyphenated words."""
+def _clean_marker_md(md: str, config: dict = None) -> str:
+    """Strip image references, garbled bullet lines, and rejoin hyphenated words.
+
+    Only rejoins when the very next non-blank line starts with a lowercase letter
+    (paragraph continuation). Headings, tables, and other structural elements
+    are NOT valid continuation targets.
+    """
+    # Strip image references
     md = re.sub(r"!\[.*?\]\(.*?\)", "", md)
-    md = re.sub(r"(\w)-\s*\n\s*(\w)", r"\1\2", md)
-    return md
+
+    # Clean garbled Marker bullet lines ("- t " prefix with shifted-char gibberish)
+    # These are bullet points where Marker garbled the leading text.
+    # Find the first lowercase word (3+ chars) — that's where real content starts.
+    # Handles both "GARBLE readable text" and "GARBLEreadable text" patterns.
+    marker_bullet_prefix = "- t "
+    cleaned_lines = []
+    for line in md.split("\n"):
+        if line.startswith(marker_bullet_prefix):
+            rest = line[len(marker_bullet_prefix):]
+            # Find first run of 3+ lowercase alpha chars — start of readable content
+            readable_start = -1
+            run_start = -1
+            run_len = 0
+            for ci, ch in enumerate(rest):
+                if ch.islower():
+                    if run_start < 0:
+                        run_start = ci
+                    run_len += 1
+                    if run_len >= 3:
+                        readable_start = run_start
+                        break
+                else:
+                    run_start = -1
+                    run_len = 0
+            if readable_start >= 0:
+                cleaned_lines.append("- " + rest[readable_start:])
+            else:
+                cleaned_lines.append("")
+        else:
+            cleaned_lines.append(line)
+    md = "\n".join(cleaned_lines)
+
+    # Rejoin hyphenated line breaks using string ops
+    from spellchecker import SpellChecker
+    _spell = SpellChecker()
+    lines = md.split("\n")
+    result = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        stripped = line.rstrip()
+        # Check if line ends with a hyphenated word fragment (letter-hyphen)
+        if stripped.endswith("-") and len(stripped) >= 2 and stripped[-2].isalpha():
+            # Look ahead: skip blank lines, table rows, and headings
+            next_i = i + 1
+            while next_i < len(lines):
+                peek = lines[next_i].strip()
+                if peek == "" or peek.startswith("|") or peek.startswith("#"):
+                    next_i += 1
+                else:
+                    break
+            # Only rejoin if next content line starts with a lowercase letter
+            # (uppercase = heading/proper noun/new sentence, not a word fragment)
+            if next_i < len(lines):
+                first_char = lines[next_i].lstrip()[:1]
+                if first_char.islower():
+                    next_line = lines[next_i].lstrip()
+                    # Extract first word from next line
+                    end = 0
+                    while end < len(next_line) and next_line[end].isalpha():
+                        end += 1
+                    # Extract the fragment before the hyphen
+                    frag_start = len(stripped) - 1
+                    while frag_start > 0 and stripped[frag_start - 1].isalpha():
+                        frag_start -= 1
+                    left_frag = stripped[frag_start:-1]
+                    right_frag = next_line[:end]
+                    # Don't rejoin compound hyphens (both halves are complete words)
+                    # e.g. "two-foot" — keep the hyphen
+                    if len(left_frag) >= 3 and len(right_frag) >= 3:
+                        if left_frag.lower() not in _spell.unknown([left_frag.lower()]) and right_frag.lower() not in _spell.unknown([right_frag.lower()]):
+                            # Both are real words — compound hyphen, keep it
+                            result.append(line)
+                            i += 1
+                            continue
+                    # Rejoin: line without hyphen + first word of next line
+                    result.append(stripped[:-1] + next_line[:end])
+                    # Replace next line with remainder (minus consumed word)
+                    remainder = next_line[end:].lstrip()
+                    if remainder:
+                        lines[next_i] = remainder
+                        i = next_i
+                    else:
+                        i = next_i + 1
+                    continue
+        result.append(line)
+        i += 1
+    return "\n".join(result)
 
 
-def extract_marker_markdown(filepath: Path, allow_ocr: bool = False) -> str:
+def extract_marker_markdown(filepath: Path, allow_ocr: bool = False, config: dict = None) -> str:
     """Read Marker markdown from disk cache. Fails if cache missing unless allow_ocr=True.
 
     OCR should only run via the seed_models pipeline on a GPU-enabled container.
@@ -247,7 +340,7 @@ def extract_marker_markdown(filepath: Path, allow_ocr: bool = False) -> str:
     if cache_path.exists():
         _log(f"  Marker: using disk cache {cache_path.name}")
         md = cache_path.read_text(encoding="utf-8")
-        return _clean_marker_md(md)
+        return _clean_marker_md(md, config)
     if not allow_ocr:
         raise RuntimeError(
             f"Marker cache missing: {cache_path}\n"
@@ -263,7 +356,7 @@ def extract_marker_markdown(filepath: Path, allow_ocr: bool = False) -> str:
     MARKER_CACHE_DIR.mkdir(parents=True, exist_ok=True)
     cache_path.write_text(md, encoding="utf-8")
     _log(f"  Marker: cached to {cache_name}")
-    return _clean_marker_md(md)
+    return _clean_marker_md(md, config)
 
 
 def extract_marker_pages(filepath: Path, total_pages: int) -> list[str]:
@@ -1478,7 +1571,7 @@ def extract_pdf(filepath: Path) -> None:
 
         # 3. Marker full document (uses disk cache if available)
         _log("  Marker: extracting full document...")
-        markdown = extract_marker_markdown(filepath)
+        markdown = extract_marker_markdown(filepath, config=config)
         step(f"Marker doc: {len(markdown):,} chars")
 
         # 4. Known entries from indexes
@@ -1657,7 +1750,7 @@ def check_ocr(source_file: str) -> None:
         _log(f"No markdown found for {source_file}")
         return
 
-    md = _clean_marker_md(md_table.column("markdown_text")[0].as_py())
+    md = _clean_marker_md(md_table.column("markdown_text")[0].as_py(), config)
 
     # Apply existing substitutions — don't re-flag known fixes
     for sub in config.get("content_substitutions", []):

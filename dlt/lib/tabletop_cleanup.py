@@ -18,6 +18,28 @@ def _log(msg: str) -> None:
     print(msg, flush=True)
 
 
+def _case_insensitive_replace(text: str, old: str, new: str) -> str:
+    """Replace all occurrences of ``old`` in ``text`` with ``new``, ignoring case.
+
+    Uses string operations only (no regex) per project rules.
+    """
+    if not old:
+        return text
+    lower_text = text.lower()
+    lower_old = old.lower()
+    result_parts: list[str] = []
+    start = 0
+    while True:
+        idx = lower_text.find(lower_old, start)
+        if idx == -1:
+            result_parts.append(text[start:])
+            break
+        result_parts.append(text[start:idx])
+        result_parts.append(new)
+        start = idx + len(old)
+    return "".join(result_parts)
+
+
 # ── Config ───────────────────────────────────────────────────────
 
 def _deep_merge(base: dict, override: dict) -> dict:
@@ -588,6 +610,7 @@ def build_entries(
 
             # Strip parenthetical chapter cross-references using ToC titles
             # e.g. "(chapter 9)" or "(Chapter 14: Time and Movement)"
+            # Case-insensitive to catch all variants
             for sec in _toc_sections:
                 if not sec.get("is_chapter"):
                     continue
@@ -595,10 +618,9 @@ def build_entries(
                 # Strip "(Chapter N)" using the part before ":"
                 ch_prefix = sec_title.split(":")[0].strip()
                 if ch_prefix:
-                    content = content.replace(f"({ch_prefix})", "")
-                    content = content.replace(f"({ch_prefix.lower()})", "")
+                    content = _case_insensitive_replace(content, f"({ch_prefix})", "")
                 # Strip full "(Chapter N: Title)"
-                content = content.replace(f"({sec_title})", "")
+                content = _case_insensitive_replace(content, f"({sec_title})", "")
 
             min_content = config.get("ingestion", {}).get("min_entry_content", 10) if config else 10
             if content and len(content) > min_content:
