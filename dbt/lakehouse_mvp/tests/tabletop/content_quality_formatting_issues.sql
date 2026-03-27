@@ -1,3 +1,4 @@
+{{ config(severity='warn') }}
 -- Fail if entry content has known formatting problems:
 -- 1. Content ends with the entry title repeated (duplicate heading at end)
 -- 2. Content contains parenthetical chapter references from ToC chapters

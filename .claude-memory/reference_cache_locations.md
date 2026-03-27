@@ -20,24 +20,25 @@ type: reference
 - **Why**: grpc server loads modules once and caches them; restart forces reimport
 - **IMPORTANT**: clear __pycache__ BEFORE restarting, or the grpc server will reimport stale .pyc
 
-### Marker model cache (datalab)
-- **Host**: `cache/datalab/` → mounted at `/root/.cache/datalab` in containers
-- **Containers**: daemon + workspace both need this mount
-- **When to clear**: never (1.34GB download), only if models are corrupt
-- **Env var**: daemon needs no download env vars: `TRANSFORMERS_OFFLINE=1`, `HF_HUB_OFFLINE=1`
-
-### HuggingFace model cache
-- **Host**: `cache/huggingface/` → mounted at `/workspace/.cache/huggingface`
-- **Env var**: `HF_HOME=/workspace/.cache/huggingface` required on ALL containers that use HF
-
-### Marker OCR output cache
-- **Host**: `cache/marker/` → mounted at `/workspace/cache/marker`
-- **When to clear**: only when re-OCR is needed (e.g. new Marker version)
+### Unified cache volume
+- **Host**: `cache/` → mounted as single volume `/workspace/cache` on daemon + workspace
+- **Why single mount**: Windows Docker Desktop nested bind mounts are flaky — grpc subprocesses can't see individual subdirectory mounts. Single parent mount fixes this.
+- Contains: `marker/` (OCR output), `huggingface/` (HF models), `datalab/` (Marker models)
+- **Env var**: `HF_HOME=/workspace/cache/huggingface` on all containers
+- **Workspace also mounts**: `cache/datalab:/root/.cache/datalab` separately (Marker hardcodes `~/.cache/datalab`)
+- **Daemon has**: `TRANSFORMERS_OFFLINE=1`, `HF_HUB_OFFLINE=1` — never downloads
 
 ### dbt target/compiled
 - **Host**: `dbt/lakehouse_mvp/target/`
 - **When to clear**: after dbt model changes if seeing stale SQL
 - **How**: `rm -rf dbt/lakehouse_mvp/target/`
+
+## Pre-run checks (before every pipeline run)
+1. Kill stale processes: check `docker top` for lingering python/marker processes
+2. Check RAM: `docker stats --no-stream` — containers should be <2GB total
+3. Reclaim WSL2 RAM: `wsl -d docker-desktop sh -c "echo 3 > /proc/sys/vm/drop_caches"`
+4. Check network: `docker stats --no-stream` — NET I/O should be minimal
+5. Monitor stderr for "download" within first 5s of any run — kill immediately if found
 
 ## Reset sequence after code changes
 1. Clear __pycache__: `find d:/source/lakehouse/lakehouse -name '__pycache__' -exec rm -rf {} +`

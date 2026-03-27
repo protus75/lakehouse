@@ -46,3 +46,5 @@ data/*.json
 data/exports/
 documents/**/raw/*.pdf
 
+documents/tabletop_rules/processed/marker/
+documents/tabletop_rules/processed/marker/

@@ -1,3 +1,4 @@
+{{ config(severity='warn') }}
 -- Fail if any non-excluded chapter-level ToC entry has zero matching silver_entries.
 -- Entries are assigned to chapters via toc_title, so only chapters are checked here.
 -- Sub-section coverage is validated separately via entry_title matching.

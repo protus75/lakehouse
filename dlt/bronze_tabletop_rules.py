@@ -227,7 +227,7 @@ def _validate_page_numbers(page_printed: dict[int, int], total_pages: int, filen
         raise ValueError(msg)
 
 
-MARKER_CACHE_DIR = Path("/workspace/cache/marker")
+MARKER_CACHE_DIR = Path("/workspace/documents/tabletop_rules/processed/marker")
 
 
 def _clean_marker_md(md: str) -> str:
@@ -242,7 +242,8 @@ def extract_marker_markdown(filepath: Path, allow_ocr: bool = False) -> str:
 
     OCR should only run via the seed_models pipeline on a GPU-enabled container.
     Normal pipeline runs read from cache only."""
-    cache_path = MARKER_CACHE_DIR / f"{filepath.stem}.md"
+    cache_name = filepath.stem.replace(" ", "_") + ".md"
+    cache_path = MARKER_CACHE_DIR / cache_name
     if cache_path.exists():
         _log(f"  Marker: using disk cache {cache_path.name}")
         md = cache_path.read_text(encoding="utf-8")
@@ -261,7 +262,7 @@ def extract_marker_markdown(filepath: Path, allow_ocr: bool = False) -> str:
     md = rendered.markdown
     MARKER_CACHE_DIR.mkdir(parents=True, exist_ok=True)
     cache_path.write_text(md, encoding="utf-8")
-    _log(f"  Marker: cached to {cache_path.name}")
+    _log(f"  Marker: cached to {cache_name}")
     return _clean_marker_md(md)
 
 
