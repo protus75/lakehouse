@@ -12,3 +12,4 @@
 - [project_tabletop_integer_keys.md](project_tabletop_integer_keys.md) — Tabletop: replace auto-increment IDs with hash-based stable keys (7 phases)
 - [reference_ollama_setup.md](reference_ollama_setup.md) — Ollama on host, D:\ollama\models, llama3:70b + minicpm-v, API endpoints
 - [reference_cache_locations.md](reference_cache_locations.md) — All caches, reset sequence after code changes, pre-run checks
+- [project_multi_project_plan.md](project_multi_project_plan.md) — Future TODO: multi-project config refactor + Dagster cache/restart DX improvements
