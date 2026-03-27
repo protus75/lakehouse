@@ -37,38 +37,34 @@ def _get_toc(source_file):
 
 
 def _get_full_book(source_file):
-    """Get all chunks ordered by ToC position.
+    """Get all entries with full content ordered by chapter then entry_id.
 
-    Joins chunks to their parent chapter toc_id, but also looks up
-    the entry's own ToC sort_order (if the entry_title matches a ToC title)
-    to order entries within a chapter by their ToC position.
+    Reads from silver_entries (full deduplicated content, no chunk overlap)
+    and joins to gold_toc for chapter ordering. Entries within a chapter
+    are ordered by entry_id (silver extraction order = document order).
     """
     return _query(
-        "SELECT t.toc_id, t.title as toc_title, t.sort_order as chapter_sort, "
+        "SELECT t.toc_id, t.title as toc_title, "
+        "t.sort_order as chapter_sort, "
         "t.depth, t.is_chapter, t.is_table, "
-        "c.entry_title, c.content, c.chunk_id, "
-        "COALESCE(et.sort_order, t.sort_order) as entry_sort "
-        "FROM gold_tabletop.gold_chunks c "
-        "JOIN gold_tabletop.gold_toc t ON c.toc_id = t.toc_id "
-        "LEFT JOIN gold_tabletop.gold_toc et "
-        "  ON et.source_file = c.source_file "
-        "  AND et.title = c.entry_title "
-        "  AND et.is_excluded = false "
-        "WHERE c.source_file = ? "
-        "ORDER BY entry_sort, c.chunk_id",
+        "e.entry_id, e.entry_title, e.content "
+        "FROM silver_tabletop.silver_entries e "
+        "JOIN gold_tabletop.gold_toc t ON e.toc_title = t.title AND t.is_chapter = true "
+        "WHERE e.source_file = ? "
+        "ORDER BY t.sort_order, e.entry_id",
         [source_file],
     )
 
 
 def _get_entry_index(source_file):
-    """Return {entry_title: {entry_id, entry_type, ...}} for all entries."""
+    """Return {entry_id: {entry_id, entry_title, entry_type, ...}} for all entries."""
     rows = _query(
         "SELECT entry_id, entry_title, entry_type, spell_level, spell_class, "
         "school, sphere "
         "FROM gold_tabletop.gold_entry_index WHERE source_file = ?",
         [source_file],
     )
-    return {r["entry_title"]: r for r in rows}
+    return {r["entry_id"]: r for r in rows}
 
 
 def _get_summaries():
@@ -124,6 +120,47 @@ def build_toc_sidebar(toc_rows, anchor_map):
 
 # ── Build book content ───────────────────────────────────────
 
+_MATERIAL_PATTERNS = [
+    "The material component",
+    "The material components",
+    "The materials for",
+    "The spell requires",
+    "The spell's material",
+    "Material component:",
+    "Material components:",
+]
+
+
+def _split_material_components(content):
+    """Split material component sentences from the end of spell content.
+
+    Returns (main_content, component_text). component_text is empty string
+    if no material component text is found.
+    """
+    lines = content.rstrip().split("\n")
+    # Search from the end for material component text
+    for i in range(len(lines) - 1, max(len(lines) - 8, -1), -1):
+        stripped = lines[i].strip()
+        for pat in _MATERIAL_PATTERNS:
+            if stripped.lower().startswith(pat.lower()):
+                main = "\n".join(lines[:i]).rstrip()
+                comp = "\n".join(lines[i:]).strip()
+                return main, comp
+    return content, ""
+
+
+def _linkify_table_refs(text, toc_table_num_to_id):
+    """Replace 'Table N' references in text with anchor links."""
+    import re
+    def _replace(m):
+        num = int(m.group(1))
+        toc_id = toc_table_num_to_id.get(num)
+        if toc_id:
+            return f'<a href="#toc-{toc_id}" class="table-ref">{m.group(0)}</a>'
+        return m.group(0)
+    return re.sub(r"\bTable\s+(\d+)\b", _replace, text)
+
+
 def build_book_content(book_data, toc_rows, entry_index, summaries, annotations,
                        show_summary=True, show_meta=True):
     """Returns (elements, anchor_map) where anchor_map = {toc_id: anchor_id}."""
@@ -142,19 +179,24 @@ def build_book_content(book_data, toc_rows, entry_index, summaries, annotations,
     for r in toc_rows:
         if r["is_chapter"]:
             anchor_map[r["toc_id"]] = f"toc-{r['toc_id']}"
-    current_toc_id = None
-    current_entry = None
-    content_chunks = []
+    import math
 
-    def flush_entry():
-        nonlocal content_chunks
-        if content_chunks:
-            combined = "\n\n".join(content_chunks)
-            elements.append(html.Div(
-                dcc.Markdown(combined),
-                className="entry-content",
-            ))
-            content_chunks = []
+    def _content_category(toc_title, entry_title, content):
+        """Return CSS class for optional rule categories."""
+        classes = []
+        toc_lower = (toc_title or "").lower()
+        entry_lower = (entry_title or "").lower()
+        if "proficienc" in toc_lower or "proficienc" in entry_lower:
+            classes.append("cat-proficiencies")
+        if "spell component" in toc_lower or "spell component" in entry_lower:
+            classes.append("cat-spell-components")
+        if "component" in entry_lower and "spell" in toc_lower:
+            classes.append("cat-spell-components")
+        if "encumbrance" in toc_lower or "encumbrance" in entry_lower:
+            classes.append("cat-encumbrance")
+        return " ".join(classes)
+
+    current_toc_id = None
 
     for row in book_data:
         toc_id = row["toc_id"]
@@ -163,81 +205,89 @@ def build_book_content(book_data, toc_rows, entry_index, summaries, annotations,
         is_chapter = row["is_chapter"]
         depth = row["depth"]
 
-        # New ToC section
-        if toc_id != current_toc_id:
-            flush_entry()
-            current_entry = None
-            current_toc_id = toc_id
+        cat = _content_category(toc_title, entry_title, row.get("content", ""))
 
+        # New ToC section — render chapter heading
+        if toc_id != current_toc_id:
+            current_toc_id = toc_id
             anchor_id = f"toc-{toc_id}"
             if is_chapter:
                 level = min(depth + 1, 4)
                 tag = [html.H1, html.H2, html.H3, html.H4][level - 1]
-                elements.append(html.Div(id=anchor_id, className="chapter-anchor"))
-                elements.append(tag(toc_title, className="chapter-heading"))
+                elements.append(html.Div(id=anchor_id, className=f"chapter-anchor {cat}"))
+                elements.append(tag(toc_title, className=f"chapter-heading {cat}"))
 
-        # New entry
-        if entry_title and entry_title != current_entry:
-            flush_entry()
-            current_entry = entry_title
+        # Entry heading + metadata
+        entry_els = []
 
-            idx = entry_index.get(entry_title)
-            entry_id = idx["entry_id"] if idx else None
-            entry_anchor = f"entry-{entry_id}" if entry_id else ""
-
-            # Add toc anchor if entry title matches a ToC section (exact or table number)
-            anchors = []
+        # Add toc anchor if entry title matches a ToC section
+        if entry_title:
             matched_toc = toc_title_to_id.get(entry_title)
             if matched_toc:
                 anchor_id = f"toc-{matched_toc}"
-                anchors.append(html.Div(id=anchor_id))
+                entry_els.append(html.Div(id=anchor_id))
                 anchor_map[matched_toc] = anchor_id
-            # Also try table number match
             if not matched_toc:
                 m = re.search(r"Table\s+(\d+)", entry_title)
                 if m:
                     table_toc_id = toc_table_num_to_id.get(int(m.group(1)))
                     if table_toc_id:
                         anchor_id = f"toc-{table_toc_id}"
-                        anchors.append(html.Div(id=anchor_id))
+                        entry_els.append(html.Div(id=anchor_id))
                         anchor_map[table_toc_id] = anchor_id
 
-            # Entry title
-            entry_els = anchors + [
-                html.Div(entry_title, className="entry-title", id=entry_anchor),
-            ]
+        # Entry title
+        entry_id = row.get("entry_id")
+        idx = entry_index.get(entry_id) if entry_id else None
+        entry_anchor = f"entry-{entry_id}" if entry_id else ""
 
-            # Badges — always rendered, toggled via CSS
-            if idx:
-                badges = [idx["entry_type"]]
-                if idx.get("spell_level"):
-                    badges.append(f"Level {idx['spell_level']}")
-                if idx.get("spell_class"):
-                    badges.append(idx["spell_class"])
-                if idx.get("school"):
-                    badges.append(idx["school"])
-                if idx.get("sphere"):
-                    badges.append(idx["sphere"])
-                if entry_id:
-                    ann = annotations.get(entry_id)
-                    if ann:
-                        if ann.get("is_combat"):
-                            badges.append("Combat")
-                        if ann.get("is_popular"):
-                            badges.append("Popular")
-                entry_els.append(html.Div(" · ".join(badges), className="entry-badges"))
+        if entry_title:
+            entry_els.append(html.Div(entry_title, className="entry-title", id=entry_anchor))
 
-            # Summary — always rendered, toggled via CSS
+        # Badges
+        if idx:
+            badges = [idx["entry_type"]]
+            sl = idx.get("spell_level")
+            if sl is not None and not (isinstance(sl, float) and math.isnan(sl)):
+                badges.append(f"Level {int(sl)}")
+            for field in ("spell_class", "school", "sphere"):
+                val = idx.get(field)
+                if val and not (isinstance(val, float) and math.isnan(val)):
+                    badges.append(str(val))
             if entry_id:
-                summary = summaries.get(entry_id)
-                if summary:
-                    entry_els.append(html.Div(summary, className="entry-summary"))
+                ann = annotations.get(entry_id)
+                if ann:
+                    if ann.get("is_combat"):
+                        badges.append("Combat")
+                    if ann.get("is_popular"):
+                        badges.append("Popular")
+            entry_els.append(html.Div(" · ".join(badges), className="entry-badges"))
 
-            elements.append(html.Div(entry_els, className="entry-block"))
+        # Summary
+        if entry_id:
+            summary = summaries.get(entry_id)
+            if summary:
+                entry_els.append(html.Div(summary, className="entry-summary"))
 
-        content_chunks.append(row["content"])
+        if entry_els:
+            elements.append(html.Div(entry_els, className=f"entry-block {cat}"))
 
-    flush_entry()
+        # Full entry content — split out material component text
+        if row["content"]:
+            content_text = row["content"]
+            main_content, component_text = _split_material_components(content_text)
+            linked_main = _linkify_table_refs(main_content, toc_table_num_to_id)
+            elements.append(html.Div(
+                dcc.Markdown(linked_main, dangerously_allow_html=True),
+                className=f"entry-content {cat}",
+            ))
+            if component_text:
+                linked_comp = _linkify_table_refs(component_text, toc_table_num_to_id)
+                elements.append(html.Div(
+                    dcc.Markdown(linked_comp, dangerously_allow_html=True),
+                    className=f"entry-content cat-spell-components {cat}",
+                ))
+
     return elements, anchor_map
 
 
@@ -270,6 +320,20 @@ app.layout = html.Div([
                 style={"fontSize": "0.85rem"},
             ),
         ], style={"marginBottom": "0.5rem"}),
+        html.Div([
+            html.Div("Optional Rules", style={"fontWeight": "600", "fontSize": "0.85rem",
+                                               "marginBottom": "0.2rem"}),
+            dcc.Checklist(
+                id="optional-rules",
+                options=[
+                    {"label": " Proficiencies", "value": "proficiencies"},
+                    {"label": " Spell Components", "value": "spell_components"},
+                    {"label": " Encumbrance", "value": "encumbrance"},
+                ],
+                value=["proficiencies", "spell_components", "encumbrance"],
+                style={"fontSize": "0.85rem"},
+            ),
+        ], style={"marginBottom": "0.5rem"}),
         html.Hr(),
         html.Div(id="toc-nav", style={"overflowY": "auto", "flex": "1"}),
     ], id="sidebar"),
@@ -280,6 +344,7 @@ app.layout = html.Div([
     ], id="main-content"),
 
     html.Div(id="toggle-dummy", style={"display": "none"}),
+    html.Div(id="optional-dummy", style={"display": "none"}),
 ], id="app-container")
 
 
@@ -326,6 +391,28 @@ app.clientside_callback(
     Input("display-toggles", "value"),
 )
 
+# Clientside callback — toggle optional rule sections
+app.clientside_callback(
+    """
+    function(toggles) {
+        var cats = {
+            'proficiencies': 'cat-proficiencies',
+            'spell_components': 'cat-spell-components',
+            'encumbrance': 'cat-encumbrance'
+        };
+        Object.keys(cats).forEach(function(key) {
+            var show = (toggles || []).indexOf(key) >= 0;
+            document.querySelectorAll('.' + cats[key]).forEach(function(el) {
+                el.style.display = show ? '' : 'none';
+            });
+        });
+        return '';
+    }
+    """,
+    Output("optional-dummy", "children"),
+    Input("optional-rules", "value"),
+)
+
 
 # ── CSS ──────────────────────────────────────────────────────
 
@@ -363,14 +450,16 @@ app.index_string = '''
                          padding: 0.5rem 0.8rem; margin: 0.4rem 0; font-size: 0.9rem; }
         .entry-content { margin-top: 0.3rem; line-height: 1.6; }
         .entry-content p { margin: 0.4rem 0; }
+        .table-ref { color: #4a9eff; text-decoration: none; }
+        .table-ref:hover { text-decoration: underline; }
 
         /* Dropdown styling */
         .Select-control { background: #21262d !important; border-color: #30363d !important; }
         .Select-value-label { color: #fafafa !important; }
         .Select-menu-outer { background: #21262d !important; }
 
-        /* Smooth scrolling */
-        #main-content { scroll-behavior: smooth; }
+        /* Instant scroll on anchor click */
+        #main-content { scroll-behavior: auto; }
     </style>
 </head>
 <body>
@@ -393,7 +482,7 @@ app.index_string = '''
             if (container) {
                 container.scrollTo({
                     top: target.offsetTop - container.offsetTop,
-                    behavior: 'smooth'
+                    behavior: 'instant'
                 });
             }
         });
