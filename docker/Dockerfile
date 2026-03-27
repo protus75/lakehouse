@@ -12,7 +12,12 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
+# Base packages — heavy, rarely changes (cached layer)
+COPY requirements-base.txt .
+RUN pip install -r requirements-base.txt
+
+# Additional packages — lightweight, changes frequently (fast rebuild)
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install -r requirements.txt
 
 EXPOSE 8889 8501

@@ -1,0 +1,57 @@
+# Base packages — heavy dependencies that rarely change.
+# Split from requirements.txt so Docker layer cache isn't
+# invalidated when adding small utility packages.
+
+# Jupyter
+jupyterlab==4.5.4
+ipykernel==7.2.0
+
+# Data ingestion
+dlt[duckdb,filesystem]==1.21.0
+
+# Query engine
+duckdb==1.4.4
+
+# Table format
+pyiceberg[s3fs,duckdb,sql-postgres]==0.11.1
+
+# Transformation
+dbt-core==1.11.5
+dbt-duckdb==1.10.0
+
+# Visualization
+streamlit==1.54.0
+plotly==6.5.2
+
+# Data processing
+polars==1.30.0
+pyarrow==23.0.1
+
+# S3 client
+boto3==1.42.50
+s3fs==2026.2.0
+
+# PDF parsing
+docling==2.31.0
+pymupdf==1.25.4
+marker-pdf==1.10.2
+
+# RAG layer
+langchain==1.2.10
+langchain-community==0.4.1
+chromadb==1.0.0
+sentence-transformers==5.2.2
+fastapi==0.115.9
+uvicorn==0.34.0
+ollama==0.6.1
+
+# Orchestration
+dagster==1.12.20
+dagster-webserver==1.12.20
+dagster-dbt==0.28.20
+dagster-duckdb==0.28.20
+dagster-docker==0.28.20
+dagster-postgres==0.28.20
+
+# Database drivers
+psycopg2-binary==2.9.10
