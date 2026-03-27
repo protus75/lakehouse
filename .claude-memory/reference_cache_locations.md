@@ -39,6 +39,8 @@ type: reference
 3. Reclaim WSL2 RAM: `wsl -d docker-desktop sh -c "echo 3 > /proc/sys/vm/drop_caches"`
 4. Check network: `docker stats --no-stream` — NET I/O should be minimal
 5. Monitor stderr for "download" within first 5s of any run — kill immediately if found
+6. Verify GPU usage: `curl http://localhost:11434/api/ps` — check size_vram > 0 for loaded model
+7. Check Ollama throughput: first chunk should complete in <15s for llama3:8b on GPU
 
 ## Reset sequence after code changes (ALL STEPS REQUIRED)
 1. Clear __pycache__: `find d:/source/lakehouse/lakehouse -name '__pycache__' -exec rm -rf {} +`

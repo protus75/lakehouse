@@ -1697,6 +1697,33 @@ def check_ocr(source_file: str, sample: int = 0, resume: bool = True) -> None:
 
     _log(f"  Using model: {bronze_model}")
 
+    batch_size = ocr_cfg.get("batch_flush_size", 50)
+    progress_batch = []  # accumulate progress rows
+    bronze_max_tokens = ocr_cfg.get("bronze_max_tokens", 500)
+
+    def _flush_progress():
+        """Write accumulated progress and issues to Iceberg in one batch."""
+        if progress_batch:
+            write_iceberg(NAMESPACE, "ocr_progress", pa.table({
+                "source_file": [r[0] for r in progress_batch],
+                "chunk_hash": [r[1] for r in progress_batch],
+                "chunk_index": [r[2] for r in progress_batch],
+                "checked_at": [now] * len(progress_batch),
+            }))
+            progress_batch.clear()
+        if all_errors:
+            errors_list = list(all_errors.items())
+            write_iceberg(NAMESPACE, "ocr_issues", pa.table({
+                "source_file": [source_file] * len(errors_list),
+                "wrong_text": [w for w, _ in errors_list],
+                "suggested_fix": [c for _, (c, _) in errors_list],
+                "context": [ctx for _, (_, ctx) in errors_list],
+                "status": ["candidate"] * len(errors_list),
+                "model": [bronze_model] * len(errors_list),
+                "run_id": [run_id] * len(errors_list),
+                "checked_at": [now] * len(errors_list),
+            }), overwrite_filter="source_file", overwrite_filter_value=source_file)
+
     for seq, (i, chunk, chunk_hash) in enumerate(remaining):
         prompt = bronze_prompt.format(text=chunk)
         elapsed = _time.time() - start_time
@@ -1706,7 +1733,6 @@ def check_ocr(source_file: str, sample: int = 0, resume: bool = True) -> None:
         print(f"  Chunk {i + 1}/{total} ({seq + 1}/{len(remaining)} remaining, "
               f"ETA {eta_min:.0f}m)... ", end="", flush=True)
 
-        bronze_max_tokens = ocr_cfg.get("bronze_max_tokens", 500)
         response = _call_ollama(prompt, config, model_override=bronze_model,
                                 max_tokens_override=bronze_max_tokens)
 
@@ -1716,6 +1742,7 @@ def check_ocr(source_file: str, sample: int = 0, resume: bool = True) -> None:
             if failures >= max_consecutive_failures:
                 _log(f"  Aborting: {max_consecutive_failures} consecutive failures. "
                      f"Progress saved — rerun to resume.")
+                _flush_progress()
                 break
             continue
 
@@ -1737,20 +1764,14 @@ def check_ocr(source_file: str, sample: int = 0, resume: bool = True) -> None:
         else:
             print("clean")
 
-        # Record progress
-        write_iceberg(NAMESPACE, "ocr_progress", pa.table({
-            "source_file": [source_file], "chunk_hash": [chunk_hash],
-            "chunk_index": [i], "checked_at": [now],
-        }))
+        progress_batch.append((source_file, chunk_hash, i))
 
-        # Store issues incrementally
-        for wrong, (correct, ctx) in all_errors.items():
-            write_iceberg(NAMESPACE, "ocr_issues", pa.table({
-                "source_file": [source_file], "wrong_text": [wrong],
-                "suggested_fix": [correct], "context": [ctx],
-                "status": ["candidate"], "model": [bronze_model],
-                "run_id": [run_id], "checked_at": [now],
-            }), overwrite_filter="source_file", overwrite_filter_value=source_file)
+        # Flush every batch_size chunks
+        if len(progress_batch) >= batch_size:
+            _flush_progress()
+
+    # Final flush
+    _flush_progress()
 
     total_time = _time.time() - start_time
     checked = len(remaining) - failures
