@@ -641,6 +641,9 @@ def build_entries(
 
     lines = markdown.split("\n")
     char_pos = 0
+    # Track which headings have been used as entry boundaries per chapter.
+    # First occurrence = real boundary, duplicates = content (Marker page headers).
+    seen_headings_per_chapter = set()  # (chapter_title, heading_name_lower)
 
     for line in lines:
         h_match = re.match(r"^(#{1,4})\s+(.+)", line)
@@ -730,15 +733,23 @@ def build_entries(
                     if is_chapter_ref:
                         current_content.append(line)
                     else:
-                        # In whitelist sections, only create entries for known headings
-                        # In non-whitelist sections, every H3/H4 heading creates a new entry
-                        in_whitelist = _is_whitelist_section(current_toc, config)
-                        if in_whitelist and known_entries and match_name.lower() not in known_entries:
-                            current_content.append(line)
+                        # Check if this heading was already used as a boundary in this chapter
+                        chapter_key = current_toc.get("title", "") if current_toc else ""
+                        heading_key = (chapter_key, match_name.lower())
+                        if heading_key in seen_headings_per_chapter:
+                            # Duplicate heading — discard (Marker page header repeat)
+                            pass
                         else:
-                            flush()  # resets current_school/sphere
-                            current_entry = match_name
-                            current_content = [line]
+                            # In whitelist sections, only create entries for known headings
+                            # In non-whitelist sections, every H3/H4 heading creates a new entry
+                            in_whitelist = _is_whitelist_section(current_toc, config)
+                            if in_whitelist and known_entries and match_name.lower() not in known_entries:
+                                current_content.append(line)
+                            else:
+                                seen_headings_per_chapter.add(heading_key)
+                                flush()
+                                current_entry = match_name
+                                current_content = [line]
         else:
             stripped = line.strip()
             if re.match(r"^!\[.*\]\(.*\)$", stripped):

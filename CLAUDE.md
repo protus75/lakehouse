@@ -46,6 +46,9 @@ NEVER `pip install` in a running container — it's lost on restart. Add to `doc
 - Bash tool: use relative paths matching permission rules (e.g. `python scripts/dagster.py`, NOT `python d:/source/.../scripts/dagster.py`)
 - No `jq` — use `python -c "import json..."` instead
 
+### Small failure counts → manual review, not code changes
+When a test has only 1-3 failures, don't try to write a perfect detection rule. Dump the specific failing entries for the user to review, then add config overrides. Offer the data, not the fix.
+
 ### Finish before moving on
 Complete the current task fully — run full validation, review results, fix issues. Don't present menus of options after partial results.
 

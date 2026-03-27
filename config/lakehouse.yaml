@@ -29,9 +29,9 @@ namespaces:
 # Each key type defines which columns form the natural key.
 stable_keys:
   entry_id:
-    columns: [source_file, toc_title, entry_title, section_title]
+    columns: [source_file, toc_title, entry_title, section_title, content_prefix]
   toc_id:
-    columns: [source_file, title]
+    columns: [source_file, title, parent_title, page_start]
   chunk_id:
     columns: [source_file, toc_title, entry_title, chunk_index]
 
