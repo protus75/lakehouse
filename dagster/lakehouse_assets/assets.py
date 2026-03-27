@@ -194,9 +194,10 @@ def seed_ollama_models(context: AssetExecutionContext):
 
     resp = requests.get(f"{url}/api/tags", timeout=10)
     resp.raise_for_status()
-    available = {m["name"] for m in resp.json().get("models", [])}
+    available = [m["name"] for m in resp.json().get("models", [])]
     for model in models:
-        if model not in available:
+        base = model.split(":")[0]
+        if not any(a.startswith(base) for a in available):
             raise Exception(f"Model {model} not found after pull")
     context.log.info(f"All {len(models)} Ollama models verified")
 

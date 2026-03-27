@@ -19,6 +19,7 @@ Docker processes crash silently. For ANY command >1 minute:
 6. If dead or hung, tell user and cancel immediately — do NOT keep polling a stuck process
 
 NEVER go silent waiting on a long task. NEVER keep polling when logs show no change — verify with disk/network.
+When waiting on a task, always give the user a time estimate before sleeping.
 
 ## Kill stale processes
 Before every pipeline run: check for leftover python processes in containers. After completion: verify cleanup. Report GPU state.
