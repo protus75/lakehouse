@@ -69,11 +69,9 @@ services:
 
   # ── Dagster ────────────────────────────────────────────────
   # Asset-based orchestration for the lakehouse pipeline
+  # All three Python services share the same image (base + workspace).
   dagster-webserver:
-    build:
-      context: .
-      dockerfile: Dockerfile.daemon
-    image: lakehouse-daemon:latest
+    image: lakehouse-workspace:latest
     container_name: lakehouse-dagster-webserver
     ports:
       - "3000:3000"
@@ -85,6 +83,7 @@ services:
       - ../scripts:/workspace/scripts
       - ../documents:/workspace/documents
       - ../db/duckdb:/workspace/db
+      - ../cache:/workspace/cache
     environment:
       DAGSTER_HOME: /workspace/dagster
       PYTHONPATH: /workspace
@@ -97,7 +96,7 @@ services:
         condition: service_healthy
 
   dagster-daemon:
-    image: lakehouse-daemon:latest
+    image: lakehouse-workspace:latest
     container_name: lakehouse-dagster-daemon
     volumes:
       - ../config:/workspace/config
@@ -108,6 +107,7 @@ services:
       - ../documents:/workspace/documents
       - ../db/duckdb:/workspace/db
       - ../cache:/workspace/cache
+      - ../cache/datalab:/root/.cache/datalab
     environment:
       DAGSTER_HOME: /workspace/dagster
       PYTHONPATH: /workspace
@@ -125,7 +125,7 @@ services:
         condition: service_healthy
 
   # ── Python Workspace ────────────────────────────────────────
-  # All Python tools (dlt, dbt, Streamlit, Marker, RAG, etc.)
+  # Interactive: Jupyter Lab, Streamlit, RAG API, manual scripts
   workspace:
     build:
       context: .

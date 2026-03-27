@@ -4,8 +4,10 @@ description: Generic pipeline rules — Dagster only, monitoring, stale processe
 type: feedback
 ---
 
-## Dagster only — CRITICAL (repeated twice)
-NEVER run pipeline steps manually (docker exec, dbt build, etc). Always use Dagster UI at http://localhost:3000. Only exception: small diagnostic/sample queries for debugging.
+## Dagster only — CRITICAL (repeated THREE times)
+NEVER run pipeline steps manually (docker exec, dbt build, ollama pull, etc). Always use Dagster jobs/assets. Only exception: small diagnostic/sample queries for debugging.
+**Why:** User has been very clear — all operations go through Dagster, no exceptions. This includes model pulls (use seed_models job), pipeline runs, and any other operational task.
+**How to apply:** When tempted to run something directly, find or create the Dagster asset/job for it instead.
 
 ## Monitor long-running tasks — CRITICAL
 Docker processes crash silently. For ANY command >1 minute:

@@ -5,8 +5,7 @@ Asset graph:
         → gold_ai_summaries
         → gold_ai_annotations
 
-Bronze, dbt, and publish run in the Dagster daemon (same volumes).
-Enrichment runs via docker exec on lakehouse-workspace (GPU + Ollama).
+All services share the same Docker image (lakehouse-workspace).
 """
 import sys
 sys.path.insert(0, "/workspace")
@@ -50,7 +49,6 @@ def toc_review(context: AssetExecutionContext):
     """
     from dlt.bronze_tabletop_rules import review_toc, apply_toc_review
     report = review_toc()
-    # Apply reviewed YAML files if they exist
     for file_report in report.get("files", []):
         if file_report["status"] == "pass":
             apply_toc_review(file_report["source_file"])
@@ -78,7 +76,6 @@ def bronze_ocr_check(context: AssetExecutionContext):
     Checks all words against English dictionary + game terms whitelist.
     No LLM needed — runs in seconds. Results in bronze_tabletop.ocr_issues.
     """
-    from pathlib import Path
     from dlt.bronze_tabletop_rules import check_ocr, DOCUMENTS_DIR
     pdfs = sorted(DOCUMENTS_DIR.glob("*.pdf"))
     for f in pdfs:
@@ -158,7 +155,6 @@ def seed_ollama_models(context: AssetExecutionContext):
         resp.raise_for_status()
         context.log.info(f"  {model}: OK")
 
-    # Verify all models are available
     resp = requests.get(f"{url}/api/tags", timeout=10)
     resp.raise_for_status()
     available = {m["name"] for m in resp.json().get("models", [])}
@@ -170,14 +166,11 @@ def seed_ollama_models(context: AssetExecutionContext):
 
 @asset(group_name="system", compute_kind="python")
 def seed_huggingface_models(context: AssetExecutionContext):
-    """Verify HuggingFace models are cached. Fails if any are missing.
+    """Download HuggingFace models defined in lakehouse.yaml.
 
-    Daemon has TRANSFORMERS_OFFLINE=1 and no sentence-transformers, so
-    this just checks the cache directory. To download missing models:
-      docker exec lakehouse-workspace python -c "
-        from sentence_transformers import SentenceTransformer;
-        SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
-      "
+    Downloads to HF_HOME (/workspace/cache/huggingface).
+    Daemon has TRANSFORMERS_OFFLINE=1 so this only works when run
+    directly (not via daemon scheduler).
     """
     import yaml
 
@@ -192,7 +185,6 @@ def seed_huggingface_models(context: AssetExecutionContext):
     hf_home = Path("/workspace/cache/huggingface")
     missing = []
     for model_name in hf_models:
-        # HF caches models at hub/models--<org>--<name>/
         safe_name = model_name.replace("/", "--")
         model_dir = hf_home / "hub" / f"models--{safe_name}"
         if model_dir.exists():

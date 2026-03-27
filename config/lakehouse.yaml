@@ -50,6 +50,8 @@ models:
       - "llama3:70b"
       - "llama3:8b"
       - "minicpm-v:latest"
+      - "qwen3:30b-a3b"
+      - "glm-4.7-flash"
   huggingface:
     models:
       - "sentence-transformers/all-MiniLM-L6-v2"

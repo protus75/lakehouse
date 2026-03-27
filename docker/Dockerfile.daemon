@@ -1,9 +1,0 @@
-FROM lakehouse-base:latest
-
-WORKDIR /workspace
-
-COPY requirements-daemon.txt .
-RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install -r requirements-daemon.txt
-
-EXPOSE 3000
