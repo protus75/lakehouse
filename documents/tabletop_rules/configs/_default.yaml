@@ -48,6 +48,9 @@ strip_html_tags:
   - b
   - i
   - u
+  - del
+  - ins
+  - mark
 
 # Lines matching these regex patterns are stripped from entry content.
 # Used to remove school/type annotations, tags, etc. that belong in metadata not description.

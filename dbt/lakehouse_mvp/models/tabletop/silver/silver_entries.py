@@ -59,7 +59,7 @@ def model(dbt, session):
 
         if has_new_schema:
             toc_df = session.execute(
-                f"SELECT title, page_start, page_end, is_excluded, is_chapter, parent_title "
+                f"SELECT title, page_start, page_end, is_excluded, is_chapter, is_table, parent_title "
                 f"FROM bronze_tabletop.toc_raw WHERE source_file = '{sf}' ORDER BY page_start"
             ).fetchdf()
         else:
@@ -78,6 +78,7 @@ def model(dbt, session):
                 "page_end": int(row["page_end"]) if row["page_end"] else 9999,
                 "is_excluded": bool(row["is_excluded"]),
                 "is_chapter": is_ch,
+                "is_table": bool(row.get("is_table", False)) if has_new_schema else False,
                 "parent_title": row.get("parent_title") if has_new_schema else None,
                 "sub_headings": [],
                 "tables": [],

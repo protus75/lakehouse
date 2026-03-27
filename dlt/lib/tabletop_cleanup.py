@@ -497,6 +497,7 @@ def build_entries(
     current_content = []
     current_school = None
     current_sphere = None
+    current_printed_page = 0
 
     def _extract_school_from_raw(raw_content: str) -> str | None:
         """Extract spell school from raw content before cleanup strips it.
@@ -571,6 +572,18 @@ def build_entries(
             if config:
                 content = _clean_entry_content(content, config)
 
+            # Strip the entry's own heading line from content (it's metadata, not body)
+            if current_entry:
+                lines = content.split("\n")
+                cleaned = []
+                for cl in lines:
+                    stripped = cl.strip().lstrip("#").strip()
+                    stripped = re.sub(r"\*+", "", stripped).strip()
+                    if stripped == current_entry:
+                        continue
+                    cleaned.append(cl)
+                content = "\n".join(cleaned).strip()
+
             # Strip parenthetical chapter cross-references using ToC titles
             # e.g. "(chapter 9)" or "(Chapter 14: Time and Movement)"
             for sec in _toc_sections:
@@ -626,6 +639,7 @@ def build_entries(
                     elif not current_spell_class:
                         current_spell_level = None
                 current_page = hc["page"]
+                current_printed_page = hc.get("printed_page", current_page)
 
             if level <= 2:
                 # Skip duplicate section headings from Marker page-boundary re-renders
@@ -714,12 +728,36 @@ def build_entries(
                     if inner and current_school is None:
                         current_school = inner
             else:
-                # Check for entry anchors and inline patterns in non-heading lines.
-                # Entry anchors: exact names that start a new entry when found at
-                # the beginning of a line (e.g. "Dwarves are short..." → entry "Dwarf")
-                # Inline patterns: regex match (e.g. "Healing: A character..." → entry "Healing")
+                # Check for entry anchors, ToC sub-section titles, and inline patterns.
+                # Priority: config entry_anchors > ToC sub-sections > inline patterns
                 anchor_matched = False
-                if config and current_toc and stripped:
+
+                # ToC sub-section auto-anchors: if a non-heading line starts with
+                # a ToC sub-section title for the current chapter, near the expected
+                # page, treat it as an entry boundary. Marker often renders these as
+                # bold text instead of headings.
+                if not anchor_matched and current_toc and stripped:
+                    clean_stripped = stripped.replace("*", "").strip()
+                    for toc_sub in _toc_sections:
+                        if toc_sub.get("is_chapter") or toc_sub.get("is_excluded") or toc_sub.get("is_table"):
+                            continue
+                        if toc_sub.get("parent_title") != current_toc.get("title"):
+                            continue
+                        sub_title = toc_sub.get("title", "")
+                        if not sub_title:
+                            continue
+                        # Check if line starts with the sub-section title
+                        if clean_stripped.lower().startswith(sub_title.lower()):
+                            # Verify we're near the expected printed page (within 2 pages)
+                            expected_page = toc_sub.get("page_start", 0)
+                            if expected_page and abs(current_printed_page - expected_page) <= 2:
+                                flush()
+                                current_entry = sub_title
+                                current_content = [line]
+                                anchor_matched = True
+                                break
+
+                if config and current_toc and stripped and not anchor_matched:
                     toc_title = current_toc.get("title", "")
                     for sec_key, sec_cfg in (config.get("section_parsing", {}) or {}).items():
                         if sec_key.lower() not in toc_title.lower():
@@ -895,7 +933,7 @@ def build_heading_chapter_map(
         printed = page_printed.get(page_idx, page_idx)
         section = _page_to_toc_section(printed, included)
         if section:
-            heading_chapters[m.start()] = {"toc_entry": section, "page": page_idx}
+            heading_chapters[m.start()] = {"toc_entry": section, "page": page_idx, "printed_page": printed}
             mapped += 1
         else:
             unmapped += 1
