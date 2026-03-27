@@ -28,6 +28,8 @@
       "Bash(nvidia-smi:*)",
       "Bash(ollama:*)",
       "Bash(python scripts/dagster.py:*)",
+      "Bash(python scripts/query_duckdb.py:*)",
+      "Bash(python scripts/query_iceberg.py:*)",
       "Bash(python3:*)",
       "Bash(rm scripts/:*)",
       "Bash(tail:*)",

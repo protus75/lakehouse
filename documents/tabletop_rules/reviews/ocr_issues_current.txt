@@ -1,0 +1,89 @@
+OCR Issues Report — 9 remaining (down from 16)
+================================================
+
+Garbled Marker bullet lines cleaned (before -> after):
+------------------------------------------------------
+BEFORE: - t "TQFDJBMJTUHBJOTPOFBEEJtional spell per spell level...
+AFTER:  - tional spell per spell level...
+
+BEFORE: - t #FDBVTFTQFDJBMJTUTIBWFBO enhanced understanding of spells within their school...
+AFTER:  - enhanced understanding of spells within their school...
+
+BEFORE: - t 4QFDJBMJTUTSFDFJWFBCPOVTPGXIFO learning spells from their school...
+AFTER:  - learning spells from their school...
+
+BEFORE: - t 8IFOFWFSBTQFDJBMJTUSFBDIFTBOFXTQFMM level, he automatically gains one spell...
+AFTER:  - level, he automatically gains one spell...
+
+BEFORE: - t 8IFOBTQFDJBMJTUXJ[BSEBUUFNQUTUPDSFate a new spell (using the rules given in the DMG)...
+AFTER:  - ate a new spell (using the rules given in the DMG)...
+
+BEFORE: - t -FBQPOUPUIFTBEEMFPGUIFDSFBUVSF XIFOJUJTTUBOEJOHPO the ground) and spur it airborne...
+AFTER:  - the ground) and spur it airborne...
+
+BEFORE: - t -FBQGSPNUIFCBDLPGUIFNPVOUBOEESPQGFFUUPUIF ground or onto the back of another mount...
+AFTER:  - ground or onto the back of another mount...
+
+BEFORE: - t 5IFDIBSBDUFSDBOWBVMUPOUPBTBEEMFXIFOFWFSUIFIPSTF or other mount is standing still...
+AFTER:  - other mount is standing still...
+
+BEFORE: - t 5IFDIBSBDUFSDBOTQVSIJTTUFFEPOUPHSFBUTQFFET
+AFTER:  (dropped -- fully garbled)
+
+BEFORE: - t 5IFDIBODFUPUSBDLEFDSFBTFT UFSSBJO
+AFTER:  (dropped -- fully garbled)
+
+BEFORE: - t "TFDPOEUSBDLDSPTTFTUIFGJSTU
+AFTER:  (dropped -- fully garbled)
+
+BEFORE: - t DSVSFTMFBWing the group, darkness, etc.).
+AFTER:  - ing the group, darkness, etc.).
+
+
+Remaining OCR issues (9):
+-------------------------
+
+1. communi
+   BEFORE: ...gains no communi-\n\n#### **Obscurement** (Alteration)
+   AFTER:  ...gains no communi-\n\n#### **Obscurement** (Alteration)
+   STATUS: orphan hyphen fragment — continuation lost at Marker page/block break
+
+2. divinations
+   BEFORE: ...the minor school of lesser divination includes all divinations...
+   AFTER:  (unchanged)
+   STATUS: false positive — real English word, spellchecker miss
+
+3. ing
+   BEFORE: ...mak-\n\n| Table 22: ...\n\ning saving throws against those spells...
+   AFTER:  (unchanged — "ing" is second half of "mak-ing" separated by a table)
+   STATUS: orphan fragment from hyphen split across Marker blocks
+
+4. mak
+   BEFORE: ...they receive a +1 bonus when mak-\n\n| Table 22:
+   AFTER:  ...they receive a +1 bonus when mak-\n\n| Table 22:
+   STATUS: orphan hyphen fragment — continuation ("ing") on other side of table
+
+5. ment
+   BEFORE: ...ing saving throws... a -1 penalty when making saving throws against a specialist's...
+   AFTER:  (unchanged)
+   STATUS: orphan fragment — likely from "adjust-ment" or similar split
+
+6. pense
+   BEFORE: ...This is both an advantage and disadva\n\n(next block)
+   AFTER:  (unchanged — "pense" is leftover from "disadva-ntage" losing its hyphen)
+   STATUS: orphan fragment — hyphen was stripped but word halves not rejoined
+
+7. tional
+   BEFORE: - t "TQFDJBMJTUHBJOTPOFBEEJtional spell per spell level...
+   AFTER:  - tional spell per spell level...
+   STATUS: garble cleanup artifact — "addi" prefix was part of garbled text
+
+8. weap
+   BEFORE: ...Wrestling moves marked with an asterisk (*) are holds maintained from ro\n\n(next block)
+   AFTER:  (unchanged)
+   STATUS: orphan fragment from "weap-on" split across Marker blocks
+
+9. withi
+   BEFORE: ...This is both an advantage and disadva\n\n(next block)
+   AFTER:  (unchanged)
+   STATUS: orphan fragment from "withi-n" split across Marker blocks

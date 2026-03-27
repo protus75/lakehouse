@@ -717,12 +717,13 @@ def build_entries(
                     # Skip H3/H4 headings that match a chapter-level ToC title —
                     # these are cross-references in content, not entry boundaries
                     is_chapter_ref = False
+                    match_lower = match_name.lower()
                     for sec in _toc_sections:
                         if not sec.get("is_chapter"):
                             continue
                         sec_title = sec.get("title", "")
                         sec_desc = sec_title.split(":", 1)[-1].strip().lower()
-                        if match_name.lower() == sec_title.lower() or match_name.lower() == sec_desc:
+                        if match_lower == sec_title.lower() or match_lower == sec_desc:
                             is_chapter_ref = True
                             break
 

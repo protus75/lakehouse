@@ -145,7 +145,7 @@ def model(dbt, session):
             id_data = {**row_data, "content_prefix": content[:80]}
             all_entries.append({
                 "entry_id": make_id("entry_id", id_data),
-                "toc_id": make_id("toc_id", {"source_file": sf, "title": toc_entry["title"], "parent_title": toc_entry.get("parent_title") or ""}),
+                "toc_id": make_id("toc_id", {"source_file": sf, "title": toc_entry["title"], "parent_title": toc_entry.get("parent_title") or "", "page_start": str(toc_entry.get("page_start", ""))}),
                 **row_data,
                 "content": content,
                 "school": entry.get("school"),

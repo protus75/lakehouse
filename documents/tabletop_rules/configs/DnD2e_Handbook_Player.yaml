@@ -157,6 +157,16 @@ section_parsing:
       - '(Necromancy.*)'
       - '(Invocation.*)'
 
+  "The Real Basics":
+    entry_anchors:
+      - "**The Goal**"
+      - "**Required"
+      - "**An Example"
+    anchor_name_map:
+      "**The Goal**": "The Goal"
+      "**Required": "Required Materials"
+      "**An Example": "An Example of Play"
+
   "Player Character Races":
     # Race names don't appear as markdown headings — Marker renders them as
     # inline text. Detect entry boundaries by matching these anchor names at

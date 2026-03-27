@@ -38,10 +38,11 @@ def model(dbt, session):
     for _, row in entries_df.iterrows():
         sub_map[(row["source_file"], row["toc_title"])] = row["sub_headings"]
 
-    # Build parent lookup: (source_file, title) -> parent_title
+    # Build parent lookup: (source_file, title) -> (parent_title, page_start)
+    # For parent_toc_id resolution, we need the parent's own parent_title and page_start
     parent_lookup = {}
     for _, row in toc_df.iterrows():
-        parent_lookup[(row["source_file"], row["title"])] = row["parent_title"] or ""
+        parent_lookup[(row["source_file"], row["title"])] = (row["parent_title"] or "", str(row["page_start"]))
 
     rows = []
     for _, row in toc_df.iterrows():
@@ -49,11 +50,12 @@ def model(dbt, session):
         title = row["title"]
         parent = row["parent_title"]
 
-        toc_id = make_id("toc_id", {"source_file": sf, "title": title, "parent_title": parent or ""})
-        # parent_toc_id must match the parent's own toc_id (which uses the parent's parent)
+        page_start = str(row["page_start"])
+        toc_id = make_id("toc_id", {"source_file": sf, "title": title, "parent_title": parent or "", "page_start": page_start})
+        # parent_toc_id must match the parent's own toc_id (which uses the parent's parent + page)
         if parent:
-            grandparent = parent_lookup.get((sf, parent), "")
-            parent_toc_id = make_id("toc_id", {"source_file": sf, "title": parent, "parent_title": grandparent})
+            grandparent = parent_lookup.get((sf, parent), ("", ""))
+            parent_toc_id = make_id("toc_id", {"source_file": sf, "title": parent, "parent_title": grandparent[0], "page_start": grandparent[1]})
         else:
             parent_toc_id = None
 
