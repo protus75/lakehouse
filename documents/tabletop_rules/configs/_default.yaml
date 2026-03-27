@@ -33,6 +33,22 @@ toc:
   # Search order: bottom of page first, then top
   page_number_pattern: '^\d{1,3}$'
 
+# HTML tags to strip from Marker output during content cleanup.
+# Listed as tag names (without angle brackets). Both opening and closing tags are removed.
+strip_html_tags:
+  - sup
+  - sub
+  - br
+  - hr
+  - em
+  - strong
+  - span
+  - div
+  - p
+  - b
+  - i
+  - u
+
 # Lines matching these regex patterns are stripped from entry content.
 # Used to remove school/type annotations, tags, etc. that belong in metadata not description.
 strip_content_patterns: []

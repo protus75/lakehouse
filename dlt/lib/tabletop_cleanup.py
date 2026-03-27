@@ -261,8 +261,11 @@ def _clean_entry_content(content: str, config: dict) -> str:
         if len(sub) == 2:
             content = content.replace(sub[0], sub[1])
 
-    # Strip residual HTML tags from Marker output (e.g. <sup>, <sub>)
-    content = re.sub(r"</?(?:sup|sub|br|hr|em|strong|span|div|p)(?:\s[^>]*)?>", "", content)
+    # Strip residual HTML tags from Marker output (tag list from config)
+    html_tags = config.get("strip_html_tags", [])
+    if html_tags:
+        tag_pattern = "|".join(re.escape(t) for t in html_tags)
+        content = re.sub(rf"</?(?:{tag_pattern})(?:\s[^>]*)?>", "", content)
 
     # Deduplicate after all other cleaning
     content = _deduplicate_marker_blocks(content, field_names, config)
@@ -325,20 +328,25 @@ def _merge_orphan_entries(entries: list[dict], config: dict) -> list[dict]:
     merged = []
     fold_count = 0
 
+    dedup_sig_chars = config.get("ingestion", {}).get("dedup_signature_chars", 80)
+
     for entry in entries:
         title = entry.get("entry_title")
         toc_title = entry["toc_entry"]["title"]
         key = (toc_title, title) if title else None
 
         if key and key in primary:
-            if _is_orphan_continuation(entry["content"]):
-                # Strip the duplicate heading, append content to primary
-                orphan_content = entry["content"]
-                orphan_content = re.sub(r"^#{1,4}\s+.+\n?", "", orphan_content).strip()
-                if orphan_content:
+            # Same (toc_title, entry_title) seen before — merge into primary.
+            # Strip the duplicate heading, append only unique content.
+            orphan_content = entry["content"]
+            orphan_content = re.sub(r"^#{1,4}\s+.+\n?", "", orphan_content).strip()
+            if orphan_content:
+                primary_content = merged[primary[key]]["content"]
+                # Skip if content is a near-duplicate of what we already have
+                if orphan_content[:dedup_sig_chars] not in primary_content:
                     merged[primary[key]]["content"] += "\n\n" + orphan_content
-                    fold_count += 1
-                continue
+                fold_count += 1
+            continue
 
         idx = len(merged)
         merged.append(dict(entry))
@@ -562,6 +570,21 @@ def build_entries(
             content = raw_content
             if config:
                 content = _clean_entry_content(content, config)
+
+            # Strip parenthetical chapter cross-references using ToC titles
+            # e.g. "(chapter 9)" or "(Chapter 14: Time and Movement)"
+            for sec in _toc_sections:
+                if not sec.get("is_chapter"):
+                    continue
+                sec_title = sec.get("title", "")
+                # Strip "(Chapter N)" using the part before ":"
+                ch_prefix = sec_title.split(":")[0].strip()
+                if ch_prefix:
+                    content = content.replace(f"({ch_prefix})", "")
+                    content = content.replace(f"({ch_prefix.lower()})", "")
+                # Strip full "(Chapter N: Title)"
+                content = content.replace(f"({sec_title})", "")
+
             min_content = config.get("ingestion", {}).get("min_entry_content", 10) if config else 10
             if content and len(content) > min_content:
                 entries.append({
@@ -653,15 +676,30 @@ def build_entries(
                     current_entry = None
                     current_content = [line]
                 else:
-                    # In whitelist sections, only create entries for known headings
-                    # In non-whitelist sections, every H3/H4 heading creates a new entry
-                    in_whitelist = _is_whitelist_section(current_toc, config)
-                    if in_whitelist and known_entries and match_name.lower() not in known_entries:
+                    # Skip H3/H4 headings that match a chapter-level ToC title —
+                    # these are cross-references in content, not entry boundaries
+                    is_chapter_ref = False
+                    for sec in _toc_sections:
+                        if not sec.get("is_chapter"):
+                            continue
+                        sec_title = sec.get("title", "")
+                        sec_desc = sec_title.split(":", 1)[-1].strip().lower()
+                        if match_name.lower() == sec_title.lower() or match_name.lower() == sec_desc:
+                            is_chapter_ref = True
+                            break
+
+                    if is_chapter_ref:
                         current_content.append(line)
                     else:
-                        flush()  # resets current_school/sphere
-                        current_entry = match_name
-                        current_content = [line]
+                        # In whitelist sections, only create entries for known headings
+                        # In non-whitelist sections, every H3/H4 heading creates a new entry
+                        in_whitelist = _is_whitelist_section(current_toc, config)
+                        if in_whitelist and known_entries and match_name.lower() not in known_entries:
+                            current_content.append(line)
+                        else:
+                            flush()  # resets current_school/sphere
+                            current_entry = match_name
+                            current_content = [line]
         else:
             stripped = line.strip()
             if re.match(r"^!\[.*\]\(.*\)$", stripped):

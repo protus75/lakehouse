@@ -110,9 +110,13 @@ services:
       - ../db/duckdb:/workspace/db
       - ../cache/marker:/workspace/cache/marker
       - ../cache/huggingface:/workspace/.cache/huggingface
+      - ../cache/datalab:/root/.cache/datalab
     environment:
       DAGSTER_HOME: /workspace/dagster
       PYTHONPATH: /workspace
+      HF_HOME: /workspace/.cache/huggingface
+      TRANSFORMERS_OFFLINE: "1"
+      HF_HUB_OFFLINE: "1"
       S3_ENDPOINT: http://seaweedfs-s3:8333
       S3_ACCESS_KEY: lakehouse_key
       S3_SECRET_KEY: lakehouse_secret

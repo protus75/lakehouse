@@ -237,19 +237,31 @@ def _clean_marker_md(md: str) -> str:
     return md
 
 
-def extract_marker_markdown(filepath: Path) -> str:
-    """Run Marker on full document. Checks disk cache first (legacy)."""
+def extract_marker_markdown(filepath: Path, allow_ocr: bool = False) -> str:
+    """Read Marker markdown from disk cache. Fails if cache missing unless allow_ocr=True.
+
+    OCR should only run via the seed_models pipeline on a GPU-enabled container.
+    Normal pipeline runs read from cache only."""
     cache_path = MARKER_CACHE_DIR / f"{filepath.stem}.md"
     if cache_path.exists():
         _log(f"  Marker: using disk cache {cache_path.name}")
         md = cache_path.read_text(encoding="utf-8")
-    else:
-        from marker.converters.pdf import PdfConverter
-        from marker.models import create_model_dict
-        models = create_model_dict()
-        converter = PdfConverter(artifact_dict=models)
-        rendered = converter(str(filepath))
-        md = rendered.markdown
+        return _clean_marker_md(md)
+    if not allow_ocr:
+        raise RuntimeError(
+            f"Marker cache missing: {cache_path}\n"
+            f"Run the seed_models job first to generate Marker output for this PDF."
+        )
+    _log(f"  Marker: cache miss, running OCR (allow_ocr=True)...")
+    from marker.converters.pdf import PdfConverter
+    from marker.models import create_model_dict
+    models = create_model_dict()
+    converter = PdfConverter(artifact_dict=models)
+    rendered = converter(str(filepath))
+    md = rendered.markdown
+    MARKER_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    cache_path.write_text(md, encoding="utf-8")
+    _log(f"  Marker: cached to {cache_path.name}")
     return _clean_marker_md(md)
 
 

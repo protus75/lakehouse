@@ -32,3 +32,8 @@
 - [project_integer_keys_plan.md](project_integer_keys_plan.md) - Plan: replace unstable auto-increment IDs with hash-based stable integer keys
 - [feedback_use_dagster.md](feedback_use_dagster.md) - CRITICAL: Never run pipeline manually, always use Dagster
 - [feedback_no_jq.md](feedback_no_jq.md) - Never use jq, use python for JSON parsing
+- [feedback_dagster_only.md](feedback_dagster_only.md) - NEVER run dbt/pipeline manually, always Dagster
+- [feedback_no_downloads.md](feedback_no_downloads.md) - CRITICAL: Kill any model downloads immediately, ask first
+- [feedback_zero_validation_errors.md](feedback_zero_validation_errors.md) - ZERO validation errors before features
+- [project_model_seeding.md](project_model_seeding.md) - Model downloads only via dedicated seed pipeline
+- [reference_cache_locations.md](reference_cache_locations.md) - All caches, reset sequence after code changes

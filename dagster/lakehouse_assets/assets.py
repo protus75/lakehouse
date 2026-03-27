@@ -112,6 +112,36 @@ def gold_ai_annotations(context: AssetExecutionContext):
     context.log.info("AI annotations complete")
 
 
+@asset(group_name="system", compute_kind="python")
+def seed_marker_cache(context: AssetExecutionContext):
+    """Validate Marker OCR cache exists for all PDFs. Fails if any are missing.
+
+    To generate missing cache, run on the workspace container (GPU):
+      docker exec lakehouse-workspace python -c "
+        from dlt.bronze_tabletop_rules import extract_marker_markdown, DOCUMENTS_DIR
+        [extract_marker_markdown(f, allow_ocr=True) for f in sorted(DOCUMENTS_DIR.glob('*.pdf'))]
+      "
+    """
+    from dlt.bronze_tabletop_rules import MARKER_CACHE_DIR, DOCUMENTS_DIR
+    pdfs = sorted(DOCUMENTS_DIR.glob("*.pdf"))
+    missing = []
+    for f in pdfs:
+        cache_path = MARKER_CACHE_DIR / f"{f.stem}.md"
+        if cache_path.exists():
+            context.log.info(f"Cache OK: {f.name} -> {cache_path.name}")
+        else:
+            missing.append(f.name)
+            context.log.error(f"Cache MISSING: {f.name}")
+    if missing:
+        raise Exception(
+            f"Marker cache missing for {len(missing)} PDFs: {', '.join(missing)}\n"
+            f"Run on workspace container (GPU): docker exec lakehouse-workspace python -c "
+            f"\"from dlt.bronze_tabletop_rules import extract_marker_markdown, DOCUMENTS_DIR; "
+            f"[extract_marker_markdown(f, allow_ocr=True) for f in sorted(DOCUMENTS_DIR.glob('*.pdf'))]\""
+        )
+    context.log.info(f"All {len(pdfs)} PDF caches validated")
+
+
 # Jobs
 tabletop_full_pipeline = define_asset_job(
     name="tabletop_full_pipeline",
@@ -131,11 +161,17 @@ enrichment_only = define_asset_job(
     selection=[gold_ai_summaries, gold_ai_annotations],
 )
 
+seed_models = define_asset_job(
+    name="seed_models",
+    selection=[seed_marker_cache],
+)
+
 
 defs = Definitions(
     assets=[
+        seed_marker_cache,
         bronze_tabletop, toc_review, dbt_tabletop, publish_to_iceberg,
         gold_ai_summaries, gold_ai_annotations,
     ],
-    jobs=[tabletop_full_pipeline, tabletop_without_enrichment, enrichment_only],
+    jobs=[seed_models, tabletop_full_pipeline, tabletop_without_enrichment, enrichment_only],
 )
