@@ -360,5 +360,40 @@ gold:
 # Format: list of {name, class, field, value} dicts.
 manual_overrides: []
 
+# Game terms that are NOT OCR errors — added to spellcheck whitelist.
+# Includes D&D-specific terms, abbreviations, archaic words, proper nouns.
+game_dictionary:
+  - THAC0
+  - adamantite
+  - arbalest
+  - mythos
+  - mythoi
+  - cantrip
+  - cantrips
+  - dweomer
+  - phylactery
+  - thaumaturgy
+  - necromancy
+  - evocation
+  - abjuration
+  - alteration
+  - conjuration
+  - divination
+  - enchantment
+  - illusion
+  - invocation
+  - transmutation
+  - otyugh
+  - bulette
+  - githyanki
+  - githzerai
+  - drow
+  - duergar
+  - svirfneblin
+  - halfling
+  - halflings
+  - multi-classed
+  - multi-class
+
 # Names to exclude from known_entries (watermarks, junk)
 exclude_entry_names: []

@@ -1633,23 +1633,20 @@ def _verify_ollama_model(model: str, config: dict) -> None:
         raise RuntimeError(f"Ollama not running at {url}")
 
 
-def check_ocr(source_file: str, sample: int = 0, resume: bool = True) -> None:
-    """Bronze validation: scan markdown for OCR issues using Ollama.
+def check_ocr(source_file: str) -> None:
+    """Bronze validation: dictionary-based spellcheck of markdown content.
 
-    Reads already-extracted markdown, applies existing content_substitutions,
-    sends text chunks to LLM, stores findings in bronze_tabletop.ocr_issues.
-    Supports resume — skips chunks already checked (by hash) in ocr_progress.
+    Extracts words from markdown, checks against English dictionary + game terms
+    whitelist from config. Unknown words are OCR candidates with suggested corrections.
+    Runs in seconds — no LLM needed.
     """
+    from spellchecker import SpellChecker
     import time as _time
 
     configs_dir = DOCUMENTS_DIR.parent / "configs"
     config = load_config(Path(source_file), configs_dir)
-
-    # Verify model is cached before starting — never trigger a download
-    bronze_model = config.get("ocr_check", {}).get("bronze_model", "llama3:8b")
-    _verify_ollama_model(bronze_model, config)
-
     run_id = start_run(source_file, "check_ocr", config)
+    start_time = _time.time()
 
     try:
         md_table = read_iceberg_filtered(NAMESPACE, "marker_extractions", "source_file", source_file)
@@ -1662,172 +1659,85 @@ def check_ocr(source_file: str, sample: int = 0, resume: bool = True) -> None:
 
     md = _clean_marker_md(md_table.column("markdown_text")[0].as_py())
 
-    # Apply existing substitutions — don't re-flag known issues
+    # Apply existing substitutions — don't re-flag known fixes
     for sub in config.get("content_substitutions", []):
         if len(sub) == 2:
             md = md.replace(sub[0], sub[1])
 
-    # Chunk into segments, skip table-heavy chunks
-    ocr_cfg = config.get("ocr_check", {})
-    chunk_size = ocr_cfg.get("chunk_size", 3000)
-    table_threshold = ocr_cfg.get("table_line_threshold", 0.5)
+    # Build spellchecker with game dictionary from config
+    spell = SpellChecker()
+    game_words = config.get("game_dictionary", [])
+    if game_words:
+        spell.word_frequency.load_words([w.lower() for w in game_words])
 
-    paragraphs = md.split("\n\n")
-    chunks = []
-    current = ""
-    for para in paragraphs:
-        if len(current) + len(para) + 2 > chunk_size and current:
-            chunks.append(current)
-            current = para
-        else:
-            current = current + "\n\n" + para if current else para
-    if current:
-        chunks.append(current)
+    # Also add all known entry names (spell names, class names, etc.)
+    try:
+        ke_table = read_iceberg_filtered(NAMESPACE, "known_entries_raw", "source_file", source_file)
+        for i in range(len(ke_table)):
+            name = ke_table.column("entry_name")[i].as_py()
+            for word in name.lower().split():
+                spell.word_frequency.load_words([word])
+    except Exception:
+        pass
 
-    text_chunks = []
-    for chunk in chunks:
-        pipe_lines = sum(1 for line in chunk.split("\n") if line.strip().startswith("|"))
-        total_lines = max(1, len(chunk.split("\n")))
-        if pipe_lines / total_lines <= table_threshold:
-            text_chunks.append(chunk)
-
-    if sample and sample < len(text_chunks):
-        import random
-        random.seed(42)
-        text_chunks = random.sample(text_chunks, sample)
-
-    # Check which chunks already processed (resume support)
-    done_hashes = set()
-    if resume:
-        try:
-            progress = read_iceberg_filtered(NAMESPACE, "ocr_progress", "source_file", source_file)
-            done_hashes = {h.as_py() for h in progress.column("chunk_hash")}
-        except Exception:
-            pass
-
-    chunk_hashes = [hashlib.md5(c.encode()).hexdigest()[:12] for c in text_chunks]
-    remaining = [(i, c, h) for i, (c, h) in enumerate(zip(text_chunks, chunk_hashes))
-                 if h not in done_hashes]
-
-    total = len(text_chunks)
-    skipped = total - len(remaining)
-
-    _log(f"OCR check: {source_file} — {total} text chunks"
-         f"{f' (sampled from {len(chunks)})' if sample else ''}"
-         f"{f', resuming ({skipped} already done)' if skipped else ''}")
-
-    if not remaining:
-        _log("  All chunks already checked. Use --no-resume to rerun.")
-        return
-
-    all_errors = {}
-    now = datetime.now()
-    start_time = _time.time()
-    failures = 0
-    bronze_prompt = ocr_cfg.get("bronze_prompt",
-        "Identify OCR errors. Output JSON array of {{\"wrong\": ..., \"correct\": ...}}.\n\n"
-        "Text:\n---\n{text}\n---\n\nJSON array:")
-    bronze_model = ocr_cfg.get("bronze_model", "llama3:8b")
-    max_consecutive_failures = ocr_cfg.get("max_consecutive_failures", 5)
-
-    _log(f"  Using model: {bronze_model}")
-
-    batch_size = ocr_cfg.get("batch_flush_size", 50)
-    progress_batch = []  # accumulate progress rows
-    bronze_max_tokens = ocr_cfg.get("bronze_max_tokens", 500)
-
-    def _flush_progress():
-        """Write accumulated progress and issues to Iceberg in one batch."""
-        if progress_batch:
-            write_iceberg(NAMESPACE, "ocr_progress", pa.table({
-                "source_file": [r[0] for r in progress_batch],
-                "chunk_hash": [r[1] for r in progress_batch],
-                "chunk_index": [r[2] for r in progress_batch],
-                "checked_at": [now] * len(progress_batch),
-            }))
-            progress_batch.clear()
-        if all_errors:
-            errors_list = list(all_errors.items())
-            write_iceberg(NAMESPACE, "ocr_issues", pa.table({
-                "source_file": [source_file] * len(errors_list),
-                "wrong_text": [w for w, _ in errors_list],
-                "suggested_fix": [c for _, (c, _) in errors_list],
-                "context": [ctx for _, (_, ctx) in errors_list],
-                "status": ["candidate"] * len(errors_list),
-                "model": [bronze_model] * len(errors_list),
-                "run_id": [run_id] * len(errors_list),
-                "checked_at": [now] * len(errors_list),
-            }), overwrite_filter="source_file", overwrite_filter_value=source_file)
-
-    for seq, (i, chunk, chunk_hash) in enumerate(remaining):
-        prompt = bronze_prompt.format(text=chunk)
-        elapsed = _time.time() - start_time
-        rate = elapsed / max(seq, 1)
-        eta_s = rate * (len(remaining) - seq)
-        eta_min = eta_s / 60
-        print(f"  Chunk {i + 1}/{total} ({seq + 1}/{len(remaining)} remaining, "
-              f"ETA {eta_min:.0f}m)... ", end="", flush=True)
-
-        response = _call_ollama(prompt, config, model_override=bronze_model,
-                                max_tokens_override=bronze_max_tokens)
-
-        if response is None:
-            failures += 1
-            print(f"FAILED ({failures} consecutive)")
-            if failures >= max_consecutive_failures:
-                _log(f"  Aborting: {max_consecutive_failures} consecutive failures. "
-                     f"Progress saved — rerun to resume.")
-                _flush_progress()
-                break
+    # Extract words from non-table, non-heading content
+    words_with_context = {}  # word -> context line
+    for line in md.split("\n"):
+        stripped = line.strip()
+        # Skip table rows, headings, image refs, short lines
+        if stripped.startswith("|") or stripped.startswith("#") or stripped.startswith("!"):
             continue
+        if len(stripped) < 10:
+            continue
+        # Extract alpha words (3+ chars)
+        for word in stripped.split():
+            clean = word.strip("*_,.;:!?()[]{}\"'—–-/\\")
+            if len(clean) < 3 or not clean.isalpha():
+                continue
+            lower = clean.lower()
+            if lower not in words_with_context:
+                words_with_context[lower] = stripped[:150]
 
-        failures = 0  # reset on success
-        errors = _parse_ocr_response(response)
+    _log(f"  OCR check: {len(words_with_context)} unique words to check")
 
-        if errors:
-            verified = 0
-            for err in errors:
-                wrong = err.get("wrong", "")
-                correct = err.get("correct", "")
-                if not wrong or not correct or wrong == correct:
-                    continue
-                if wrong in all_errors:
-                    continue
-                # Validate: wrong text must exist as a whole word in the chunk
-                # the LLM was scanning — normalize whitespace for multi-line phrases
-                norm_chunk = " ".join(chunk.split())
-                norm_wrong = " ".join(wrong.split())
-                if _find_whole_word(norm_wrong, norm_chunk) < 0:
-                    continue
-                # Context: centered on the match in the chunk
-                ctx = _get_context_for_word(wrong, chunk)
-                if not ctx:
-                    continue
-                all_errors[wrong] = (correct, ctx)
-                verified += 1
-            print(f"{len(errors)} raw, {verified} verified")
-        else:
-            print("clean")
+    # Find unknown words
+    unknown = spell.unknown(words_with_context.keys())
+    _log(f"  Unknown words: {len(unknown)}")
 
-        progress_batch.append((source_file, chunk_hash, i))
+    # Build candidates with corrections
+    now = datetime.now()
+    issues = []
+    for word in sorted(unknown):
+        candidates = spell.candidates(word)
+        if not candidates:
+            continue
+        # Pick best correction (spellchecker ranks by edit distance)
+        correction = spell.correction(word)
+        if not correction or correction == word:
+            continue
+        ctx = words_with_context.get(word, "")
+        issues.append({
+            "source_file": source_file,
+            "wrong_text": word,
+            "suggested_fix": correction,
+            "context": ctx,
+            "status": "candidate",
+            "model": "dictionary",
+            "run_id": run_id,
+            "checked_at": now,
+        })
 
-        # Flush every batch_size chunks
-        if len(progress_batch) >= batch_size:
-            _flush_progress()
+    # Write to Iceberg
+    if issues:
+        write_iceberg(NAMESPACE, "ocr_issues", pa.table({
+            k: [row[k] for row in issues] for k in issues[0]
+        }), overwrite_filter="source_file", overwrite_filter_value=source_file)
 
-    # Final flush
-    _flush_progress()
+    elapsed = _time.time() - start_time
+    _log(f"  OCR check complete: {len(issues)} candidates in {elapsed:.1f}s")
 
-    total_time = _time.time() - start_time
-    checked = len(remaining) - failures
-    _log(f"  OCR check complete: {len(all_errors)} candidates found, "
-         f"{checked} chunks checked in {total_time / 60:.1f}m")
-
-    # Finish run, refresh catalog, free model
     finish_run(run_id, "success",
-               {"candidates": len(all_errors), "chunks_checked": checked})
-    refresh_catalog(source_file, run_id, config)
-    _unload_ollama_model(bronze_model, config)
+               {"candidates": len(issues), "words_checked": len(words_with_context)})
 
 
 def review_ocr(source_file: str) -> None:

@@ -71,19 +71,19 @@ def toc_review(context: AssetExecutionContext):
     context.log.info(f"ToC review passed for all {len(report['files'])} books")
 
 
-@asset(group_name="bronze", compute_kind="ollama", deps=[toc_review])
+@asset(group_name="bronze", compute_kind="python", deps=[toc_review])
 def bronze_ocr_check(context: AssetExecutionContext):
-    """Bronze OCR validation: scan markdown for OCR errors using Ollama (llama3:8b).
+    """Bronze OCR validation: dictionary-based spellcheck of markdown content.
 
-    Resumable — skips chunks already checked. Results stored in bronze_tabletop.ocr_issues.
-    Confirmed fixes should be added to content_substitutions in the book config.
+    Checks all words against English dictionary + game terms whitelist.
+    No LLM needed — runs in seconds. Results in bronze_tabletop.ocr_issues.
     """
     from pathlib import Path
     from dlt.bronze_tabletop_rules import check_ocr, DOCUMENTS_DIR
     pdfs = sorted(DOCUMENTS_DIR.glob("*.pdf"))
     for f in pdfs:
         context.log.info(f"OCR check: {f.name}")
-        check_ocr(f.name, resume=True)
+        check_ocr(f.name)
     context.log.info(f"OCR check complete for {len(pdfs)} books")
 
 
