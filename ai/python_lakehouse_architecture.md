@@ -77,6 +77,7 @@
       - [Step 1.6: Install NVIDIA Container Toolkit (GPU access for Docker)](#step-16-install-nvidia-container-toolkit-gpu-access-for-docker)
       - [Step 1.7: Install Ollama (RTX 4090 Local LLM)](#step-17-install-ollama-rtx-4090-local-llm--no-api-costs)
       - [Step 1.8: Create Project Directory Structure](#step-18-create-project-directory-structure)
+      - [Step 1.9: Install Cloudflare Tunnel (Internet Access to Local Services)](#step-19-install-cloudflare-tunnel-internet-access-to-local-services)
     - [Phase 2: Docker Compose Configuration](#phase-2-docker-compose-configuration)
       - [Step 2.1: Create docker-compose.yml](#step-21-create-docker-composeyml)
       - [Step 2.2: Create SeaweedFS S3 Auth Config](#step-22-create-seaweedfs-s3-auth-config)
@@ -99,6 +100,7 @@
       - [Test 4: dbt Transformations](#test-4-dbt-transformations)
       - [Test 5: Revenue Aggregation](#test-5-revenue-aggregation)
       - [Test 6: End-to-End Incremental Update](#test-6-end-to-end-incremental-update)
+      - [Test 7: Cloudflare Tunnel](#test-7-cloudflare-tunnel)
     - [Phase 7: Troubleshooting Guide](#phase-7-troubleshooting-guide)
       - [Issue 1: A container keeps restarting](#issue-1-a-container-keeps-restarting)
       - [Issue 2: Polaris returns 500 errors](#issue-2-polaris-returns-500-errors)
@@ -973,6 +975,7 @@ After these steps, the RAG engine is ready for queries with the updated pipeline
 - Dash apps (Python processes)
 - RAG API (FastAPI service)
 - ChromaDB (embedded or standalone)
+- Cloudflare Tunnel (`cloudflared`) for exposing Dash/Streamlit to the internet without port forwarding
 
 **Single Machine Requirements**:
 - 32-64 GB RAM (for DuckDB in-memory processing) — *this machine: 64 GB DDR5 @ 6000 MT/s*
@@ -1015,6 +1018,7 @@ After these steps, the RAG engine is ready for queries with the updated pipeline
 - **SeaweedFS** (Go): S3-compatible storage, language-agnostic API
 - **DuckDB core** (C++): Embedded database, feels native to Python
 - **Ollama** (Go): Self-hosted LLM inference, REST API, zero API costs, GPU acceleration
+- **Cloudflare Tunnel** (Go): Expose local services to internet without port forwarding, free tier
 
 ### Why This Works
 - Single language for development (Python)
@@ -1619,6 +1623,47 @@ D:\source\lakehouse\lakehouse\
 
 ---
 
+#### Step 1.9: Install Cloudflare Tunnel (Internet Access to Local Services)
+
+Cloudflare Tunnel (`cloudflared`) exposes local services (Dash, Streamlit, Dagster) to the internet without port forwarding or router configuration. Free tier, no domain required.
+
+**Install cloudflared** (PowerShell):
+
+```powershell
+winget install Cloudflare.cloudflared
+```
+
+Close and reopen PowerShell after install.
+
+**Verify installation**:
+
+```powershell
+cloudflared --version
+```
+
+Should print a version like `cloudflared version 2024.x.x`.
+
+**Quick test — temporary public URL** (no account needed):
+
+```powershell
+cloudflared tunnel --url http://localhost:8000
+```
+
+This prints a `https://xxx.trycloudflare.com` URL. Anyone with the link can access the service. Press Ctrl+C to stop.
+
+**Named tunnel with custom domain** (requires free Cloudflare account + domain):
+
+```powershell
+cloudflared tunnel login
+cloudflared tunnel create tabletop
+cloudflared tunnel route dns tabletop browser.yourdomain.com
+cloudflared tunnel run --url http://localhost:8000 tabletop
+```
+
+> **Security note**: Services exposed via tunnel have no auth by default. Add [Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/policies/access/) (free for up to 50 users) to restrict access by email or SSO.
+
+---
+
 ### Phase 2: Docker Compose Configuration
 
 All files in this phase go in `D:\source\lakehouse\lakehouse\docker\`.
@@ -1754,7 +1799,7 @@ services:
     ports:
       - "8889:8889"    # Jupyter Lab
       - "8501:8501"    # Streamlit
-      - "8000:8000"    # RAG API
+      - "8000:8000"    # Dash browser / RAG API
     volumes:
       - ../data:/workspace/data
       - ../dlt:/workspace/dlt
@@ -2519,6 +2564,18 @@ After running the above cell:
 2. Run `dbt run` in the terminal
 3. Refresh `http://localhost:8501` — the new row should appear
 
+#### Test 7: Cloudflare Tunnel
+
+```powershell
+# Verify cloudflared is installed
+cloudflared --version
+
+# Start a temporary tunnel to the Dash app (Ctrl+C to stop)
+cloudflared tunnel --url http://localhost:8000
+# Should print a https://xxx.trycloudflare.com URL
+# Open that URL in a browser — you should see the Dash app
+```
+
 ---
 
 ### Phase 7: Troubleshooting Guide
@@ -2688,7 +2745,33 @@ dash==4.0.0
 dash-bootstrap-components==2.0.4
 ```
 
-Build a multi-page Dash app with more customization than Streamlit, suited for external/customer-facing dashboards.
+The Tabletop Rules Browser (`dashapp/tabletop_browser.py`) is the first Dash app — a full scrollable book view with ToC sidebar navigation. It reads from silver/gold Iceberg tables via DuckDB and serves on port 8000 inside the workspace container.
+
+**Running the Dash app**:
+```bash
+# Inside lakehouse-workspace container
+python /workspace/dashapp/tabletop_browser.py
+# Serves on http://localhost:8000
+```
+
+**Exposing to the internet via Cloudflare Tunnel** (free, no domain required):
+```powershell
+# One-time install on Windows host
+winget install Cloudflare.cloudflared
+
+# Start a temporary public tunnel (prints a https://xxx.trycloudflare.com URL)
+cloudflared tunnel --url http://localhost:8000
+```
+
+For a stable URL with a custom domain:
+```powershell
+cloudflared tunnel login
+cloudflared tunnel create tabletop
+cloudflared tunnel route dns tabletop browser.yourdomain.com
+cloudflared tunnel run --url http://localhost:8000 tabletop
+```
+
+> **Note**: Dash has no built-in auth. For public access, add Cloudflare Access (free for up to 50 users) to restrict who can view the app.
 
 #### Enhancement 4: Implement CI/CD
 

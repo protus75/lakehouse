@@ -24,6 +24,7 @@ marker-pdf==1.10.2
 
 # Visualization
 streamlit==1.54.0
+dash==3.0.4
 plotly==6.5.2
 
 # RAG layer
