@@ -1583,11 +1583,23 @@ def _find_whole_word(word: str, text: str) -> int:
 
 
 def _get_context_for_word(word: str, text: str, context_chars: int = 150) -> str:
-    """Find the line containing a whole-word match and return it as context."""
-    for line in text.split("\n"):
-        if _find_whole_word(word, line) >= 0:
-            return line.strip()[:context_chars]
-    return ""
+    """Find surrounding context for a whole-word match in text.
+    Searches continuous text (not line-by-line) to handle phrases spanning lines."""
+    # Normalize whitespace for searching
+    normalized = " ".join(text.split())
+    norm_word = " ".join(word.split())
+    pos = _find_whole_word(norm_word, normalized)
+    if pos < 0:
+        return ""
+    # Extract context centered on the match
+    start = max(0, pos - 40)
+    end = min(len(normalized), pos + len(norm_word) + 80)
+    # Extend to word boundaries
+    while start > 0 and normalized[start - 1] not in " \t":
+        start -= 1
+    while end < len(normalized) and normalized[end] not in " \t":
+        end += 1
+    return normalized[start:end].strip()
 
 
 def _parse_ocr_response(text: str) -> list[dict]:
@@ -1782,10 +1794,12 @@ def check_ocr(source_file: str, sample: int = 0, resume: bool = True) -> None:
                 if wrong in all_errors:
                     continue
                 # Validate: wrong text must exist as a whole word in the chunk
-                # the LLM was scanning — not anywhere else in the document
-                if _find_whole_word(wrong, chunk) < 0:
+                # the LLM was scanning — normalize whitespace for multi-line phrases
+                norm_chunk = " ".join(chunk.split())
+                norm_wrong = " ".join(wrong.split())
+                if _find_whole_word(norm_wrong, norm_chunk) < 0:
                     continue
-                # Context: from the chunk, not the full markdown
+                # Context: centered on the match in the chunk
                 ctx = _get_context_for_word(wrong, chunk)
                 if not ctx:
                     continue
