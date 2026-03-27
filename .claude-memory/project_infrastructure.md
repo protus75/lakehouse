@@ -22,16 +22,19 @@ DuckDB-as-storage → SeaweedFS (S3) + Apache Iceberg (PyIceberg SQL catalog on 
 - Dagster added for orchestration
 - dbt still materializes to DuckDB, post-dbt publish writes to Iceberg
 
-## Model seeding
-No pipeline should download models. Dedicated seed pipeline only. All others run offline, fail if models missing.
-- Daemon has `TRANSFORMERS_OFFLINE=1`, `HF_HUB_OFFLINE=1`
-- Need to create `seed_models` Dagster asset/job (only one allowed online)
+## Model seeding (done 2026-03-27)
+`seed_models` Dagster job validates all model dependencies. Daemon has `TRANSFORMERS_OFFLINE=1`, `HF_HUB_OFFLINE=1`.
+- `seed_ollama_models`: pulls llama3:70b, llama3:8b, minicpm-v from host Ollama API
+- `seed_huggingface_models`: validates HF cache (all-MiniLM-L6-v2)
+- `seed_marker_cache`: validates Marker PDF cache exists
+- Model list in `config/lakehouse.yaml` under `models:`
 
-## Docker image split plan
-Single Dockerfile → three (base/daemon/workspace) to fix 5-8 min rebuilds.
-- **Dockerfile.base**: python:3.11-slim + shared packages (pyarrow, duckdb, boto3, pyiceberg, polars)
-- **Dockerfile.daemon**: FROM base + dagster, dbt, pyspellchecker. NO PyTorch/Marker. ~30s rebuild.
-- **Dockerfile.workspace**: FROM base + PyTorch, CUDA, marker-pdf, sentence-transformers, chromadb, streamlit. GPU-enabled.
-- Split requirements into three files
-- Update docker-compose.yml for separate build contexts
-- Daemon NEVER imports marker/torch/transformers
+## Docker images (done 2026-03-27)
+Two images: base + workspace. All three services use workspace image.
+- **Dockerfile.base**: python:3.11-slim + shared packages (pyarrow, duckdb, boto3, pyiceberg, polars, pyspellchecker)
+- **Dockerfile.workspace**: FROM base + dagster, dbt, PyTorch, CUDA, marker-pdf, sentence-transformers, chromadb, streamlit
+- Webserver, daemon, workspace all use `lakehouse-workspace:latest` with different commands
+- Three-way split was tried and reverted — daemon couldn't import pymupdf/marker needed by bronze assets
+
+## NVIDIA driver (2026-03-27)
+Driver 595.97, CUDA 13.2, RTX 4090. PyTorch 2.11+cu130 working.

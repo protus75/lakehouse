@@ -13,12 +13,12 @@ NEVER run pipeline steps manually (docker exec, dbt build, ollama pull, etc). Al
 Docker processes crash silently. For ANY command >1 minute:
 1. Run in background
 2. Poll every 30s, compare output between polls
-3. Check GPU (nvidia-smi) and container memory
-4. If no output change after 60s — process is probably dead
+3. Check disk I/O and network activity to verify actual progress — don't just re-read logs
+4. If no output change after 60s — check disk/network; if idle, process is hung — cancel immediately
 5. Report: stage, % progress, ETA, GPU/memory stats
-6. If dead, tell user immediately
+6. If dead or hung, tell user and cancel immediately — do NOT keep polling a stuck process
 
-NEVER go silent waiting on a long task.
+NEVER go silent waiting on a long task. NEVER keep polling when logs show no change — verify with disk/network.
 
 ## Kill stale processes
 Before every pipeline run: check for leftover python processes in containers. After completion: verify cleanup. Report GPU state.

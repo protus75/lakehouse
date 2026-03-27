@@ -91,11 +91,19 @@ def write_iceberg(
         existing_names = {f.name for f in tbl.schema().fields}
         new_fields = [f for f in arrow_table.schema if f.name not in existing_names]
         if new_fields:
+            from pyiceberg.io.pyarrow import visit_pyarrow, _ConvertToIceberg
+            converter = _ConvertToIceberg()
             with tbl.update_schema() as update:
                 for field in new_fields:
-                    update.add_column(field.name, field.type)
+                    iceberg_type = visit_pyarrow(field.type, converter)
+                    update.add_column(field.name, iceberg_type)
             tbl = catalog.load_table(full_name)
     except Exception:
+        # Table may exist in catalog but S3 metadata is gone — drop stale entry
+        try:
+            catalog.drop_table(full_name)
+        except Exception:
+            pass
         tbl = catalog.create_table(full_name, schema=arrow_table.schema)
 
     if overwrite_filter and overwrite_filter_value is not None:

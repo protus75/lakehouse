@@ -1704,22 +1704,15 @@ def check_ocr(source_file: str) -> None:
     unknown = spell.unknown(words_with_context.keys())
     _log(f"  Unknown words: {len(unknown)}")
 
-    # Build candidates with corrections
+    # Record unknown words (skip slow candidates/correction lookup)
     now = datetime.now()
     issues = []
     for word in sorted(unknown):
-        candidates = spell.candidates(word)
-        if not candidates:
-            continue
-        # Pick best correction (spellchecker ranks by edit distance)
-        correction = spell.correction(word)
-        if not correction or correction == word:
-            continue
         ctx = words_with_context.get(word, "")
         issues.append({
             "source_file": source_file,
             "wrong_text": word,
-            "suggested_fix": correction,
+            "suggested_fix": "",
             "context": ctx,
             "status": "candidate",
             "model": "dictionary",

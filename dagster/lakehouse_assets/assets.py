@@ -145,15 +145,52 @@ def seed_ollama_models(context: AssetExecutionContext):
         context.log.warning("No Ollama models configured in lakehouse.yaml")
         return
 
+    import json as _json
+    import time
+
     for model in models:
-        context.log.info(f"Pulling {model}...")
-        resp = requests.post(
-            f"{url}/api/pull",
-            json={"name": model, "stream": False},
-            timeout=1800,
-        )
-        resp.raise_for_status()
-        context.log.info(f"  {model}: OK")
+        max_retries = 3
+        for attempt in range(1, max_retries + 1):
+            context.log.info(f"Pulling {model}... (attempt {attempt}/{max_retries})")
+            try:
+                resp = requests.post(
+                    f"{url}/api/pull",
+                    json={"name": model, "stream": True},
+                    stream=True,
+                    timeout=(30, 120),
+                )
+                resp.raise_for_status()
+                last_pct = -1
+                last_progress_time = time.monotonic()
+                last_completed = 0
+                for line in resp.iter_lines():
+                    if not line:
+                        continue
+                    status = _json.loads(line)
+                    total = status.get("total", 0)
+                    completed = status.get("completed", 0)
+                    now = time.monotonic()
+                    if total > 0:
+                        if completed > last_completed:
+                            last_progress_time = now
+                            last_completed = completed
+                        elif now - last_progress_time > 120:
+                            raise TimeoutError(f"Stalled at {completed}/{total} bytes for 120s")
+                        pct = int(completed * 100 / total)
+                        if pct >= last_pct + 10:
+                            context.log.info(f"  {model}: {pct}% ({completed // (1024*1024)}MB / {total // (1024*1024)}MB)")
+                            last_pct = pct
+                    elif "status" in status and "pulling" not in status.get("status", ""):
+                        context.log.info(f"  {model}: {status['status']}")
+                        last_progress_time = now
+                context.log.info(f"  {model}: OK")
+                break
+            except (TimeoutError, requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
+                context.log.warning(f"  {model}: {e}")
+                if attempt == max_retries:
+                    raise
+                context.log.info(f"  Retrying in 10s...")
+                time.sleep(10)
 
     resp = requests.get(f"{url}/api/tags", timeout=10)
     resp.raise_for_status()
