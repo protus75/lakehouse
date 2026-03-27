@@ -37,6 +37,31 @@ content_substitutions:
   - ['Tumans', 'Humans']
   - ['Cnomes', 'Gnomes']
   - ['Although humans are treated as a single race **Humans**', 'Humans are treated as a single race']
+  # Line-break fragments
+  - ['re newed', 'renewed']
+  - ['group cessful', "group's successful"]
+  - ['spellcast-Wizard ers', 'spellcasters']
+  - ['communi-\n\n#### **Obscurement**', 'communication ability.\n\n#### **Obscurement**']
+  # Marker garbled text (shifted-character encoding artifacts)
+  - ['BSBDUFSDBOTQVSIJTTUFFEPOUPHSFBUTQFFET', '']
+  - ['BEEJOH 6 feet per round', 'Adding 6 feet per round']
+  - ['FTVNFTUSBDLJOHBGUFSBIBMU UPSFTU', '']
+  - ['FBU', '']
+  - ['GJHIU etc.).', '']
+  - ['- t #FDBVTFTQFDJBMJTUTIBWFBO enhanced understanding', '- Because specialists have an enhanced understanding']
+  - ['- t 4QFDJBMJTUTSFDFJWFBCPOVTPGXIFO learning', '- Specialists receive a bonus of +15% when learning']
+  - ['Equipment ine ioliowing iss include india of the equipment', 'equipment']
+  - ['Player Criditacters also carried ence points', 'Player Characters also carried experience points']
+  - ['tates the total number', 'dictates the total number']
+  - ['tions (see below). These spells', 'Divinations (see below). These spells']
+  # Garbled encoded lines (full removal)
+  - ['fbqgspnuifcbdlpguifnpvouboeespqgffuupuif', '']
+  - ['fbqpoupuiftbeemfpguifdsfbuvsf', '']
+  - ['dsfbuvsftmfbwing', '']
+  - ['tfdpoeusbdldspttftuifgjstu', '']
+  - ['tqfdjbmjtuhbjotpofbeejtional', '']
+  - ['xifojujttuboejohpo', '']
+  - ['drelb', 'Drelb']
 
 exclude_chapters:
   - "Appendix 1: Spell Lists"
@@ -271,3 +296,224 @@ valid_section_headings:
 chunking:
   max_chars: 800
   overlap: 200
+
+# PHB-specific dictionary additions (author names, character names, place names)
+# These supplement the game_dictionary in _default.yaml
+game_dictionary:
+  # Author/credit names
+  - alan
+  - anne
+  - barnett
+  - beauvais
+  - breault
+  - curtis
+  - dameron
+  - daniel
+  - david
+  - dee
+  - dorscheid
+  - easley
+  - feggestad
+  - frazier
+  - gary
+  - gygax
+  - heyer
+  - james
+  - jeff
+  - joan
+  - johann
+  - jon
+  - kerkstra
+  - lakey
+  - laura
+  - les
+  - morrison
+  - ned
+  - nicholas
+  - peggy
+  - pickens
+  - rabe
+  - reid
+  - robh
+  - ruppel
+  - sarah
+  - schend
+  - sczcudlo
+  - steve
+  - steven
+  - stockley
+  - teresa
+  - thomas
+  - vallese
+  - valerie
+  - zeb
+  # Character/NPC names in examples
+  - alkemade
+  - angnar
+  - asquil
+  - beornhelm
+  - bloodheart
+  - boosk
+  - booskites
+  - brondvrouw
+  - cwell
+  - delsenora
+  - drelb
+  - fiera
+  - frazznargth
+  - gonfli
+  - gonflians
+  - gorus
+  - ignatz
+  - lurdas
+  - megarran
+  - pennypincher
+  - ragnar
+  - samarquol
+  - sniggel
+  - targash
+  - tarus
+  - thorac
+  - thule
+  - trolhel
+  - vesna
+  # Historical/mythological/literary names
+  - alexander
+  - amergin
+  - belisarius
+  - beowulf
+  - caesar
+  - charlemagne
+  - cid
+  - circe
+  - columbus
+  - cuchulain
+  - diana
+  - fili
+  - galahad
+  - gawain
+  - hannibal
+  - hercules
+  - hiawatha
+  - horace
+  - joinville
+  - lancelot
+  - medea
+  - orion
+  - perseus
+  - roland
+  - rupert
+  - siegfried
+  - sinbad
+  - spartacus
+  - tristan
+  - turpin
+  - vulovic
+  # Place names
+  - albion
+  - britain
+  - celestia
+  - delémont
+  - elysium
+  - europe
+  - middlesex
+  - missoula
+  - montana
+  - renton
+  - scotland
+  - uxbridge
+  - wychwood
+  # Language/culture references
+  - arabic
+  - celtic
+  - egyptian
+  - european
+  - greek
+  - italian
+  - scandinavian
+  - spanish
+  - teutonic
+  # Publisher/legal
+  - april
+  - ave
+  - hasbro
+  - isbn
+  - january
+  - llc
+  - tsr
+  - usa
+  # D&D terms specific to PHB text
+  - aaaaarrrgh
+  - ahistorically
+  - ali
+  - beasties
+  - bec
+  - corbin
+  - curragh
+  - detenses
+  - dic
+  - divina
+  - dom
+  - dragonking
+  - dragonship
+  - drakkar
+  - draughts
+  - eyestalks
+  - ficiencies
+  - flametongue
+  - frostbrand
+  - goodfellow
+  - guickly
+  - hairfeets
+  - halfelves
+  - hmmm
+  - hospitalers
+  - hypoxis
+  - knarr
+  - lionheart
+  - luckstone
+  - matically
+  - mithral
+  - mudpots
+  - olympic
+  - ophidianoid
+  - opposome
+  - orcish
+  - overzealousness
+  - pawprints
+  - pendices
+  - permnanent
+  - pheromonic
+  - pikemen
+  - playtest
+  - playtesters
+  - playtesting
+  - pyrohydra
+  - quillons
+  - refigured
+  - reinspired
+  - rememorized
+  - rex
+  - roundwood
+  - rulership
+  - seatings
+  - sorcerous
+  - tallfellows
+  - templar
+  - tenchmen
+  - tinued
+  - tinklings
+  - tsk
+  - unbreakability
+  - unbridling
+  - uncracked
+  - unhelmeted
+  - uninvestigated
+  - unroped
+  - unworked
+  - vecna
+  - versa
+  - warcraft
+  - weirds
+  - newed
+  - nitre
