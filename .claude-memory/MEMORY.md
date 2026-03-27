@@ -1,9 +1,9 @@
 - [feedback_memory_location.md](feedback_memory_location.md) — Memory is in .claude-memory/ in repo root, NOT system default path
 - [user_profile.md](user_profile.md) — User prefers CLI/PowerShell, not Jupyter, experienced Windows dev with RTX 4090
-- [feedback_coding_rules.md](feedback_coding_rules.md) — Generic: no hardcoded values, config-first, no regex, fix at ingestion, follow architecture, never discard data
-- [feedback_tooling.md](feedback_tooling.md) — Generic: PowerShell syntax, VSCode only, no jq, pip needs rebuild, Streamlit restart, test before asking
-- [feedback_pipeline_ops.md](feedback_pipeline_ops.md) — Generic: Dagster only, zero errors, monitor tasks, kill stale, no downloads
-- [feedback_system_ops.md](feedback_system_ops.md) — Generic: stop/kill means immediately, save working state aggressively, memory in repo
+- [feedback_coding_rules.md](feedback_coding_rules.md) — Fix at ingestion not export, never set test severity to warn (rest moved to CLAUDE.md)
+- [feedback_tooling.md](feedback_tooling.md) — VSCode only, no jq, WSL GPU fix, Streamlit restart, read-only perms, test before asking
+- [feedback_pipeline_ops.md](feedback_pipeline_ops.md) — Kill stale processes before runs, finish before moving on (rest in CLAUDE.md/hooks)
+- [feedback_system_ops.md](feedback_system_ops.md) — Stop means immediately, kill all means ALL, save debug state aggressively
 - [project_infrastructure.md](project_infrastructure.md) — D drive, S3+Iceberg migration done, model seeding, Docker image split plan
 - [project_tabletop_rules.md](project_tabletop_rules.md) — Tabletop: PHB only, Marker PDF, Dagster jobs, enrichment, pipeline status, gold plans
 - [project_tabletop_content_quality.md](project_tabletop_content_quality.md) — Tabletop: 25 content quality issues and gold features, priority order

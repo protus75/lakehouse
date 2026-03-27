@@ -1,6 +1,6 @@
 ---
-name: System operations and memory rules
-description: Stop/kill commands, save working state aggressively, memory file location
+name: System operations rules
+description: Stop/kill behavior, save working state — not covered by CLAUDE.md or hooks
 type: feedback
 ---
 
@@ -16,6 +16,3 @@ When user says "stop" or "stop everything": `docker stop $(docker ps -q)` FIRST.
 
 ## Save working state aggressively
 During debugging sessions, immediately save bugs, root causes, fixes, and verification status to memory. Include specific entry names, error counts, which validations are real vs false positives. Prevents re-discovery across fresh chats.
-
-## Memory file location
-Write all memory files to `d:\source\lakehouse\lakehouse\.claude-memory\`. User keeps them in repo for git tracking.

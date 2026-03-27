@@ -33,10 +33,35 @@
       "Bash(wc:*)",
       "Bash(wsl:*)",
       "Bash(xargs:*)",
-      "Skill(update-config:*)",
+      "Skill(update-config:*)"
     ]
   },
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -c \"import sys,json,re; d=json.load(sys.stdin); cmd=d.get('tool_input',{}).get('command',''); patterns=[r'docker exec.*python\\s+(-u\\s+)?-m\\s+dlt\\.', r'docker exec.*dbt\\s+(build|run|test)', r'docker exec.*python\\s+(-u\\s+)?dlt/', r'docker exec.*python\\s+(-u\\s+)?scripts/']; sys.exit(1) if any(re.search(p,cmd) for p in patterns) else sys.exit(0)\"",
+            "timeout": 5,
+            "statusMessage": "Checking: no manual pipeline runs (use Dagster)"
+          },
+          {
+            "type": "command",
+            "command": "python -c \"import sys,json,re; d=json.load(sys.stdin); cmd=d.get('tool_input',{}).get('command',''); sys.exit(1) if re.search(r'docker exec.*pip install',cmd) else sys.exit(0)\"",
+            "timeout": 5,
+            "statusMessage": "Checking: no pip install in containers"
+          },
+          {
+            "type": "command",
+            "command": "python -c \"import sys,json,re; d=json.load(sys.stdin); cmd=d.get('tool_input',{}).get('command',''); sys.exit(1) if re.search(r'docker exec.*ollama pull',cmd) else sys.exit(0)\"",
+            "timeout": 5,
+            "statusMessage": "Checking: no ollama pull without permission"
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Write|Edit",

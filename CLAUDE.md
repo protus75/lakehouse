@@ -3,6 +3,42 @@
 ## Memory
 - **Read `.claude-memory/MEMORY.md` at the start of every conversation.** It indexes all persistent memory files. Read every file it references before doing any work.
 
+## Rules — MUST FOLLOW
+
+### No hardcoded values — CRITICAL
+NEVER hardcode thresholds, field names, patterns, pixel values, magic numbers, or string literals in code. Everything goes in YAML config (`config/lakehouse.yaml` or per-book configs). Write YAML config FIRST, then code that reads it.
+
+### No regex for content parsing — CRITICAL
+NEVER use regex for content parsing. Use string operations (split, startswith, find, `in`), ML-detected headings, or LLM for complex classification. Only acceptable for truly atomic patterns (extracting a number, fixed format).
+
+### Dagster only — CRITICAL
+NEVER run pipeline steps manually (`docker exec python -m dlt.*`, `dbt build`, `ollama pull`). Always use Dagster jobs/assets via http://localhost:3000. Only exception: small diagnostic/sample queries for debugging.
+
+### Zero validation errors — CRITICAL
+ZERO errors before new features. Never say "good enough." Never commit with known bad data. Never set test severity to `warn` to suppress failures.
+
+### Never discard data during extraction — CRITICAL
+Capture EVERY field from ANY source. Store raw in bronze with ALL columns. Never reduce or simplify during extraction — that's for silver/gold.
+
+### Monitor long-running tasks
+Docker processes crash silently. For ANY command >1 minute: run in background, poll every 30s, compare output between polls, check disk I/O. If no output change after 60s and disk/network idle — process is hung, cancel immediately. NEVER go silent waiting on a long task.
+
+### No downloads without permission
+Before pipeline runs: verify model cache volumes mounted. Monitor stderr for "Downloading" in first 5 seconds — kill immediately if found. Metered network.
+
+### No pip install in containers
+NEVER `pip install` in a running container — it's lost on restart. Add to `docker/requirements.txt` and rebuild the image.
+
+### Shell commands
+- Use PowerShell syntax (`;` not `&&`) in instructions to the user
+- No inline comments in copyable commands
+- Always include `cd` or absolute paths — never assume directory
+- Bash tool: run commands directly without `cd /path &&` prefix
+- No `jq` — use `python -c "import json..."` instead
+
+### Finish before moving on
+Complete the current task fully — run full validation, review results, fix issues. Don't present menus of options after partial results.
+
 ## Infrastructure
 
 ### Docker
@@ -44,16 +80,7 @@
 PDF → Bronze (dlt→Iceberg, ~15s) → Silver+Gold (dbt, ~5s) → Publish (Iceberg) → AI Enrichment (Ollama, ~70min)
 ```
 
-### Run commands (manual)
-```bash
-docker exec lakehouse-workspace python -u -m dlt.bronze_tabletop_rules
-docker exec lakehouse-workspace bash -c "cd /workspace/dbt/lakehouse_mvp && dbt build --select tabletop"
-docker exec lakehouse-workspace python -u dlt/publish_to_iceberg.py
-docker exec lakehouse-workspace python -u scripts/tabletop_rules/enrich_summaries.py
-docker exec lakehouse-workspace python -u scripts/tabletop_rules/enrich_annotations.py
-```
-
-### Dagster orchestration
+### Dagster orchestration (ALL pipeline runs go through Dagster)
 - UI: http://localhost:3000
 - Jobs: `tabletop_full_pipeline`, `tabletop_without_enrichment`
 - Assets: `bronze_tabletop → dbt_tabletop → publish_to_iceberg → gold_ai_summaries / gold_ai_annotations`
