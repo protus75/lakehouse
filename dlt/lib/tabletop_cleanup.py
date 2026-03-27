@@ -32,7 +32,7 @@ def _deep_merge(base: dict, override: dict) -> dict:
 
 def load_config(filepath: Path, configs_dir: Path) -> dict:
     default_path = configs_dir / "_default.yaml"
-    book_path = configs_dir / f"{filepath.stem}.yaml"
+    book_path = configs_dir / f"{filepath.stem.replace(' ', '_')}.yaml"
     config = {}
     if default_path.exists():
         with open(default_path) as f:
