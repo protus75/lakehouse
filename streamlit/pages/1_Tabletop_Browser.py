@@ -1,95 +1,33 @@
-"""Tabletop Rules Browser — book-style ToC with drill-down to entries."""
+"""Tabletop Rules Browser — full scrollable book with ToC sidebar navigation."""
 import sys
 sys.path.insert(0, "/workspace/streamlit")
 sys.path.insert(0, "/workspace")
 
 import streamlit as st
-import re
 from lib.tabletop import (
-    get_books, get_toc, get_entry_list, get_entry_content,
-    get_entry_by_id, get_entry_index, get_summary, get_annotations,
-    get_chapter_sections, search_entries, get_table_lookup,
+    get_books, get_toc, get_full_book, get_entry_index,
+    get_summary, get_annotations, search_entries,
 )
 
-# Compact styles — kill all Streamlit spacing bloat
+# Compact styling
 st.markdown("""
 <style>
-    /* Kill whitespace between elements in main area */
-    div[data-testid="stMainBlockContainer"] .stElementContainer {
-        margin: 0 !important; padding: 0 !important;
-    }
-    div[data-testid="stMainBlockContainer"] .stMarkdown { margin: 0 !important; padding: 0 !important; }
-    /* All buttons → text links */
-    div[data-testid="stMainBlockContainer"] button[kind="secondary"] {
-        background: none !important; border: none !important;
-        padding: 0 !important; margin: 0 !important;
-        color: #4a9eff !important; cursor: pointer !important;
-        text-align: left !important; min-height: 0 !important;
-        line-height: 1.6 !important; font-size: 0.9rem !important;
-    }
-    div[data-testid="stMainBlockContainer"] button[kind="secondary"]:hover {
-        text-decoration: underline !important; background: none !important;
-    }
-    div[data-testid="stMainBlockContainer"] button[kind="secondary"]:focus {
-        box-shadow: none !important;
-    }
-    div[data-testid="stMainBlockContainer"] button[kind="secondary"] p {
-        font-size: inherit !important; margin: 0 !important;
-    }
-    /* ToC entry styles — inline in HTML */
     .toc-line { line-height: 1.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .toc-chapter { font-weight: 600; font-size: 1rem; margin-top: 0.3rem; }
-    .toc-line a, .toc-chapter a, .toc-section a, .toc-table-entry a {
-        color: #4a9eff !important; text-decoration: none !important;
-    }
-    .toc-line a:hover, .toc-chapter a:hover, .toc-section a:hover, .toc-table-entry a:hover {
-        text-decoration: underline !important;
-    }
-    .toc-table-entry a { font-style: italic !important; }
+    .toc-section { }
+    .toc-table-entry { font-style: italic; }
+    .toc-line a { color: #4a9eff !important; text-decoration: none !important; }
+    .toc-line a:hover { text-decoration: underline !important; }
+    .book-chapter { margin-top: 2rem; padding-top: 1rem; border-top: 2px solid #333; }
+    .book-entry { margin-top: 1rem; }
+    .book-entry-title { font-weight: 600; font-size: 1.05rem; color: #4a9eff; margin-bottom: 0.2rem; }
+    .book-badges { font-size: 0.8rem; color: #888; margin-bottom: 0.3rem; }
+    .book-summary { background: #1a1a2e; border-left: 3px solid #4a9eff; padding: 0.5rem 0.8rem;
+                    margin: 0.3rem 0; font-size: 0.9rem; }
 </style>
 """, unsafe_allow_html=True)
 
-
-# ── Navigation via session state ─────────────────────────────
-# Maintains a history stack so "Back" works within the page.
-
-if "nav_history" not in st.session_state:
-    st.session_state["nav_history"] = []
-if "nav_current" not in st.session_state:
-    st.session_state["nav_current"] = {"view": "toc"}
-
-
-def _nav_push(new_state):
-    """Push current state to history and navigate to new state."""
-    st.session_state["nav_history"].append(st.session_state["nav_current"].copy())
-    st.session_state["nav_current"] = new_state
-
-
-def _nav_back():
-    """Go back to previous state."""
-    if st.session_state["nav_history"]:
-        st.session_state["nav_current"] = st.session_state["nav_history"].pop()
-
-
-def _nav_to_toc():
-    _nav_push({"view": "toc"})
-
-def _nav_to_chapter(toc_id, title):
-    _nav_push({"view": "chapter", "toc_id": toc_id, "toc_title": title})
-
-def _nav_to_entry(toc_id, toc_title, entry_title):
-    _nav_push({"view": "entry", "toc_id": toc_id, "toc_title": toc_title,
-               "entry_title": entry_title})
-
-def _nav_to_entry_id(entry_id):
-    _nav_push({"view": "entry_by_id", "entry_id": entry_id})
-
-
-nav = st.session_state["nav_current"]
-has_history = len(st.session_state["nav_history"]) > 0
-
-
-# ── Sidebar: book selector + search ─────────────────────────
+# ── Sidebar ──────────────────────────────────────────────────
 
 books = get_books()
 if not books:
@@ -98,17 +36,13 @@ if not books:
 
 selected_book = st.sidebar.selectbox("Book", books)
 
-if st.sidebar.button("Table of Contents", key="sidebar_toc"):
-    _nav_to_toc()
-    st.rerun()
-
 st.sidebar.divider()
 st.sidebar.markdown("**Display**")
 show_summary = st.sidebar.toggle("AI Summary", value=True)
-show_content = st.sidebar.toggle("Full Content", value=True)
 show_meta = st.sidebar.toggle("Entry Details", value=True)
 st.sidebar.divider()
 
+# Search
 search_query = st.sidebar.text_input("Search entries", placeholder="e.g. Fireball, THAC0...")
 if search_query:
     results = search_entries(search_query)
@@ -117,250 +51,161 @@ if search_query:
     else:
         st.sidebar.markdown(f"**{len(results)} results**")
         for row in results.iter_rows(named=True):
-            label = f"{row['entry_title']}  *({row['entry_type']})*"
-            if st.sidebar.button(label, key=f"search_{row['entry_id']}"):
-                _nav_to_entry_id(row["entry_id"])
-                st.rerun()
+            st.sidebar.markdown(
+                f'<div class="toc-line toc-section">'
+                f'<a href="#entry-{row["entry_id"]}" target="_self">'
+                f'{row["entry_title"]} ({row["entry_type"]})</a></div>',
+                unsafe_allow_html=True,
+            )
 
+st.sidebar.divider()
 
-# ── Load ToC ─────────────────────────────────────────────────
-
+# ToC navigation in sidebar
 toc = get_toc(selected_book)
 if toc.is_empty():
     st.info("No table of contents for this book.")
     st.stop()
 
 toc_rows = list(toc.iter_rows(named=True))
-toc_lookup = {r["toc_id"]: r for r in toc_rows}
 
-# ── Handle HTML link clicks (query params) ───────────────────
+st.sidebar.markdown("**Table of Contents**")
+toc_html = []
+for row in toc_rows:
+    depth = int(row.get("depth", 0))
+    is_table = bool(row.get("is_table", False))
+    is_chapter = bool(row.get("is_chapter", False))
+    indent = depth * 1.2
 
-if "nav_toc_id" in st.query_params:
-    clicked_id = int(st.query_params["nav_toc_id"])
-    st.query_params.clear()
-    clicked_row = toc_lookup.get(clicked_id)
-    if clicked_row:
-        _nav_to_chapter(clicked_id, clicked_row["title"])
-        st.rerun()
+    if is_chapter:
+        css = "toc-chapter"
+    elif is_table:
+        css = "toc-table-entry"
+    else:
+        css = "toc-section"
 
-if "nav_entry" in st.query_params:
-    val = st.query_params["nav_entry"]
-    st.query_params.clear()
-    parts = val.split(":", 1)
-    if len(parts) == 2:
-        entry_toc_id = int(parts[0])
-        entry_title = parts[1]
-        entry_toc = toc_lookup.get(entry_toc_id, {})
-        _nav_to_entry(entry_toc_id, entry_toc.get("title", ""), entry_title)
-        st.rerun()
+    toc_html.append(
+        f'<div class="toc-line {css}" style="padding-left:{indent}rem">'
+        f'<a href="#toc-{row["toc_id"]}" target="_self">{row["title"]}</a></div>'
+    )
+st.sidebar.markdown("\n".join(toc_html), unsafe_allow_html=True)
 
-
-# ── Back button (always visible when there's history) ────────
-
-def _show_back():
-    if has_history:
-        if st.button("\u2190 Back", key="nav_back"):
-            _nav_back()
-            st.rerun()
+# Build set of ToC titles so we can add toc anchors to matching entries
+toc_title_to_id = {row["title"]: row["toc_id"] for row in toc_rows}
 
 
-# ── Content renderer with table links ────────────────────────
+# ── Main content: full book ──────────────────────────────────
 
-_TABLE_REF = re.compile(r"\bTable\s+(\d+)\b")
+book_name = selected_book.replace(".pdf", "").replace("_", " ")
+st.title(book_name)
 
-def _render_content_with_table_links(content: str):
-    """Render markdown content, turning 'Table N' references into clickable links."""
-    table_lookup = get_table_lookup()
+# Load full book content
+book_data = get_full_book(selected_book)
+if book_data.is_empty():
+    st.info("No content found. Run the pipeline first.")
+    st.stop()
 
-    # Split content into chunks: text vs table references
-    parts = _TABLE_REF.split(content)
-    # parts alternates: [text, table_num, text, table_num, ...]
-    i = 0
-    while i < len(parts):
-        if i % 2 == 0:
-            # Regular text
-            text = parts[i]
-            if text.strip():
-                st.markdown(text)
-        else:
-            # Table number
-            table_num = int(parts[i])
-            info = table_lookup.get(table_num)
-            if info:
-                if st.button(
-                    f"Table {table_num}: {info['entry_title'].split(':', 1)[-1].strip()}"
-                    if ':' in info['entry_title'] else f"Table {table_num}",
-                    key=f"tref_{table_num}_{i}",
-                ):
-                    _nav_to_entry(info["toc_id"], "", info["entry_title"])
-                    st.rerun()
-            else:
-                st.markdown(f"Table {table_num}")
-        i += 1
+# Build the document: group chunks by toc section, then by entry
+current_toc_id = None
+current_entry = None
+content_buffer = []
 
 
-# ── Entry renderer ───────────────────────────────────────────
+def _flush_entry():
+    """Render accumulated entry content."""
+    global content_buffer, current_entry
+    if not content_buffer:
+        return
+    content = "\n".join(content_buffer)
+    if content.strip():
+        st.markdown(content)
+    content_buffer = []
 
-def _show_entry(entry_id, entry_title, source_file, toc_title, content, toc_id=None):
-    _show_back()
 
+def _render_badges(entry_title, source_file):
+    """Render entry badges if enabled."""
+    if not show_meta:
+        return
     idx = get_entry_index(entry_title, source_file)
-
+    if not idx:
+        return
     badges = []
-    if idx:
-        entry_id = entry_id or idx["entry_id"]
-        badges.append(f"**{idx['entry_type']}**")
-        if idx.get("spell_level"):
-            badges.append(f"Level {idx['spell_level']}")
-        if idx.get("spell_class"):
-            badges.append(idx["spell_class"])
-        if idx.get("school"):
-            badges.append(idx["school"])
-        if idx.get("sphere"):
-            badges.append(idx["sphere"])
+    badges.append(idx["entry_type"])
+    if idx.get("spell_level"):
+        badges.append(f"Level {idx['spell_level']}")
+    if idx.get("spell_class"):
+        badges.append(idx["spell_class"])
+    if idx.get("school"):
+        badges.append(idx["school"])
+    if idx.get("sphere"):
+        badges.append(idx["sphere"])
 
-    if entry_id:
-        annotations = get_annotations(entry_id)
-        if annotations:
-            if annotations.get("is_combat"):
-                badges.append("Combat")
-            if annotations.get("is_popular"):
-                badges.append("Popular")
+    entry_id = idx["entry_id"]
+    annotations = get_annotations(entry_id)
+    if annotations:
+        if annotations.get("is_combat"):
+            badges.append("Combat")
+        if annotations.get("is_popular"):
+            badges.append("Popular")
 
-    st.header(entry_title)
-    if toc_title:
-        st.caption(toc_title)
-    if show_meta and badges:
-        st.markdown(" | ".join(badges))
+    if badges:
+        st.markdown(f'<div class="book-badges">{" · ".join(badges)}</div>',
+                    unsafe_allow_html=True)
 
-    if show_summary and entry_id:
+    if show_summary:
         summary = get_summary(entry_id)
         if summary:
-            st.info(f"**AI Summary:** {summary}")
-
-    st.divider()
-    if show_content:
-        _render_content_with_table_links(content)
-
-    # Prev/Next
-    if toc_id:
-        all_entries = get_entry_list(toc_id)
-        if entry_title in all_entries:
-            current_idx = all_entries.index(entry_title)
-            st.divider()
-            c1, c2 = st.columns(2)
-            with c1:
-                if current_idx > 0:
-                    prev_t = all_entries[current_idx - 1]
-                    if st.button(f"\u2190 {prev_t}", key="nav_prev"):
-                        # Replace current instead of pushing (sequential reading)
-                        st.session_state["nav_current"] = {
-                            "view": "entry", "toc_id": toc_id,
-                            "toc_title": toc_title, "entry_title": prev_t,
-                        }
-                        st.rerun()
-            with c2:
-                if current_idx < len(all_entries) - 1:
-                    next_t = all_entries[current_idx + 1]
-                    if st.button(f"{next_t} \u2192", key="nav_next"):
-                        st.session_state["nav_current"] = {
-                            "view": "entry", "toc_id": toc_id,
-                            "toc_title": toc_title, "entry_title": next_t,
-                        }
-                        st.rerun()
+            st.markdown(f'<div class="book-summary">{summary}</div>',
+                        unsafe_allow_html=True)
 
 
-# ── View: Search result (by entry_id) ───────────────────────
+for row in book_data.iter_rows(named=True):
+    toc_id = row["toc_id"]
+    toc_title = row["toc_title"]
+    entry_title = row["entry_title"]
+    is_chapter = row["is_chapter"]
 
-if nav["view"] == "entry_by_id":
-    entry = get_entry_by_id(nav["entry_id"])
-    if entry:
-        toc_id = None
-        toc_title = entry["toc_title"]
-        for r in toc_rows:
-            if r["title"] == toc_title:
-                toc_id = r["toc_id"]
-                break
-        _show_entry(
-            entry["entry_id"], entry["entry_title"],
-            entry["source_file"], toc_title, entry["content"],
-            toc_id=toc_id,
-        )
-    else:
-        st.warning("Entry not found.")
+    # New ToC section — render chapter/section heading
+    if toc_id != current_toc_id:
+        _flush_entry()
+        current_entry = None
+        current_toc_id = toc_id
 
-# ── View: Entry from ToC browse ──────────────────────────────
-
-elif nav["view"] == "entry":
-    toc_id = nav["toc_id"]
-    toc_title = nav.get("toc_title") or toc_lookup.get(toc_id, {}).get("title", "")
-    entry_title = nav["entry_title"]
-    content = get_entry_content(toc_id, entry_title)
-
-    idx = get_entry_index(entry_title, selected_book)
-    entry_id = idx["entry_id"] if idx else None
-
-    _show_entry(entry_id, entry_title, selected_book, toc_title, content,
-                toc_id=toc_id)
-
-# ── View: Chapter drill-down ─────────────────────────────────
-
-elif nav["view"] == "chapter":
-    toc_id = nav["toc_id"]
-    chapter = toc_lookup.get(toc_id)
-    if not chapter:
-        st.warning("Chapter not found.")
-        st.stop()
-
-    _show_back()
-
-    st.header(chapter["title"])
-    st.divider()
-
-    sections = get_chapter_sections(toc_id)
-
-    if not sections:
-        st.info("No entries in this chapter.")
-    else:
-        html = []
-        for sec in sections:
-            if len(sections) > 1:
-                sec_label = sec["section"] if sec["section"] else chapter["title"]
-                html.append(f'<div style="font-weight:600; margin-top:0.5rem;">{sec_label}</div>')
-            for entry_title in sec["entries"]:
-                indent = "1.5rem" if len(sections) > 1 else "0"
-                html.append(
-                    f'<div class="toc-line toc-section" style="padding-left:{indent}">'
-                    f'<a href="?nav_entry={toc_id}:{entry_title}" target="_self">{entry_title}</a></div>'
-                )
-        st.markdown("\n".join(html), unsafe_allow_html=True)
-
-
-# ── View: Table of Contents (default) ────────────────────────
-
-else:
-    book_name = selected_book.replace(".pdf", "").replace("_", " ")
-    st.title(book_name)
-    st.markdown("### Table of Contents")
-    st.divider()
-
-    # Render entire ToC as one compact HTML block with clickable links
-    html = []
-    for row in toc_rows:
-        depth = int(row.get("depth", 0))
-        is_table = bool(row.get("is_table", False))
-        is_chapter = bool(row.get("is_chapter", False))
-        indent = depth * 1.5
+        depth = row["depth"]
+        anchor = f"toc-{toc_id}"
 
         if is_chapter:
-            css = "toc-chapter"
-        elif is_table:
-            css = "toc-table-entry"
+            st.markdown(f'<div class="book-chapter" id="{anchor}"></div>',
+                        unsafe_allow_html=True)
+            heading_level = min(depth + 1, 4)
+            st.markdown(f"{'#' * heading_level} {toc_title}")
         else:
-            css = "toc-section"
+            st.markdown(f'<div id="{anchor}"></div>', unsafe_allow_html=True)
 
-        html.append(
-            f'<div class="toc-line {css}" style="padding-left:{indent}rem">'
-            f'<a href="?nav_toc_id={row["toc_id"]}" target="_self">{row["title"]}</a></div>'
+    # New entry within section
+    if entry_title and entry_title != current_entry:
+        _flush_entry()
+        current_entry = entry_title
+
+        idx = get_entry_index(entry_title, selected_book)
+        entry_id = idx["entry_id"] if idx else None
+        anchor_id = f"entry-{entry_id}" if entry_id else ""
+
+        # Add toc anchor if this entry title matches a ToC section title
+        toc_anchor = ""
+        matched_toc_id = toc_title_to_id.get(entry_title)
+        if matched_toc_id:
+            toc_anchor = f'<div id="toc-{matched_toc_id}"></div>'
+
+        st.markdown(
+            f'{toc_anchor}'
+            f'<div class="book-entry" id="{anchor_id}">'
+            f'<div class="book-entry-title">{entry_title}</div></div>',
+            unsafe_allow_html=True,
         )
-    st.markdown("\n".join(html), unsafe_allow_html=True)
+        _render_badges(entry_title, selected_book)
+
+    # Accumulate content
+    content_buffer.append(row["content"])
+
+# Flush last entry
+_flush_entry()

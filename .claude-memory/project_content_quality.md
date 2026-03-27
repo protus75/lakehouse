@@ -23,8 +23,9 @@ Content quality issues found when testing Streamlit UI against gold layer (2026-
 2. Audit gold_chunks.py chunking logic — tables should not be split
 3. Add validation tasks: content completeness, table integrity, entry boundary accuracy
 4. Fix smushed inline tables/lists in silver cleanup — e.g. "Warrior 1d10 Priest 1d8 Rogue 1d6 Mage 1d4" should be table/list not one line
-5. Fix issues, rerun dbt, verify in Streamlit
-6. Then rerun enrichment
+5. Fix false paragraph breaks from Marker OCR — e.g. "Everything a player needs to\n\nknow" should be one paragraph. Marker splits mid-sentence at PDF line breaks.
+6. Fix issues, rerun dbt, verify in browser
+7. Then rerun enrichment
 
 **Why:** Garbage in, garbage out. Summaries from truncated/garbled content waste 4 hours of LLM time and produce misleading results.
 

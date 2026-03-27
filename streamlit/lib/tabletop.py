@@ -129,6 +129,23 @@ def search_entries(search_query: str, limit: int = 20) -> pl.DataFrame:
     )
 
 
+# ── Full book content ────────────────────────────────────────
+
+@st.cache_data(ttl=300)
+def get_full_book(source_file: str) -> pl.DataFrame:
+    """Get all chunks for a book joined with ToC, in document order."""
+    return query(
+        "SELECT t.toc_id, t.title as toc_title, t.sort_order, t.depth, "
+        "t.is_chapter, t.is_table, "
+        "c.entry_title, c.content, c.chunk_id "
+        "FROM gold_tabletop.gold_chunks c "
+        "JOIN gold_tabletop.gold_toc t ON c.toc_id = t.toc_id "
+        "WHERE c.source_file = ? "
+        "ORDER BY t.sort_order, c.chunk_id",
+        [source_file],
+    )
+
+
 # ── Table lookup ─────────────────────────────────────────────
 
 @st.cache_data(ttl=300)

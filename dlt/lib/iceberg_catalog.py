@@ -45,9 +45,11 @@ def write_iceberg(
     arrow_table: pa.Table,
     overwrite_filter: str | None = None,
     overwrite_filter_value: str | None = None,
+    overwrite_all: bool = False,
 ) -> None:
     """Write an Arrow table to Iceberg. Idempotent via overwrite filter.
 
+    If overwrite_all is True, drops and recreates the table (full replace).
     If overwrite_filter and overwrite_filter_value are set, deletes existing
     rows matching the filter before appending. This preserves the
     delete-and-insert pattern used by the bronze layer.
@@ -55,6 +57,31 @@ def write_iceberg(
     catalog = get_catalog()
     ensure_namespace(catalog, namespace)
     full_name = f"{namespace}.{table_name}"
+
+    if overwrite_all:
+        # Clean S3 data files and catalog entry, then recreate fresh
+        try:
+            tbl = catalog.load_table(full_name)
+            location = tbl.location()
+            catalog.drop_table(full_name)
+            # Remove lingering S3 data files
+            cfg = _load_config()["s3"]
+            import boto3
+            s3 = boto3.client("s3", endpoint_url=f"http://{cfg['endpoint']}",
+                aws_access_key_id=cfg["access_key"],
+                aws_secret_access_key=cfg["secret_key"])
+            bucket = location.split("/")[2]
+            prefix = "/".join(location.split("/")[3:]) + "/"
+            paginator = s3.get_paginator("list_objects_v2")
+            for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
+                if "Contents" in page:
+                    keys = [{"Key": obj["Key"]} for obj in page["Contents"]]
+                    s3.delete_objects(Bucket=bucket, Delete={"Objects": keys})
+        except Exception:
+            pass
+        tbl = catalog.create_table(full_name, schema=arrow_table.schema)
+        tbl.append(arrow_table)
+        return
 
     try:
         tbl = catalog.load_table(full_name)

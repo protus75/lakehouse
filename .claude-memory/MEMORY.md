@@ -30,3 +30,5 @@
 - [feedback_test_before_asking.md](feedback_test_before_asking.md) - Test code works before asking user to try it
 - [feedback_restart_streamlit.md](feedback_restart_streamlit.md) - ALWAYS restart Streamlit after any code change
 - [project_integer_keys_plan.md](project_integer_keys_plan.md) - Plan: replace unstable auto-increment IDs with hash-based stable integer keys
+- [feedback_use_dagster.md](feedback_use_dagster.md) - CRITICAL: Never run pipeline manually, always use Dagster
+- [feedback_no_jq.md](feedback_no_jq.md) - Never use jq, use python for JSON parsing

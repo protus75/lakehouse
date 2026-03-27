@@ -1,0 +1,407 @@
+"""Tabletop Rules Browser — full scrollable book with ToC sidebar navigation.
+
+Dash app serving on port 8000. Renders the entire book as a single HTML
+document with proper anchor links from the sidebar ToC.
+"""
+import sys
+sys.path.insert(0, "/workspace")
+
+from dash import Dash, html, dcc, callback, Input, Output
+from dlt.lib.duckdb_reader import get_reader
+
+
+def _query(sql, params=None):
+    """Execute SQL and return list of dicts."""
+    conn = get_reader(namespaces=["silver_tabletop", "gold_tabletop"])
+    if params:
+        df = conn.execute(sql, params).fetchdf()
+    else:
+        df = conn.execute(sql).fetchdf()
+    return df.to_dict("records")
+
+
+def _get_books():
+    return [r["source_file"] for r in _query(
+        "SELECT source_file FROM gold_tabletop.gold_files ORDER BY source_file"
+    )]
+
+
+def _get_toc(source_file):
+    return _query(
+        "SELECT toc_id, title, sort_order, depth, is_chapter, is_table, parent_title "
+        "FROM gold_tabletop.gold_toc "
+        "WHERE source_file = ? AND is_excluded = false "
+        "ORDER BY sort_order",
+        [source_file],
+    )
+
+
+def _get_full_book(source_file):
+    """Get all chunks ordered by ToC position.
+
+    Joins chunks to their parent chapter toc_id, but also looks up
+    the entry's own ToC sort_order (if the entry_title matches a ToC title)
+    to order entries within a chapter by their ToC position.
+    """
+    return _query(
+        "SELECT t.toc_id, t.title as toc_title, t.sort_order as chapter_sort, "
+        "t.depth, t.is_chapter, t.is_table, "
+        "c.entry_title, c.content, c.chunk_id, "
+        "COALESCE(et.sort_order, t.sort_order) as entry_sort "
+        "FROM gold_tabletop.gold_chunks c "
+        "JOIN gold_tabletop.gold_toc t ON c.toc_id = t.toc_id "
+        "LEFT JOIN gold_tabletop.gold_toc et "
+        "  ON et.source_file = c.source_file "
+        "  AND et.title = c.entry_title "
+        "  AND et.is_excluded = false "
+        "WHERE c.source_file = ? "
+        "ORDER BY entry_sort, c.chunk_id",
+        [source_file],
+    )
+
+
+def _get_entry_index(source_file):
+    """Return {entry_title: {entry_id, entry_type, ...}} for all entries."""
+    rows = _query(
+        "SELECT entry_id, entry_title, entry_type, spell_level, spell_class, "
+        "school, sphere "
+        "FROM gold_tabletop.gold_entry_index WHERE source_file = ?",
+        [source_file],
+    )
+    return {r["entry_title"]: r for r in rows}
+
+
+def _get_summaries():
+    """Return {entry_id: summary}."""
+    rows = _query("SELECT entry_id, summary FROM gold_tabletop.gold_ai_summaries")
+    return {r["entry_id"]: r["summary"] for r in rows}
+
+
+def _get_annotations():
+    """Return {entry_id: {is_combat, is_popular}}."""
+    rows = _query("SELECT entry_id, is_combat, is_popular FROM gold_tabletop.gold_ai_annotations")
+    return {r["entry_id"]: r for r in rows}
+
+
+# ── Build sidebar ToC ────────────────────────────────────────
+
+def build_toc_sidebar(toc_rows, anchor_map):
+    """Build sidebar ToC. anchor_map = {toc_id: actual_anchor_id}."""
+    items = []
+    # Build parent chapter lookup for fallback
+    parent_chapter_anchor = {}
+    current_chapter_toc_id = None
+    for row in toc_rows:
+        if row["is_chapter"]:
+            current_chapter_toc_id = row["toc_id"]
+        parent_chapter_anchor[row["toc_id"]] = current_chapter_toc_id
+
+    for row in toc_rows:
+        depth = row["depth"]
+        is_chapter = row["is_chapter"]
+        is_table = row["is_table"]
+        toc_id = row["toc_id"]
+
+        # Use direct anchor if available, else fall back to parent chapter
+        if toc_id in anchor_map:
+            anchor = anchor_map[toc_id]
+        else:
+            parent_id = parent_chapter_anchor.get(toc_id)
+            anchor = f"toc-{parent_id}" if parent_id else f"toc-{toc_id}"
+
+        style = {"paddingLeft": f"{depth * 1.2}rem", "lineHeight": "1.6"}
+        cls = "toc-chapter" if is_chapter else ("toc-table" if is_table else "toc-section")
+
+        items.append(
+            html.Div(
+                html.A(row["title"], href=f"#{anchor}", className="toc-link"),
+                className=cls,
+                style=style,
+            )
+        )
+    return items
+
+
+# ── Build book content ───────────────────────────────────────
+
+def build_book_content(book_data, toc_rows, entry_index, summaries, annotations,
+                       show_summary=True, show_meta=True):
+    """Returns (elements, anchor_map) where anchor_map = {toc_id: anchor_id}."""
+    import re
+    elements = []
+    toc_title_to_id = {r["title"]: r["toc_id"] for r in toc_rows}
+    # Also map by table number for fuzzy table matching
+    toc_table_num_to_id = {}
+    for r in toc_rows:
+        if r["is_table"]:
+            m = re.search(r"Table\s+(\d+)", r["title"])
+            if m:
+                toc_table_num_to_id[int(m.group(1))] = r["toc_id"]
+    anchor_map = {}  # toc_id -> actual anchor string
+    # Chapters always have anchors
+    for r in toc_rows:
+        if r["is_chapter"]:
+            anchor_map[r["toc_id"]] = f"toc-{r['toc_id']}"
+    current_toc_id = None
+    current_entry = None
+    content_chunks = []
+
+    def flush_entry():
+        nonlocal content_chunks
+        if content_chunks:
+            combined = "\n\n".join(content_chunks)
+            elements.append(html.Div(
+                dcc.Markdown(combined),
+                className="entry-content",
+            ))
+            content_chunks = []
+
+    for row in book_data:
+        toc_id = row["toc_id"]
+        toc_title = row["toc_title"]
+        entry_title = row["entry_title"]
+        is_chapter = row["is_chapter"]
+        depth = row["depth"]
+
+        # New ToC section
+        if toc_id != current_toc_id:
+            flush_entry()
+            current_entry = None
+            current_toc_id = toc_id
+
+            anchor_id = f"toc-{toc_id}"
+            if is_chapter:
+                level = min(depth + 1, 4)
+                tag = [html.H1, html.H2, html.H3, html.H4][level - 1]
+                elements.append(html.Div(id=anchor_id, className="chapter-anchor"))
+                elements.append(tag(toc_title, className="chapter-heading"))
+
+        # New entry
+        if entry_title and entry_title != current_entry:
+            flush_entry()
+            current_entry = entry_title
+
+            idx = entry_index.get(entry_title)
+            entry_id = idx["entry_id"] if idx else None
+            entry_anchor = f"entry-{entry_id}" if entry_id else ""
+
+            # Add toc anchor if entry title matches a ToC section (exact or table number)
+            anchors = []
+            matched_toc = toc_title_to_id.get(entry_title)
+            if matched_toc:
+                anchor_id = f"toc-{matched_toc}"
+                anchors.append(html.Div(id=anchor_id))
+                anchor_map[matched_toc] = anchor_id
+            # Also try table number match
+            if not matched_toc:
+                m = re.search(r"Table\s+(\d+)", entry_title)
+                if m:
+                    table_toc_id = toc_table_num_to_id.get(int(m.group(1)))
+                    if table_toc_id:
+                        anchor_id = f"toc-{table_toc_id}"
+                        anchors.append(html.Div(id=anchor_id))
+                        anchor_map[table_toc_id] = anchor_id
+
+            # Entry title
+            entry_els = anchors + [
+                html.Div(entry_title, className="entry-title", id=entry_anchor),
+            ]
+
+            # Badges — always rendered, toggled via CSS
+            if idx:
+                badges = [idx["entry_type"]]
+                if idx.get("spell_level"):
+                    badges.append(f"Level {idx['spell_level']}")
+                if idx.get("spell_class"):
+                    badges.append(idx["spell_class"])
+                if idx.get("school"):
+                    badges.append(idx["school"])
+                if idx.get("sphere"):
+                    badges.append(idx["sphere"])
+                if entry_id:
+                    ann = annotations.get(entry_id)
+                    if ann:
+                        if ann.get("is_combat"):
+                            badges.append("Combat")
+                        if ann.get("is_popular"):
+                            badges.append("Popular")
+                entry_els.append(html.Div(" · ".join(badges), className="entry-badges"))
+
+            # Summary — always rendered, toggled via CSS
+            if entry_id:
+                summary = summaries.get(entry_id)
+                if summary:
+                    entry_els.append(html.Div(summary, className="entry-summary"))
+
+            elements.append(html.Div(entry_els, className="entry-block"))
+
+        content_chunks.append(row["content"])
+
+    flush_entry()
+    return elements, anchor_map
+
+
+# ── App ──────────────────────────────────────────────────────
+
+app = Dash(__name__)
+
+books = _get_books()
+default_book = books[0] if books else None
+
+app.layout = html.Div([
+    # Sidebar
+    html.Div([
+        html.H3("Rules Browser"),
+        dcc.Dropdown(
+            id="book-selector",
+            options=[{"label": b.replace(".pdf", ""), "value": b} for b in books],
+            value=default_book,
+            clearable=False,
+            style={"marginBottom": "0.5rem"},
+        ),
+        html.Div([
+            dcc.Checklist(
+                id="display-toggles",
+                options=[
+                    {"label": " AI Summary", "value": "summary"},
+                    {"label": " Entry Details", "value": "meta"},
+                ],
+                value=["summary", "meta"],
+                style={"fontSize": "0.85rem"},
+            ),
+        ], style={"marginBottom": "0.5rem"}),
+        html.Hr(),
+        html.Div(id="toc-nav", style={"overflowY": "auto", "flex": "1"}),
+    ], id="sidebar"),
+
+    # Main content
+    html.Div([
+        html.Div(id="book-content"),
+    ], id="main-content"),
+
+    html.Div(id="toggle-dummy", style={"display": "none"}),
+], id="app-container")
+
+
+@callback(
+    Output("toc-nav", "children"),
+    Output("book-content", "children"),
+    Input("book-selector", "value"),
+)
+def update_book(source_file):
+    if not source_file:
+        return [], [html.P("Select a book.")]
+
+    toc = _get_toc(source_file)
+    book_data = _get_full_book(source_file)
+    entry_index = _get_entry_index(source_file)
+    summaries = _get_summaries()
+    annotations = _get_annotations()
+
+    content, anchor_map = build_book_content(book_data, toc, entry_index, summaries, annotations)
+    sidebar = build_toc_sidebar(toc, anchor_map)
+
+    book_name = source_file.replace(".pdf", "").replace("_", " ")
+    header = [html.H1(book_name)]
+
+    return sidebar, header + content
+
+
+# Clientside callback — toggles visibility without re-rendering
+app.clientside_callback(
+    """
+    function(toggles) {
+        var showSummary = (toggles || []).indexOf('summary') >= 0;
+        var showMeta = (toggles || []).indexOf('meta') >= 0;
+        document.querySelectorAll('.entry-summary').forEach(function(el) {
+            el.style.display = showSummary ? '' : 'none';
+        });
+        document.querySelectorAll('.entry-badges').forEach(function(el) {
+            el.style.display = showMeta ? '' : 'none';
+        });
+        return '';
+    }
+    """,
+    Output("toggle-dummy", "children"),
+    Input("display-toggles", "value"),
+)
+
+
+# ── CSS ──────────────────────────────────────────────────────
+
+app.index_string = '''
+<!DOCTYPE html>
+<html>
+<head>
+    {%metas%}
+    <title>Tabletop Rules Browser</title>
+    {%css%}
+    <style>
+        body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+               background: #0e1117; color: #fafafa; }
+        #app-container { display: flex; height: 100vh; }
+        #sidebar { width: 320px; min-width: 320px; background: #161b22; padding: 1rem;
+                   overflow-y: auto; border-right: 1px solid #30363d;
+                   display: flex; flex-direction: column; }
+        #main-content { flex: 1; overflow-y: auto; padding: 2rem 3rem; }
+
+        /* ToC */
+        .toc-chapter { font-weight: 600; font-size: 0.95rem; margin-top: 0.2rem; }
+        .toc-section { font-size: 0.85rem; }
+        .toc-table { font-size: 0.85rem; font-style: italic; }
+        .toc-link { color: #4a9eff; text-decoration: none; }
+        .toc-link:hover { text-decoration: underline; }
+
+        /* Book content */
+        .chapter-anchor { padding-top: 1rem; }
+        .chapter-heading { margin-top: 0.5rem; border-top: 2px solid #30363d; padding-top: 1rem; }
+        .entry-block { margin-top: 1.2rem; }
+        .entry-title { font-weight: 600; font-size: 1.1rem; color: #4a9eff;
+                       padding-top: 0.5rem; }
+        .entry-badges { font-size: 0.8rem; color: #8b949e; margin: 0.1rem 0; }
+        .entry-summary { background: #1a1a2e; border-left: 3px solid #4a9eff;
+                         padding: 0.5rem 0.8rem; margin: 0.4rem 0; font-size: 0.9rem; }
+        .entry-content { margin-top: 0.3rem; line-height: 1.6; }
+        .entry-content p { margin: 0.4rem 0; }
+
+        /* Dropdown styling */
+        .Select-control { background: #21262d !important; border-color: #30363d !important; }
+        .Select-value-label { color: #fafafa !important; }
+        .Select-menu-outer { background: #21262d !important; }
+
+        /* Smooth scrolling */
+        #main-content { scroll-behavior: smooth; }
+    </style>
+</head>
+<body>
+    {%app_entry%}
+    <footer>
+        {%config%}
+        {%scripts%}
+        {%renderer%}
+    </footer>
+    <script>
+        // Intercept anchor clicks and scroll within #main-content div
+        document.addEventListener('click', function(e) {
+            var link = e.target.closest('a[href^="#"]');
+            if (!link) return;
+            var id = link.getAttribute('href').substring(1);
+            var target = document.getElementById(id);
+            if (!target) return;
+            e.preventDefault();
+            var container = document.getElementById('main-content');
+            if (container) {
+                container.scrollTo({
+                    top: target.offsetTop - container.offsetTop,
+                    behavior: 'smooth'
+                });
+            }
+        });
+    </script>
+</body>
+</html>
+'''
+
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=8000, debug=False)

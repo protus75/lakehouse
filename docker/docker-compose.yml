@@ -83,6 +83,7 @@ services:
       - ../dbt:/workspace/dbt
       - ../scripts:/workspace/scripts
       - ../documents:/workspace/documents
+      - ../db/duckdb:/workspace/db
     environment:
       DAGSTER_HOME: /workspace/dagster
       PYTHONPATH: /workspace
@@ -144,6 +145,7 @@ services:
       - ../dlt:/workspace/dlt
       - ../dbt:/workspace/dbt
       - ../streamlit:/workspace/streamlit
+      - ../dashapp:/workspace/dashapp
       - ../rag:/workspace/rag
       - ../documents:/workspace/documents
       - ../scripts:/workspace/scripts

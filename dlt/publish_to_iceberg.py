@@ -46,7 +46,7 @@ def publish() -> None:
             try:
                 arrow = conn.execute(f"SELECT * FROM {full_name}").fetch_arrow_table()
                 row_count = len(arrow)
-                write_iceberg(namespace, table_name, arrow)
+                write_iceberg(namespace, table_name, arrow, overwrite_all=True)
                 _log(f"  Published {full_name}: {row_count} rows")
             except Exception as e:
                 _log(f"  SKIP {full_name}: {e}")
