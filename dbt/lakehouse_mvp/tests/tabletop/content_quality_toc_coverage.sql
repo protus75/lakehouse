@@ -1,4 +1,3 @@
-{{ config(severity='warn') }}
 -- Fail if any non-excluded ToC entry has zero matching content in gold_chunks.
 -- Every ToC section should have at least one chunk with a matching entry_title,
 -- or be a parent chapter with child content.
