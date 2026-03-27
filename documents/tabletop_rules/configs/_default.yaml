@@ -161,27 +161,33 @@ ocr_check:
   bronze_model: "llama3:8b"
   # Silver pass: large model for reviewing flagged candidates
   silver_model: "llama3:70b"
-  chunk_size: 3000
+  chunk_size: 800
   table_line_threshold: 0.5
   max_consecutive_failures: 5
   timeout: 180
   retries: 3
   temperature: 0.0
-  bronze_max_tokens: 500
+  bronze_max_tokens: 300
   silver_max_tokens: 300
+  batch_flush_size: 100
   bronze_prompt: |
-    You are proofreading OCR-scanned text from a tabletop RPG rulebook.
+    Find OCR scanning errors in this RPG rulebook text. OCR errors are
+    GARBLED WORDS where letters are wrong (e.g. "Tumans" should be "Humans",
+    "Cnomes" should be "Gnomes", "rnable" should be "enable").
 
-    Identify ONLY clear OCR errors and misspellings. For each error,
-    output a JSON object with "wrong" and "correct" fields.
+    Output a JSON array. Each item: {{"wrong": "garbled word", "correct": "fixed word"}}
+    Output [] if no OCR errors.
 
-    Rules:
-    - Do NOT flag game terms, archaic spellings, or proper nouns
-    - Do NOT flag markdown formatting, abbreviations, or dice notation
-    - ONLY flag words clearly garbled by OCR (wrong letters, merged words)
-    - Output ONLY a JSON array. Empty array [] if no errors.
+    DO NOT FLAG ANY OF THESE:
+    - Correct words, names, or places (Cwell, Elminster, etc.)
+    - Abbreviations: rd., yds., ft., hrs., lbs., gp, sp, cp, hp, AC, THAC0
+    - Fractions: 1 ⁄2, 1 ⁄4, 3 ⁄4
+    - Markdown: *italic*, **bold**, ### headings, | tables |
+    - Grammar, punctuation, capitalization, missing words
+    - Game terms, spell names, class names, race names
+    - Anything longer than a single word or short phrase
 
-    Example: [{{"wrong": "Tumans", "correct": "Humans"}}]
+    ONLY flag single words that are clearly garbled by OCR.
 
     Text:
     ---
