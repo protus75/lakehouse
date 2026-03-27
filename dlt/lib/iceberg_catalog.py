@@ -67,7 +67,9 @@ def write_iceberg(
             # Remove lingering S3 data files
             cfg = _load_config()["s3"]
             import boto3
-            s3 = boto3.client("s3", endpoint_url=f"http://{cfg['endpoint']}",
+            endpoint = cfg["endpoint"]
+            endpoint_url = endpoint if endpoint.startswith("http") else f"http://{endpoint}"
+            s3 = boto3.client("s3", endpoint_url=endpoint_url,
                 aws_access_key_id=cfg["access_key"],
                 aws_secret_access_key=cfg["secret_key"])
             bucket = location.split("/")[2]
