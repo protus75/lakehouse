@@ -963,79 +963,6 @@ def extract_spell_list_entries(filepath: Path, page_printed: dict[int, int],
     return [e for e in entries if len(e["entry_name"]) >= 3]
 
 
-def extract_tables_pymupdf(filepath: "Path", toc_tables: list[dict],
-                          page_printed: dict[int, int],
-                          config: dict | None = None) -> list[dict]:
-    """Extract tables directly from PDF using pymupdf's table detection.
-
-    Matches each detected table to a ToC table entry by checking if the table's
-    printed page matches a ToC table page. Falls back to sequential matching
-    for tables on adjacent pages.
-
-    Returns same format as extract_all_tables:
-    [{table_number, table_title, format: "pymupdf", rows: [[cell, ...], ...]}, ...]
-    """
-    doc = fitz.open(str(filepath))
-
-    # Build page_number → toc_table lookup
-    toc_by_page = {}
-    for t in toc_tables:
-        toc_by_page.setdefault(t["page"], []).append(t)
-
-    # Build printed_page → pdf_page_index reverse lookup
-    printed_to_idx = {}
-    for idx, printed in page_printed.items():
-        printed_to_idx.setdefault(printed, []).append(idx)
-
-    tables = []
-    found_nums = set()
-
-    for page_idx in range(len(doc)):
-        page = doc[page_idx]
-        page_tables = page.find_tables()
-        if not page_tables or not page_tables.tables:
-            continue
-
-        printed_page = page_printed.get(page_idx)
-
-        for pt in page_tables.tables:
-            # Extract cell data — each row is a list of cell strings
-            rows = []
-            for row in pt.extract():
-                cells = [c.strip() if c else "" for c in row]
-                rows.append(cells)
-
-            if len(rows) < 2:
-                continue  # need at least header + 1 data row
-
-            # Match to ToC table entry by printed page (check exact and +/- 1)
-            matched_toc = None
-            for check_page in [printed_page, (printed_page or 0) - 1, (printed_page or 0) + 1]:
-                if check_page is None:
-                    continue
-                candidates = toc_by_page.get(check_page, [])
-                for c in candidates:
-                    if c["table_number"] not in found_nums:
-                        matched_toc = c
-                        break
-                if matched_toc:
-                    break
-
-            if not matched_toc:
-                continue  # no ToC match — skip unrecognized table
-
-            found_nums.add(matched_toc["table_number"])
-            tables.append({
-                "table_number": matched_toc["table_number"],
-                "table_title": matched_toc["title"],
-                "format": "pymupdf",
-                "rows": rows,
-            })
-
-    doc.close()
-    _log(f"  pymupdf tables: {len(tables)} extracted, {len(found_nums)} matched to ToC")
-    return tables
-
 
 def extract_all_tables(markdown: str, toc_tables: list[dict],
                        page_texts: list[str],
@@ -1656,15 +1583,9 @@ def extract_pdf(filepath: Path) -> None:
         spell_list = extract_spell_list_entries(filepath, page_printed, toc_sections, config)
         step(f"Spell list: {len(spell_list)} entries")
 
-        # 6. Extract tables: pymupdf first (structured), then Marker for any missed
-        pymupdf_tables = extract_tables_pymupdf(filepath, toc_tables, page_printed, config)
-        pymupdf_nums = {t["table_number"] for t in pymupdf_tables}
-        marker_tables = extract_all_tables(markdown, toc_tables, page_texts, page_printed, config)
-        # Merge: prefer pymupdf, fill gaps with Marker
-        marker_only = [t for t in marker_tables if t["table_number"] not in pymupdf_nums]
-        all_tables = pymupdf_tables + marker_only
-        all_tables.sort(key=lambda t: t["table_number"])
-        step(f"Tables: {len(pymupdf_tables)} pymupdf + {len(marker_only)} marker = {len(all_tables)}")
+        # 6. Parse ALL tables from markdown (matched to ToC via page positions)
+        all_tables = extract_all_tables(markdown, toc_tables, page_texts, page_printed, config)
+        step(f"Tables: {len(all_tables)} parsed")
 
         # 7. Authority entries from config-specified tables
         authority_entries = extract_authority_entries(all_tables, config)
