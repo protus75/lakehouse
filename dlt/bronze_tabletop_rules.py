@@ -1567,6 +1567,29 @@ def _call_ollama(prompt: str, config: dict, model_override: str | None = None,
     return None
 
 
+def _find_whole_word(word: str, text: str) -> int:
+    """Find a whole-word match in text. Returns position or -1.
+    A whole word is bounded by non-alphanumeric chars (or string edges)."""
+    pos = 0
+    while True:
+        idx = text.find(word, pos)
+        if idx < 0:
+            return -1
+        before_ok = idx == 0 or not text[idx - 1].isalnum()
+        after_ok = idx + len(word) >= len(text) or not text[idx + len(word)].isalnum()
+        if before_ok and after_ok:
+            return idx
+        pos = idx + 1
+
+
+def _get_context_for_word(word: str, text: str, context_chars: int = 150) -> str:
+    """Find the line containing a whole-word match and return it as context."""
+    for line in text.split("\n"):
+        if _find_whole_word(word, line) >= 0:
+            return line.strip()[:context_chars]
+    return ""
+
+
 def _parse_ocr_response(text: str) -> list[dict]:
     """Extract JSON array from LLM response."""
     if not text:
@@ -1750,17 +1773,25 @@ def check_ocr(source_file: str, sample: int = 0, resume: bool = True) -> None:
         errors = _parse_ocr_response(response)
 
         if errors:
+            verified = 0
             for err in errors:
                 wrong = err.get("wrong", "")
                 correct = err.get("correct", "")
-                if wrong and correct and wrong != correct and wrong not in all_errors:
-                    ctx = ""
-                    for line in md.split("\n"):
-                        if wrong in line:
-                            ctx = line.strip()[:200]
-                            break
-                    all_errors[wrong] = (correct, ctx)
-            print(f"{len(errors)} issues")
+                if not wrong or not correct or wrong == correct:
+                    continue
+                if wrong in all_errors:
+                    continue
+                # Validate: wrong text must exist as a whole word in the chunk
+                # the LLM was scanning — not anywhere else in the document
+                if _find_whole_word(wrong, chunk) < 0:
+                    continue
+                # Context: from the chunk, not the full markdown
+                ctx = _get_context_for_word(wrong, chunk)
+                if not ctx:
+                    continue
+                all_errors[wrong] = (correct, ctx)
+                verified += 1
+            print(f"{len(errors)} raw, {verified} verified")
         else:
             print("clean")
 
