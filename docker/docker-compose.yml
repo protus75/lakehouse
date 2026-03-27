@@ -72,7 +72,8 @@ services:
   dagster-webserver:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.daemon
+    image: lakehouse-daemon:latest
     container_name: lakehouse-dagster-webserver
     ports:
       - "3000:3000"
@@ -96,9 +97,7 @@ services:
         condition: service_healthy
 
   dagster-daemon:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: lakehouse-daemon:latest
     container_name: lakehouse-dagster-daemon
     volumes:
       - ../config:/workspace/config
@@ -120,15 +119,18 @@ services:
       S3_SECRET_KEY: lakehouse_secret
     command: dagster-daemon run -w /workspace/dagster/workspace.yaml
     depends_on:
+      dagster-webserver:
+        condition: service_started
       postgres:
         condition: service_healthy
 
   # ── Python Workspace ────────────────────────────────────────
-  # Jupyter Lab + all Python tools (dlt, dbt, Streamlit, etc.)
+  # All Python tools (dlt, dbt, Streamlit, Marker, RAG, etc.)
   workspace:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.workspace
+    image: lakehouse-workspace:latest
     container_name: lakehouse-workspace
     deploy:
       resources:

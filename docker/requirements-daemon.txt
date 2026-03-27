@@ -1,0 +1,17 @@
+# Daemon packages — dagster orchestration + dbt transforms.
+# No PyTorch, Marker, or GPU dependencies.
+
+# Orchestration
+dagster==1.12.20
+dagster-webserver==1.12.20
+dagster-dbt==0.28.20
+dagster-duckdb==0.28.20
+dagster-docker==0.28.20
+dagster-postgres==0.28.20
+
+# Transformation
+dbt-core==1.11.5
+dbt-duckdb==1.10.0
+
+# OCR validation
+pyspellchecker==0.8.1

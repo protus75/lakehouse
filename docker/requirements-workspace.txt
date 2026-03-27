@@ -1,0 +1,24 @@
+# Workspace packages — GPU-enabled ML, PDF parsing, UI, RAG.
+# Only installed in the workspace image.
+
+# Jupyter
+jupyterlab==4.5.4
+ipykernel==7.2.0
+
+# PDF parsing
+docling==2.31.0
+pymupdf==1.25.4
+marker-pdf==1.10.2
+
+# Visualization
+streamlit==1.54.0
+plotly==6.5.2
+
+# RAG layer
+langchain==1.2.10
+langchain-community==0.4.1
+chromadb==1.0.0
+sentence-transformers==5.2.2
+fastapi==0.115.9
+uvicorn==0.34.0
+ollama==0.6.1

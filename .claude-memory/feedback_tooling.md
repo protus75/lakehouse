@@ -19,6 +19,14 @@ Use `python -c "import json..."` instead. jq is not installed and user considers
 ## Read-only permissions
 Don't prompt for ANY read-only commands — docker exec reads, file searches, queries, syntax checks. Just run them.
 
+## Git operations
+Never prompt for read-only git commands (status, diff, log, etc.) — just run them. Only prompt for write operations (add, commit, push, etc.).
+
+## WSL + Docker Desktop GPU fix
+After updating the NVIDIA driver, Docker GPU containers may crash with `SIGSEGV` in `nvidia-container-runtime-hook`. Fix: run `wsl --shutdown` in PowerShell, then restart Docker Desktop. The NVIDIA container toolkit inside WSL needs a clean restart to pick up new driver libraries.
+
+**Why:** Spent significant debugging time on this (2026-03-27). Docker Desktop update alone wasn't enough — the WSL shutdown was the key step.
+
 ## Package management
 NEVER pip install in container — lost on restart. Add to `docker/requirements.txt`, rebuild image, recreate containers. `docker exec pip install` is always temporary.
 

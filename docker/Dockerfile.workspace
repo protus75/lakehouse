@@ -1,0 +1,9 @@
+FROM lakehouse-base:latest
+
+WORKDIR /workspace
+
+COPY requirements-workspace.txt .
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install -r requirements-workspace.txt
+
+EXPOSE 8889 8501 8000
