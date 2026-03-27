@@ -37,3 +37,9 @@
 - [feedback_zero_validation_errors.md](feedback_zero_validation_errors.md) - ZERO validation errors before features
 - [project_model_seeding.md](project_model_seeding.md) - Model downloads only via dedicated seed pipeline
 - [reference_cache_locations.md](reference_cache_locations.md) - All caches, reset sequence after code changes
+- [feedback_no_warn_hacks.md](feedback_no_warn_hacks.md) - Never set test severity to warn to hide failures
+- [feedback_stop_means_stop.md](feedback_stop_means_stop.md) - Stop all = stop ALL containers/builds/WSL immediately
+- [feedback_kill_all_means_all.md](feedback_kill_all_means_all.md) - Kill all = docker stop + buildx stop + wsl shutdown + verify
+- [feedback_pip_needs_rebuild.md](feedback_pip_needs_rebuild.md) - pip install in container lost on restart, must rebuild image
+- [project_docker_image_split.md](project_docker_image_split.md) - Plan: split into base/daemon/workspace Dockerfiles
+- [project_model_seeding.md](project_model_seeding.md) - Model downloads only via dedicated seed pipeline
