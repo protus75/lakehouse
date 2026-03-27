@@ -1,3 +1,4 @@
+- [feedback_memory_location.md](feedback_memory_location.md) — Memory is in .claude-memory/ in repo root, NOT system default path
 - [user_profile.md](user_profile.md) — User prefers CLI/PowerShell, not Jupyter, experienced Windows dev with RTX 4090
 - [feedback_coding_rules.md](feedback_coding_rules.md) — Generic: no hardcoded values, config-first, no regex, fix at ingestion, follow architecture, never discard data
 - [feedback_tooling.md](feedback_tooling.md) — Generic: PowerShell syntax, VSCode only, no jq, pip needs rebuild, Streamlit restart, test before asking

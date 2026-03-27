@@ -1,5 +1,8 @@
 # Lakehouse Project — Claude Instructions
 
+## Memory
+- **Read `.claude-memory/MEMORY.md` at the start of every conversation.** It indexes all persistent memory files. Read every file it references before doing any work.
+
 ## Infrastructure
 
 ### Docker
