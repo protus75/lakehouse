@@ -71,7 +71,23 @@ def toc_review(context: AssetExecutionContext):
     context.log.info(f"ToC review passed for all {len(report['files'])} books")
 
 
-@asset(group_name="silver_gold", compute_kind="dbt", deps=[toc_review])
+@asset(group_name="bronze", compute_kind="ollama", deps=[toc_review])
+def bronze_ocr_check(context: AssetExecutionContext):
+    """Bronze OCR validation: scan markdown for OCR errors using Ollama (llama3:8b).
+
+    Resumable — skips chunks already checked. Results stored in bronze_tabletop.ocr_issues.
+    Confirmed fixes should be added to content_substitutions in the book config.
+    """
+    from pathlib import Path
+    from dlt.bronze_tabletop_rules import check_ocr, DOCUMENTS_DIR
+    pdfs = sorted(DOCUMENTS_DIR.glob("*.pdf"))
+    for f in pdfs:
+        context.log.info(f"OCR check: {f.name}")
+        check_ocr(f.name, resume=True)
+    context.log.info(f"OCR check complete for {len(pdfs)} books")
+
+
+@asset(group_name="silver_gold", compute_kind="dbt", deps=[bronze_ocr_check])
 def dbt_tabletop(context: AssetExecutionContext):
     """Run dbt build for tabletop models (silver + gold)."""
     result = subprocess.run(
@@ -146,14 +162,14 @@ def seed_marker_cache(context: AssetExecutionContext):
 tabletop_full_pipeline = define_asset_job(
     name="tabletop_full_pipeline",
     selection=[
-        bronze_tabletop, toc_review, dbt_tabletop, publish_to_iceberg,
-        gold_ai_summaries, gold_ai_annotations,
+        bronze_tabletop, toc_review, bronze_ocr_check, dbt_tabletop,
+        publish_to_iceberg, gold_ai_summaries, gold_ai_annotations,
     ],
 )
 
 tabletop_without_enrichment = define_asset_job(
     name="tabletop_without_enrichment",
-    selection=[bronze_tabletop, toc_review, dbt_tabletop, publish_to_iceberg],
+    selection=[bronze_tabletop, toc_review, bronze_ocr_check, dbt_tabletop, publish_to_iceberg],
 )
 
 enrichment_only = define_asset_job(
@@ -170,8 +186,8 @@ seed_models = define_asset_job(
 defs = Definitions(
     assets=[
         seed_marker_cache,
-        bronze_tabletop, toc_review, dbt_tabletop, publish_to_iceberg,
-        gold_ai_summaries, gold_ai_annotations,
+        bronze_tabletop, toc_review, bronze_ocr_check, dbt_tabletop,
+        publish_to_iceberg, gold_ai_summaries, gold_ai_annotations,
     ],
     jobs=[seed_models, tabletop_full_pipeline, tabletop_without_enrichment, enrichment_only],
 )

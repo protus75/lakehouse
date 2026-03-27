@@ -1581,6 +1581,23 @@ def _parse_ocr_response(text: str) -> list[dict]:
         return []
 
 
+def _verify_ollama_model(model: str, config: dict) -> None:
+    """Verify an Ollama model is cached locally. Raises if not available."""
+    import requests
+    url = config.get("ocr_check", {}).get("ollama_url", "http://host.docker.internal:11434")
+    try:
+        resp = requests.get(f"{url}/api/tags", timeout=10)
+        resp.raise_for_status()
+        available = [m["name"] for m in resp.json().get("models", [])]
+        if model not in available:
+            raise RuntimeError(
+                f"Ollama model '{model}' not cached. Available: {available}\n"
+                f"Pull it first: ollama pull {model}"
+            )
+    except requests.ConnectionError:
+        raise RuntimeError(f"Ollama not running at {url}")
+
+
 def check_ocr(source_file: str, sample: int = 0, resume: bool = True) -> None:
     """Bronze validation: scan markdown for OCR issues using Ollama.
 
@@ -1592,6 +1609,11 @@ def check_ocr(source_file: str, sample: int = 0, resume: bool = True) -> None:
 
     configs_dir = DOCUMENTS_DIR.parent / "configs"
     config = load_config(Path(source_file), configs_dir)
+
+    # Verify model is cached before starting — never trigger a download
+    bronze_model = config.get("ocr_check", {}).get("bronze_model", "llama3:8b")
+    _verify_ollama_model(bronze_model, config)
+
     run_id = start_run(source_file, "check_ocr", config)
 
     try:
