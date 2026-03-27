@@ -35,6 +35,9 @@ For ANY task expected to take >15 seconds: give a time estimate up front before 
 ### No downloads without permission
 Before pipeline runs: verify model cache volumes mounted. Monitor stderr for "Downloading" in first 5 seconds — kill immediately if found. Metered network.
 
+### Never manually wipe S3 or catalog — CRITICAL
+NEVER delete S3 files or drop catalog entries manually. The pipeline handles all cleanup via `write_iceberg(overwrite_all=True)`. If S3 appears corrupted, re-run the pipeline — it will drop catalog, wipe S3 by prefix, and recreate. Manual wipes break the catalog→S3 link and require manual catalog cleanup to fix.
+
 ### No pip install in containers
 NEVER `pip install` in a running container — it's lost on restart. Add to `docker/requirements.txt` and rebuild the image.
 

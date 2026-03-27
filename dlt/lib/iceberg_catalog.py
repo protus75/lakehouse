@@ -59,28 +59,35 @@ def write_iceberg(
     full_name = f"{namespace}.{table_name}"
 
     if overwrite_all:
-        # Clean S3 data files and catalog entry, then recreate fresh
+        # Clean catalog entry (may fail if metadata files are gone — that's OK)
         try:
-            tbl = catalog.load_table(full_name)
-            location = tbl.location()
             catalog.drop_table(full_name)
-            # Remove lingering S3 data files
-            cfg = _load_config()["s3"]
-            import boto3
-            endpoint = cfg["endpoint"]
-            endpoint_url = endpoint if endpoint.startswith("http") else f"http://{endpoint}"
-            s3 = boto3.client("s3", endpoint_url=endpoint_url,
-                aws_access_key_id=cfg["access_key"],
-                aws_secret_access_key=cfg["secret_key"])
-            bucket = location.split("/")[2]
-            prefix = "/".join(location.split("/")[3:]) + "/"
-            paginator = s3.get_paginator("list_objects_v2")
-            for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
-                if "Contents" in page:
-                    keys = [{"Key": obj["Key"]} for obj in page["Contents"]]
-                    s3.delete_objects(Bucket=bucket, Delete={"Objects": keys})
         except Exception:
             pass
+
+        # Always clean S3 data files by path prefix, regardless of catalog state
+        import boto3
+        cfg = _load_config()
+        s3_cfg = cfg["s3"]
+        catalog_cfg = cfg["catalog"]
+        endpoint = s3_cfg["endpoint"]
+        endpoint_url = endpoint if endpoint.startswith("http") else f"http://{endpoint}"
+        s3 = boto3.client("s3", endpoint_url=endpoint_url,
+            aws_access_key_id=s3_cfg["access_key"],
+            aws_secret_access_key=s3_cfg["secret_key"])
+        warehouse = catalog_cfg["warehouse"]
+        # Derive bucket and prefix from warehouse path
+        # warehouse = s3://lakehouse/warehouse → bucket=lakehouse, base=warehouse
+        parts = warehouse.replace("s3://", "").split("/", 1)
+        bucket = parts[0]
+        base = parts[1] if len(parts) > 1 else ""
+        prefix = f"{base}/{namespace}/{table_name}/"
+        paginator = s3.get_paginator("list_objects_v2")
+        for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
+            if "Contents" in page:
+                keys = [{"Key": obj["Key"]} for obj in page["Contents"]]
+                s3.delete_objects(Bucket=bucket, Delete={"Objects": keys})
+
         tbl = catalog.create_table(full_name, schema=arrow_table.schema)
         tbl.append(arrow_table)
         return
