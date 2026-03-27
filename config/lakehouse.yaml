@@ -34,3 +34,22 @@ stable_keys:
     columns: [source_file, title]
   chunk_id:
     columns: [source_file, toc_title, entry_title, chunk_index]
+
+# Path configuration
+paths:
+  documents: /workspace/documents/tabletop_rules/raw
+  marker_cache: /workspace/documents/tabletop_rules/processed/marker
+  configs: /workspace/documents/tabletop_rules/configs
+
+# Models to seed — all models used by any pipeline step.
+# seed_models job pulls these; all other jobs run offline.
+models:
+  ollama:
+    url: "http://host.docker.internal:11434"
+    models:
+      - "llama3:70b"
+      - "llama3:8b"
+      - "minicpm-v:latest"
+  huggingface:
+    models:
+      - "sentence-transformers/all-MiniLM-L6-v2"

@@ -10,6 +10,11 @@ type: feedback
 - Always include `cd` or use absolute paths — never assume directory
 - Always specify which terminal (PowerShell, WSL2, etc.)
 
+## Bash tool: don't prefix with `cd`
+Run commands directly without `cd /path &&` prefix. The working directory is already the repo root.
+
+**Why:** Was getting false permission prompts on allowed commands (2026-03-27). Dropping `cd` prefix fixed it — root cause unclear but don't reintroduce.
+
 ## Editor
 VSCode only. Never suggest notepad, nano, vi. Use Edit tool directly or `code "path"`.
 

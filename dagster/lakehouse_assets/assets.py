@@ -129,6 +129,90 @@ def gold_ai_annotations(context: AssetExecutionContext):
 
 
 @asset(group_name="system", compute_kind="python")
+def seed_ollama_models(context: AssetExecutionContext):
+    """Pull all Ollama models defined in lakehouse.yaml.
+
+    Ollama runs on the Windows host. This asset calls the Ollama API
+    from inside the container via host.docker.internal.
+    """
+    import yaml
+    import requests
+
+    config_path = Path("/workspace/config/lakehouse.yaml")
+    config = yaml.safe_load(config_path.read_text())
+    ollama_config = config.get("models", {}).get("ollama", {})
+    url = ollama_config.get("url", "http://host.docker.internal:11434")
+    models = ollama_config.get("models", [])
+
+    if not models:
+        context.log.warning("No Ollama models configured in lakehouse.yaml")
+        return
+
+    for model in models:
+        context.log.info(f"Pulling {model}...")
+        resp = requests.post(
+            f"{url}/api/pull",
+            json={"name": model, "stream": False},
+            timeout=1800,
+        )
+        resp.raise_for_status()
+        context.log.info(f"  {model}: OK")
+
+    # Verify all models are available
+    resp = requests.get(f"{url}/api/tags", timeout=10)
+    resp.raise_for_status()
+    available = {m["name"] for m in resp.json().get("models", [])}
+    for model in models:
+        if model not in available:
+            raise Exception(f"Model {model} not found after pull")
+    context.log.info(f"All {len(models)} Ollama models verified")
+
+
+@asset(group_name="system", compute_kind="python")
+def seed_huggingface_models(context: AssetExecutionContext):
+    """Verify HuggingFace models are cached. Fails if any are missing.
+
+    Daemon has TRANSFORMERS_OFFLINE=1 and no sentence-transformers, so
+    this just checks the cache directory. To download missing models:
+      docker exec lakehouse-workspace python -c "
+        from sentence_transformers import SentenceTransformer;
+        SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
+      "
+    """
+    import yaml
+
+    config_path = Path("/workspace/config/lakehouse.yaml")
+    config = yaml.safe_load(config_path.read_text())
+    hf_models = config.get("models", {}).get("huggingface", {}).get("models", [])
+
+    if not hf_models:
+        context.log.warning("No HuggingFace models configured in lakehouse.yaml")
+        return
+
+    hf_home = Path("/workspace/cache/huggingface")
+    missing = []
+    for model_name in hf_models:
+        # HF caches models at hub/models--<org>--<name>/
+        safe_name = model_name.replace("/", "--")
+        model_dir = hf_home / "hub" / f"models--{safe_name}"
+        if model_dir.exists():
+            context.log.info(f"Cache OK: {model_name} -> {model_dir}")
+        else:
+            missing.append(model_name)
+            context.log.error(f"Cache MISSING: {model_name}")
+
+    if missing:
+        raise Exception(
+            f"HuggingFace cache missing for {len(missing)} models: {', '.join(missing)}\n"
+            f"Run on workspace container: docker exec lakehouse-workspace python -c "
+            f"\"from sentence_transformers import SentenceTransformer; "
+            + "; ".join(f"SentenceTransformer('{m}')" for m in missing)
+            + '"'
+        )
+    context.log.info(f"All {len(hf_models)} HuggingFace models cached")
+
+
+@asset(group_name="system", compute_kind="python")
 def seed_marker_cache(context: AssetExecutionContext):
     """Validate Marker OCR cache exists for all PDFs. Fails if any are missing.
 
@@ -138,11 +222,15 @@ def seed_marker_cache(context: AssetExecutionContext):
         [extract_marker_markdown(f, allow_ocr=True) for f in sorted(DOCUMENTS_DIR.glob('*.pdf'))]
       "
     """
-    from dlt.bronze_tabletop_rules import MARKER_CACHE_DIR, DOCUMENTS_DIR
+    import yaml
+    config = yaml.safe_load(Path("/workspace/config/lakehouse.yaml").read_text())
+    paths = config.get("paths", {})
+    DOCUMENTS_DIR = Path(paths.get("documents", "/workspace/documents/tabletop_rules/raw"))
+    MARKER_CACHE_DIR = Path(paths.get("marker_cache", "/workspace/documents/tabletop_rules/processed/marker"))
     pdfs = sorted(DOCUMENTS_DIR.glob("*.pdf"))
     missing = []
     for f in pdfs:
-        cache_path = MARKER_CACHE_DIR / f"{f.stem}.md"
+        cache_path = MARKER_CACHE_DIR / f"{f.stem.replace(' ', '_')}.md"
         if cache_path.exists():
             context.log.info(f"Cache OK: {f.name} -> {cache_path.name}")
         else:
@@ -179,13 +267,13 @@ enrichment_only = define_asset_job(
 
 seed_models = define_asset_job(
     name="seed_models",
-    selection=[seed_marker_cache],
+    selection=[seed_ollama_models, seed_huggingface_models, seed_marker_cache],
 )
 
 
 defs = Definitions(
     assets=[
-        seed_marker_cache,
+        seed_ollama_models, seed_huggingface_models, seed_marker_cache,
         bronze_tabletop, toc_review, bronze_ocr_check, dbt_tabletop,
         publish_to_iceberg, gold_ai_summaries, gold_ai_annotations,
     ],
