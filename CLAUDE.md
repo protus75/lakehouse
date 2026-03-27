@@ -2,6 +2,7 @@
 
 ## Memory
 - **Read `.claude-memory/MEMORY.md` at the start of every conversation.** It indexes all persistent memory files. Read every file it references before doing any work.
+- **Memory lives in `.claude-memory/` in the project repo.** NEVER write memory files to `C:\Users\...\` or the system default path. Always use `.claude-memory/` relative to project root.
 
 ## Rules — MUST FOLLOW
 
@@ -20,8 +21,8 @@ ZERO errors before new features. Never say "good enough." Never commit with know
 ### Never discard data during extraction — CRITICAL
 Capture EVERY field from ANY source. Store raw in bronze with ALL columns. Never reduce or simplify during extraction — that's for silver/gold.
 
-### Monitor long-running tasks
-Docker processes crash silently. For ANY command >1 minute: run in background, poll every 30s, compare output between polls, check disk I/O. If no output change after 60s and disk/network idle — process is hung, cancel immediately. NEVER go silent waiting on a long task.
+### Always estimate and monitor task duration
+For ANY task expected to take >15 seconds: give a time estimate up front before starting. For ANY command >1 minute: run in background, poll every 30s, compare output between polls, check disk I/O. If no output change after 60s and disk/network idle — process is hung, cancel immediately. NEVER go silent waiting on a long task. Docker processes crash silently — monitor all of them.
 
 ### No downloads without permission
 Before pipeline runs: verify model cache volumes mounted. Monitor stderr for "Downloading" in first 5 seconds — kill immediately if found. Metered network.
@@ -34,6 +35,7 @@ NEVER `pip install` in a running container — it's lost on restart. Add to `doc
 - No inline comments in copyable commands
 - Always include `cd` or absolute paths — never assume directory
 - Bash tool: run commands directly without `cd /path &&` prefix
+- Bash tool: use relative paths matching permission rules (e.g. `python scripts/dagster.py`, NOT `python d:/source/.../scripts/dagster.py`)
 - No `jq` — use `python -c "import json..."` instead
 
 ### Finish before moving on
