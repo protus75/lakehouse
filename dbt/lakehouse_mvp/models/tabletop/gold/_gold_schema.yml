@@ -8,6 +8,17 @@ models:
         tests:
           - unique
           - not_null
+      - name: entry_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('silver_entries')
+              field: entry_id
+      - name: toc_id
+        tests:
+          - relationships:
+              to: ref('silver_toc_sections')
+              field: toc_id
       - name: source_file
         tests:
           - not_null

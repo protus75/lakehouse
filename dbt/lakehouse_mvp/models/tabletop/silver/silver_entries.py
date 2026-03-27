@@ -19,6 +19,7 @@ def model(dbt, session):
         load_config, build_heading_chapter_map, build_entries,
         collect_sub_headings, _detect_watermarks,
     )
+    from dlt.lib.stable_keys import make_id
     from pathlib import Path
     import pandas as pd
 
@@ -27,7 +28,6 @@ def model(dbt, session):
     files = dbt.source("bronze_tabletop", "files").df()
 
     all_entries = []
-    entry_id = 0
 
     for _, file_row in files.iterrows():
         sf = file_row["source_file"]
@@ -113,7 +113,6 @@ def model(dbt, session):
 
         # Convert to rows
         for entry in entries:
-            entry_id += 1
             toc_entry = entry["toc_entry"]
             content = entry["content"]
 
@@ -136,12 +135,16 @@ def model(dbt, session):
                     min_desc = config.get("validation", {}).get("min_description_chars", 20)
                     has_description = len(after) >= 2 and len(after[1].strip()) >= min_desc
 
-            all_entries.append({
-                "entry_id": entry_id,
+            row_data = {
                 "source_file": sf,
                 "toc_title": toc_entry["title"],
                 "section_title": entry.get("section_title"),
                 "entry_title": entry.get("entry_title"),
+            }
+            all_entries.append({
+                "entry_id": make_id("entry_id", row_data),
+                "toc_id": make_id("toc_id", {"source_file": sf, "title": toc_entry["title"]}),
+                **row_data,
                 "content": content,
                 "school": entry.get("school"),
                 "sphere": entry.get("sphere"),

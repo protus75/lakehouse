@@ -11,6 +11,7 @@ def model(dbt, session):
     dbt.config(materialized="table")
 
     from dlt.lib.tabletop_cleanup import chunk_entries, load_config
+    from dlt.lib.stable_keys import make_id
     from pathlib import Path
     from datetime import datetime, timezone
     import pandas as pd
@@ -32,7 +33,7 @@ def model(dbt, session):
         }
 
     all_chunks = []
-    chunk_id = 0
+    chunk_index_by_entry = {}  # track chunk index per entry for stable keys
     now = datetime.now(timezone.utc)
 
     # Process per source_file (each book may have different chunking config)
@@ -59,14 +60,32 @@ def model(dbt, session):
         chunks = chunk_entries(entry_list, config)
 
         for chunk in chunks:
-            chunk_id += 1
             toc = chunk["toc_entry"]
+            toc_title = toc.get("title", "")
+            entry_title = chunk.get("entry_title")
+
+            # Track chunk index per entry for stable key
+            entry_key = (sf, toc_title, entry_title)
+            idx = chunk_index_by_entry.get(entry_key, 0)
+            chunk_index_by_entry[entry_key] = idx + 1
+
+            entry_id = make_id("entry_id", {
+                "source_file": sf, "toc_title": toc_title,
+                "entry_title": entry_title,
+                "section_title": chunk.get("section_title"),
+            })
+            chunk_id = make_id("chunk_id", {
+                "source_file": sf, "toc_title": toc_title,
+                "entry_title": entry_title, "chunk_index": idx,
+            })
+
             all_chunks.append({
                 "chunk_id": chunk_id,
+                "entry_id": entry_id,
                 "source_file": sf,
                 "toc_id": toc.get("toc_id"),
                 "section_title": chunk.get("section_title"),
-                "entry_title": chunk.get("entry_title"),
+                "entry_title": entry_title,
                 "content": chunk["content"],
                 "page_numbers": chunk["page_numbers"],
                 "char_count": len(chunk["content"]),

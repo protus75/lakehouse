@@ -40,8 +40,10 @@ type: reference
 4. Check network: `docker stats --no-stream` — NET I/O should be minimal
 5. Monitor stderr for "download" within first 5s of any run — kill immediately if found
 
-## Reset sequence after code changes
+## Reset sequence after code changes (ALL STEPS REQUIRED)
 1. Clear __pycache__: `find d:/source/lakehouse/lakehouse -name '__pycache__' -exec rm -rf {} +`
-2. Restart Dagster: `docker restart lakehouse-dagster-daemon lakehouse-dagster-webserver`
-3. Wait 10s for grpc servers to start
+2. Restart BOTH Dagster containers: `docker restart lakehouse-dagster-daemon lakehouse-dagster-webserver`
+   - ALWAYS restart both — each has its own grpc server with cached modules
+   - Restarting only one causes stale code in the other
+3. Wait 15s for grpc servers to start
 4. Then launch pipeline

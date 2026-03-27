@@ -24,3 +24,13 @@ namespaces:
   bronze: bronze_tabletop
   silver: silver_tabletop
   gold: gold_tabletop
+
+# Stable integer keys — deterministic hash-based IDs that survive rebuilds.
+# Each key type defines which columns form the natural key.
+stable_keys:
+  entry_id:
+    columns: [source_file, toc_title, entry_title, section_title]
+  toc_id:
+    columns: [source_file, title]
+  chunk_id:
+    columns: [source_file, toc_title, entry_title, chunk_index]

@@ -21,6 +21,12 @@ models:
         tests:
           - unique
           - not_null
+      - name: toc_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('silver_toc_sections')
+              field: toc_id
       - name: source_file
         tests:
           - not_null
