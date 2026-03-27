@@ -68,15 +68,21 @@ def _get_entry_index(source_file):
 
 
 def _get_summaries():
-    """Return {entry_id: summary}."""
-    rows = _query("SELECT entry_id, summary FROM gold_tabletop.gold_ai_summaries")
-    return {r["entry_id"]: r["summary"] for r in rows}
+    """Return {entry_id: summary}. Empty dict if table doesn't exist yet."""
+    try:
+        rows = _query("SELECT entry_id, summary FROM gold_tabletop.gold_ai_summaries")
+        return {r["entry_id"]: r["summary"] for r in rows}
+    except Exception:
+        return {}
 
 
 def _get_annotations():
-    """Return {entry_id: {is_combat, is_popular}}."""
-    rows = _query("SELECT entry_id, is_combat, is_popular FROM gold_tabletop.gold_ai_annotations")
-    return {r["entry_id"]: r for r in rows}
+    """Return {entry_id: {is_combat, is_popular}}. Empty dict if table doesn't exist yet."""
+    try:
+        rows = _query("SELECT entry_id, is_combat, is_popular FROM gold_tabletop.gold_ai_annotations")
+        return {r["entry_id"]: r for r in rows}
+    except Exception:
+        return {}
 
 
 # ── Build sidebar ToC ────────────────────────────────────────
