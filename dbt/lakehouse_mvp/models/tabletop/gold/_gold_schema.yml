@@ -61,6 +61,27 @@ models:
           - accepted_values:
               values: ['spell', 'proficiency', 'class', 'race', 'equipment', 'rule']
 
+  - name: gold_entry_descriptions
+    description: "Clean entry descriptions from silver + AI summaries from enrichment"
+    columns:
+      - name: entry_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('silver_entries')
+              field: entry_id
+      - name: source_file
+        tests:
+          - not_null
+      - name: description_type
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['original', 'summary']
+      - name: content
+        tests:
+          - not_null
+
   # gold_ai_summaries and gold_ai_annotations are populated by
   # scripts/tabletop_rules/enrich_summaries.py and enrich_annotations.py
   # (resumable, incremental — not dbt models due to long LLM runtimes)

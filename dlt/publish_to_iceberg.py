@@ -27,6 +27,8 @@ PUBLISH_MAP = {
         "silver_tables",
         "silver_files",
         "silver_spell_crosscheck",
+        "silver_entry_descriptions",
+        "silver_spell_meta",
     ],
     "gold_tabletop": [
         "gold_chunks",
@@ -35,6 +37,7 @@ PUBLISH_MAP = {
         "gold_toc",
         "gold_tables",
         "gold_files",
+        "gold_entry_descriptions",
     ],
 }
 

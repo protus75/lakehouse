@@ -6,7 +6,7 @@ sys.path.insert(0, "/workspace")
 import streamlit as st
 from lib.tabletop import (
     get_books, get_toc, get_full_book, get_entry_index,
-    get_summary, get_annotations, search_entries,
+    get_summary, get_description, get_annotations, search_entries,
 )
 
 # Compact styling
@@ -108,6 +108,7 @@ if book_data.is_empty():
 current_toc_id = None
 current_entry = None
 content_buffer = []
+skip_entry_content = False
 
 
 def _flush_entry():
@@ -122,12 +123,16 @@ def _flush_entry():
 
 
 def _render_badges(entry_title, source_file):
-    """Render entry badges if enabled."""
+    """Render entry badges and description/summary content.
+
+    Badges always show. For spell entries, the AI Summary toggle swaps
+    between the original clean description and the AI summary.
+    """
     if not show_meta:
-        return
+        return None
     idx = get_entry_index(entry_title, source_file)
     if not idx:
-        return
+        return None
     badges = []
     badges.append(idx["entry_type"])
     if idx.get("spell_level"):
@@ -140,6 +145,7 @@ def _render_badges(entry_title, source_file):
         badges.append(idx["sphere"])
 
     entry_id = idx["entry_id"]
+    is_spell = idx["entry_type"] == "spell"
     annotations = get_annotations(entry_id)
     if annotations:
         if annotations.get("is_combat"):
@@ -151,11 +157,26 @@ def _render_badges(entry_title, source_file):
         st.markdown(f'<div class="book-badges">{" · ".join(badges)}</div>',
                     unsafe_allow_html=True)
 
-    if show_summary:
-        summary = get_summary(entry_id)
-        if summary:
-            st.markdown(f'<div class="book-summary">{summary}</div>',
-                        unsafe_allow_html=True)
+    if is_spell:
+        if show_summary:
+            summary = get_summary(entry_id)
+            if summary:
+                st.markdown(f'<div class="book-summary">{summary}</div>',
+                            unsafe_allow_html=True)
+                return "skip_content"
+        else:
+            description = get_description(entry_id)
+            if description:
+                st.markdown(description)
+                return "skip_content"
+    else:
+        if show_summary:
+            summary = get_summary(entry_id)
+            if summary:
+                st.markdown(f'<div class="book-summary">{summary}</div>',
+                            unsafe_allow_html=True)
+
+    return None
 
 
 for row in book_data.iter_rows(named=True):
@@ -168,6 +189,7 @@ for row in book_data.iter_rows(named=True):
     if toc_id != current_toc_id:
         _flush_entry()
         current_entry = None
+        skip_entry_content = False
         current_toc_id = toc_id
 
         depth = row["depth"]
@@ -202,10 +224,12 @@ for row in book_data.iter_rows(named=True):
             f'<div class="book-entry-title">{entry_title}</div></div>',
             unsafe_allow_html=True,
         )
-        _render_badges(entry_title, selected_book)
+        result = _render_badges(entry_title, selected_book)
+        skip_entry_content = result == "skip_content"
 
-    # Accumulate content
-    content_buffer.append(row["content"])
+    # Accumulate content (skip if description/summary already rendered)
+    if not skip_entry_content:
+        content_buffer.append(row["content"])
 
 # Flush last entry
 _flush_entry()

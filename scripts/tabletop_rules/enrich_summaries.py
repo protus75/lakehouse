@@ -1,5 +1,10 @@
 """Enrich gold layer with AI summaries. Resumable — skips already-summarized entries.
 
+For spells: uses clean descriptions from gold_entry_descriptions (metadata stripped).
+For non-spells: uses raw content from silver_entries.
+
+Summaries are written to gold_entry_descriptions with description_type = 'summary'.
+
 Run: docker exec lakehouse-workspace python -u scripts/tabletop_rules/enrich_summaries.py
 """
 import sys
@@ -35,39 +40,50 @@ def call_ollama(prompt: str, url: str, model: str,
 def main():
     conn = get_reader()
 
-    # Purge orphaned summaries from previous pipeline runs
-    # (entry_ids change when silver/gold is rebuilt)
+    # Purge orphaned summary rows (entry_ids change when pipeline rebuilds)
     try:
         orphaned = conn.execute("""
-            SELECT s.entry_id FROM gold_tabletop.gold_ai_summaries s
-            LEFT JOIN silver_tabletop.silver_entries e ON s.entry_id = e.entry_id
-            WHERE e.entry_id IS NULL
+            SELECT d.entry_id
+            FROM gold_tabletop.gold_entry_descriptions d
+            LEFT JOIN gold_tabletop.gold_entry_descriptions o
+                ON d.entry_id = o.entry_id AND o.description_type = 'original'
+            WHERE d.description_type = 'summary' AND o.entry_id IS NULL
         """).fetchall()
         if orphaned:
             from dlt.lib.iceberg_catalog import get_catalog
             catalog = get_catalog()
-            tbl = catalog.load_table("gold_tabletop.gold_ai_summaries")
+            tbl = catalog.load_table("gold_tabletop.gold_entry_descriptions")
             orphan_ids = [r[0] for r in orphaned]
-            _log(f"Purging {len(orphan_ids)} orphaned summaries from previous runs")
-            tbl.delete(f"entry_id IN ({','.join(str(i) for i in orphan_ids)})")
+            _log(f"Purging {len(orphan_ids)} orphaned summary rows")
+            tbl.delete(f"description_type = 'summary' AND entry_id IN ({','.join(str(i) for i in orphan_ids)})")
     except Exception as e:
         _log(f"  Orphan purge skipped: {e}")
 
-    # Get entries that need summaries (not already done)
+    # Get entries that need summaries:
+    # - For spells: use clean description from gold_entry_descriptions (type='original')
+    # - For non-spells: use raw content from silver_entries
+    # Skip entries that already have a summary row
     try:
         entries = conn.execute("""
-            SELECT e.entry_id, e.source_file, e.entry_title, e.content, e.char_count,
-                   i.entry_type
+            SELECT e.entry_id, e.source_file, e.entry_title, e.char_count,
+                   i.entry_type,
+                   d.content as clean_description,
+                   e.content as raw_content
             FROM silver_tabletop.silver_entries e
             JOIN gold_tabletop.gold_entry_index i ON e.entry_id = i.entry_id
-            LEFT JOIN gold_tabletop.gold_ai_summaries s ON e.entry_id = s.entry_id
+            LEFT JOIN gold_tabletop.gold_entry_descriptions d
+                ON e.entry_id = d.entry_id AND d.description_type = 'original'
+            LEFT JOIN gold_tabletop.gold_entry_descriptions s
+                ON e.entry_id = s.entry_id AND s.description_type = 'summary'
             WHERE s.entry_id IS NULL
             ORDER BY e.entry_id
         """).fetchall()
     except Exception:
         entries = conn.execute("""
-            SELECT e.entry_id, e.source_file, e.entry_title, e.content, e.char_count,
-                   i.entry_type
+            SELECT e.entry_id, e.source_file, e.entry_title, e.char_count,
+                   i.entry_type,
+                   NULL as clean_description,
+                   e.content as raw_content
             FROM silver_tabletop.silver_entries e
             JOIN gold_tabletop.gold_entry_index i ON e.entry_id = i.entry_id
             ORDER BY e.entry_id
@@ -83,21 +99,24 @@ def main():
     config = load_config(Path(sf), CONFIGS_DIR)
     gold_config = config.get("gold", {})
     ollama_url = gold_config.get("ollama_url", "http://host.docker.internal:11434")
-    ollama_model = gold_config.get("ollama_model", "llama3:70b")
+    ollama_model = gold_config.get("summary_model", gold_config.get("ollama_model", "llama3:70b"))
     ollama_options = gold_config.get("ollama_options", {})
     min_chars = gold_config.get("min_summary_chars", 200)
     prompt_template = gold_config.get("summary_prompt", "Summarize: {content}")
 
     # Filter by min chars
-    to_process = [e for e in entries if e[4] >= min_chars]
-    _log(f"AI Summaries: {len(to_process)} entries to summarize ({len(entries) - len(to_process)} skipped, under {min_chars} chars)")
+    to_process = [e for e in entries if e[3] >= min_chars]
+    _log(f"AI Summaries: {len(to_process)} entries to summarize "
+         f"({len(entries) - len(to_process)} skipped, under {min_chars} chars) "
+         f"using {ollama_model}")
 
-    now = datetime.now(timezone.utc)
-
-    for i, (entry_id, source_file, entry_title, content, char_count, entry_type) in enumerate(to_process):
+    for i, (entry_id, source_file, entry_title, char_count,
+            entry_type, clean_description, raw_content) in enumerate(to_process):
         entry_type = entry_type or "entry"
         entry_title = entry_title or ""
 
+        # Use clean description for spells, raw content for non-spells
+        content = clean_description if clean_description else raw_content
         if len(content) > 3000:
             content = content[:3000] + "..."
 
@@ -110,10 +129,9 @@ def main():
         summary = call_ollama(prompt, ollama_url, ollama_model, ollama_options)
 
         if summary:
-            write_iceberg("gold_tabletop", "gold_ai_summaries", pa.table({
+            write_iceberg("gold_tabletop", "gold_entry_descriptions", pa.table({
                 "entry_id": [entry_id], "source_file": [source_file],
-                "entry_title": [entry_title], "entry_type": [entry_type],
-                "summary": [summary], "summarized_at": [now],
+                "description_type": ["summary"], "content": [summary],
             }), overwrite_filter="entry_id", overwrite_filter_value=entry_id)
 
             if (i + 1) % 10 == 0:
