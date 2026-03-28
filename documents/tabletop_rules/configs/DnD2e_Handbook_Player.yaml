@@ -89,9 +89,14 @@ parsing_defaults:
 # Per-section parsing overrides — matched by substring in the ToC title
 # Each section can define its own heading rules, metadata fields to extract,
 # sub-section delimiters, and entry structure
+# entry_mode per section — how silver_entries are split:
+#   toc        — one entry per ToC sub-section (default for most chapters)
+#   per_list   — one entry per item in a reference list (spell_list_entries, authority_table_entries)
+#   per_anchor — one entry per config anchor (for sections where Marker doesn't make headings)
 section_parsing:
   "Wizard Spells":
-    # Spell sections have level sub-headers, then spell entries with stat blocks
+    entry_mode: per_list
+    list_source: spell_list_entries
     sub_section_pattern: '(?:First|Second|Third|Fourth|Fifth|Sixth|Seventh|Eighth|Ninth)-Level Spells'
     # A spell entry heading: name only, no colon, short
     heading_rules:
@@ -127,6 +132,8 @@ section_parsing:
       - '(Invocation.*)'
 
   "Priest Spells":
+    entry_mode: per_list
+    list_source: spell_list_entries
     sub_section_pattern: '(?:First|Second|Third|Fourth|Fifth|Sixth|Seventh)-Level Spells'
     heading_rules:
       min_length: 3
@@ -167,10 +174,13 @@ section_parsing:
       "**Required": "Required Materials"
       "**An Example": "An Example of Play"
 
+  "Nonweapon Proficiency Descriptions":
+    entry_mode: per_list
+    list_source: authority_table_entries
+    list_filter_type: proficiency
+
   "Player Character Races":
-    # Race names don't appear as markdown headings — Marker renders them as
-    # inline text. Detect entry boundaries by matching these anchor names at
-    # the start of a non-heading line.
+    entry_mode: per_anchor
     entry_anchors:
       - "Dwarves"
       - "Elves"

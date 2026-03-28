@@ -67,24 +67,20 @@ def _get_toc(source_file):
     )
 
 
-def _get_full_book(source_file):
-    """Get all entries with full content ordered by chapter then entry_id.
-
-    Reads from silver_entries (full deduplicated content, no chunk overlap)
-    and joins to gold_toc for chapter ordering. Entries within a chapter
-    are ordered by entry_id (silver extraction order = document order).
-    """
-    return _query(
-        "SELECT t.toc_id, t.title as toc_title, "
-        "t.sort_order as chapter_sort, "
-        "t.depth, t.is_chapter, t.is_table, "
-        "e.entry_id, e.entry_title, e.content "
-        "FROM silver_tabletop.silver_entries e "
-        "JOIN gold_tabletop.gold_toc t ON e.toc_title = t.title AND t.is_chapter = true "
-        "WHERE e.source_file = ? "
-        "ORDER BY t.sort_order, e.entry_id",
+def _get_entries(source_file):
+    """Get all entries keyed by (chapter_title, entry_title) for ToC-driven assembly."""
+    rows = _query(
+        "SELECT entry_id, toc_title, entry_title, content "
+        "FROM silver_tabletop.silver_entries "
+        "WHERE source_file = ? "
+        "ORDER BY entry_id",
         [source_file],
     )
+    # Index: chapter_title -> [entries in order]
+    by_chapter = {}
+    for r in rows:
+        by_chapter.setdefault(r["toc_title"], []).append(r)
+    return by_chapter
 
 
 def _get_entry_index(source_file):
@@ -326,10 +322,11 @@ def build_book_content(book_data, toc_rows, entry_index, summaries, annotations,
         _insert_tables_up_to(sort_order)
         last_sort_order = sort_order
 
-        # New ToC section — render chapter heading
+        # New ToC section — render chapter heading with anchor
         if toc_id != current_toc_id:
             current_toc_id = toc_id
             anchor_id = f"toc-{toc_id}"
+            anchor_map[toc_id] = anchor_id
             if is_chapter:
                 level = min(depth + 1, 4)
                 tag = [html.H1, html.H2, html.H3, html.H4][level - 1]
@@ -339,21 +336,13 @@ def build_book_content(book_data, toc_rows, entry_index, summaries, annotations,
         # Entry heading + metadata
         entry_els = []
 
-        # Add toc anchor if entry title matches a ToC section
+        # Anchor for ToC sub-section matching this entry title
         if entry_title:
             matched_toc = toc_title_to_id.get(entry_title)
-            if matched_toc:
+            if matched_toc and matched_toc not in anchor_map:
                 anchor_id = f"toc-{matched_toc}"
                 entry_els.append(html.Div(id=anchor_id))
                 anchor_map[matched_toc] = anchor_id
-            if not matched_toc:
-                m = re.search(r"Table\s+(\d+)", entry_title)
-                if m:
-                    table_toc_id = toc_table_num_to_id.get(int(m.group(1)))
-                    if table_toc_id:
-                        anchor_id = f"toc-{table_toc_id}"
-                        entry_els.append(html.Div(id=anchor_id))
-                        anchor_map[table_toc_id] = anchor_id
 
         # Entry title
         entry_id = row.get("entry_id")
