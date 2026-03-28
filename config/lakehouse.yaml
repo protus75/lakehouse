@@ -55,3 +55,17 @@ models:
   huggingface:
     models:
       - "sentence-transformers/all-MiniLM-L6-v2"
+
+# Cloudflare Tunnel — exposes the Dash browser app at gamerules.ai
+# Tunnel was created with: cloudflared tunnel create gamerules
+# Credentials: C:\Users\richard\.cloudflared\f60f5fc0-d2a9-4344-92ce-bb7760bde999.json
+tunnel:
+  name: gamerules
+  id: "f60f5fc0-d2a9-4344-92ce-bb7760bde999"
+  domain: gamerules.ai
+  credentials_file: "~/.cloudflared/f60f5fc0-d2a9-4344-92ce-bb7760bde999.json"
+
+# Dash browser app — serves tabletop rules content
+dashapp:
+  host: "0.0.0.0"
+  port: 8000

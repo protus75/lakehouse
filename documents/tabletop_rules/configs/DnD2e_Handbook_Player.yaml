@@ -219,16 +219,14 @@ authority_tables:
     page: 90
     type: equipment
 
-# Tables that Marker failed to parse — provide heading text for fuzzy fallback
-# These are text-only tables (no pipe formatting) that the parser couldn't auto-detect
-missing_tables:
-  - table_number: 21
-    heading: "Wizard Spell Progression"
-    content_marker: "Wizard<br>Level<br>1<br>2"
-  - table_number: 40
-    heading: "Movement While Tracking"
-  - table_number: 65
-    heading: "Base Climbing Success Rates"
+# Extra hints for tables the ToC-driven extractor needs help finding.
+# content_marker: unique string in the pipe block to locate it
+# heading: heading text near the table for fuzzy matching
+table_hints:
+  "Weapons":
+    content_marker: "| Arquebus"
+  "Armor":
+    content_marker: "| Banded mail"
 
 validation:
   spell_toc_patterns:

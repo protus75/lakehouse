@@ -34,10 +34,12 @@ def gql(query: str) -> dict:
 
 
 def cmd_launch(job: str, force: bool = False):
-    run_config = ""
+    run_config_str = ""
     if force:
-        config_json = json.dumps({"ops": {"bronze_tabletop": {"config": {"force": True}}}})
-        run_config = f', runConfigData: "{config_json.replace(chr(34), chr(92)+chr(34))}"'
+        rc = {"ops": {"bronze_tabletop": {"config": {"force": True}}}}
+        # GraphQL RunConfigData is a JSON string value
+        escaped = json.dumps(json.dumps(rc))  # double-encode: JSON string inside JSON
+        run_config_str = f", runConfigData: {escaped}"
     q = f'''mutation {{
         launchRun(executionParams: {{
             selector: {{
@@ -46,7 +48,7 @@ def cmd_launch(job: str, force: bool = False):
                 jobName: "{job}"
             }},
             mode: "default"
-            {run_config}
+            {run_config_str}
         }}) {{
             __typename
             ... on LaunchRunSuccess {{ run {{ runId status }} }}

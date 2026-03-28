@@ -13,3 +13,4 @@
 - [reference_ollama_setup.md](reference_ollama_setup.md) — Ollama on host, D:\ollama\models, llama3:70b + minicpm-v, API endpoints
 - [reference_cache_locations.md](reference_cache_locations.md) — All caches, reset sequence after code changes, pre-run checks
 - [project_multi_project_plan.md](project_multi_project_plan.md) — Future TODO: multi-project config refactor + Dagster cache/restart DX improvements
+- [project_gamerules_domain.md](project_gamerules_domain.md) — gamerules.ai domain via Cloudflare Tunnel to Dash app on port 8000

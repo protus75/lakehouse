@@ -48,3 +48,6 @@ documents/**/raw/*.pdf
 
 documents/tabletop_rules/processed/marker/
 documents/tabletop_rules/processed/marker/
+
+# Tunnel runtime (PID files, logs)
+.tunnel/
