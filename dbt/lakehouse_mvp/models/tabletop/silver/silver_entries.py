@@ -1,12 +1,10 @@
 """Silver: cleaned, chapter-assigned entries from Marker markdown.
 
-Reads bronze data + silver_page_anchors, runs the full entry-building pipeline:
-1. Build heading-chapter map from page anchors
-2. Build entries from Marker headings
-3. Clean entry content (smashed metadata, dedup, orphan merge)
-4. Collect sub-headings per ToC section
-
-This is the core transform — all cleanup logic from the shared library.
+Stream-based approach:
+1. Build extended ToC (real ToC + spell/authority entries injected in order)
+2. Walk markdown stream, match headings to extended ToC in document order
+3. Split content between consecutive matched headings
+4. Clean entry content (smashed metadata, dedup, orphan merge)
 """
 import sys
 sys.path.insert(0, "/workspace")
@@ -16,7 +14,7 @@ def model(dbt, session):
     dbt.config(materialized="table")
 
     from dlt.lib.tabletop_cleanup import (
-        load_config, build_heading_chapter_map, build_entries,
+        load_config, build_extended_toc, build_entries_from_stream,
         collect_sub_headings, _detect_watermarks,
     )
     from dlt.lib.stable_keys import make_id
@@ -45,72 +43,44 @@ def model(dbt, session):
             f"SELECT page_index, page_text, printed_page_num FROM bronze_tabletop.page_texts WHERE source_file = '{sf}' ORDER BY page_index"
         ).fetchdf()
         page_texts = pages_df["page_text"].tolist()
-        page_printed = dict(zip(pages_df["page_index"].tolist(), pages_df["printed_page_num"].tolist()))
         total_pages = len(page_texts)
 
         # Load full ToC (all entries: chapters + sub-sections)
-        # Check if new schema columns exist (is_chapter, parent_title)
-        col_df = session.execute(
-            "SELECT column_name FROM information_schema.columns "
-            f"WHERE table_schema = 'bronze_tabletop' AND table_name = 'toc_raw'"
+        toc_df = session.execute(
+            f"SELECT title, page_start, page_end, is_excluded, is_chapter, is_table, parent_title "
+            f"FROM bronze_tabletop.toc_raw WHERE source_file = '{sf}' ORDER BY page_start"
         ).fetchdf()
-        cols = set(col_df["column_name"].tolist())
-        has_new_schema = "is_chapter" in cols
-
-        if has_new_schema:
-            toc_df = session.execute(
-                f"SELECT title, page_start, page_end, is_excluded, is_chapter, is_table, parent_title "
-                f"FROM bronze_tabletop.toc_raw WHERE source_file = '{sf}' ORDER BY page_start"
-            ).fetchdf()
-        else:
-            toc_df = session.execute(
-                f"SELECT title, page_start, page_end, is_excluded "
-                f"FROM bronze_tabletop.toc_raw WHERE source_file = '{sf}' ORDER BY page_start"
-            ).fetchdf()
 
         toc_all = []
-        toc_sections = []  # chapter-level only (for heading-chapter map page ranges)
         for _, row in toc_df.iterrows():
-            is_ch = bool(row["is_chapter"]) if has_new_schema else True
             entry = {
                 "title": row["title"],
                 "page_start": int(row["page_start"]),
                 "page_end": int(row["page_end"]) if row["page_end"] else 9999,
                 "is_excluded": bool(row["is_excluded"]),
-                "is_chapter": is_ch,
-                "is_table": bool(row.get("is_table", False)) if has_new_schema else False,
-                "parent_title": row.get("parent_title") if has_new_schema else None,
+                "is_chapter": bool(row["is_chapter"]),
+                "is_table": bool(row.get("is_table", False)),
+                "parent_title": row.get("parent_title"),
                 "sub_headings": [],
                 "tables": [],
             }
             toc_all.append(entry)
-            if entry["is_chapter"]:
-                toc_sections.append(entry)
 
-        # Load known entries — only entries with a class (actual spells from spell index)
-        # General index entries without class are excluded to prevent false matches
-        ke_df = session.execute(
-            f"SELECT entry_name FROM bronze_tabletop.known_entries_raw WHERE source_file = '{sf}' AND entry_class IS NOT NULL"
-        ).fetchdf()
-        known_entries = set(ke_df["entry_name"].tolist()) if not ke_df.empty else set()
-
-        # Strip watermarks
+        # Detect watermarks
         watermarks = _detect_watermarks(page_texts, total_pages)
-        if watermarks:
-            lines = [l for l in markdown.split("\n") if l.strip() not in watermarks]
-            markdown = "\n".join(lines)
 
-        # Load spell list and authority entries for per_list entry mode
+        # Load spell list entries
         spell_list = []
         try:
             sl_df = session.execute(
-                f"SELECT spell_name, spell_class, spell_level, school, sphere "
+                f"SELECT entry_name, entry_class, entry_level "
                 f"FROM bronze_tabletop.spell_list_entries WHERE source_file = '{sf}'"
             ).fetchdf()
             spell_list = sl_df.to_dict("records") if not sl_df.empty else []
         except Exception:
             pass
 
+        # Load authority entries
         authority_entries = []
         try:
             ae_df = session.execute(
@@ -121,15 +91,33 @@ def model(dbt, session):
         except Exception:
             pass
 
-        # Build heading-chapter map from page anchors
-        heading_chapter_map = build_heading_chapter_map(
-            markdown, toc_sections, page_texts, page_printed, total_pages, config
-        )
+        # Load cross-referenced spell metadata (school, sphere)
+        spell_meta = {}
+        try:
+            meta_df = session.execute(
+                f"SELECT entry_name, school, sphere FROM bronze_tabletop.known_entries_raw "
+                f"WHERE source_file = '{sf}' AND entry_class IS NOT NULL AND school IS NOT NULL"
+            ).fetchdf()
+            if not meta_df.empty:
+                for _, r in meta_df.iterrows():
+                    name = r["entry_name"].lower()
+                    if name not in spell_meta:
+                        spell_meta[name] = {"school": r["school"], "sphere": r.get("sphere")}
+        except Exception:
+            pass
 
-        # Build entries — ToC-driven with entry_mode config
-        entries = build_entries(markdown, heading_chapter_map, known_entries, config, toc_all,
-                               spell_list=spell_list, authority_entries=authority_entries,
-                               page_texts=page_texts, page_printed=page_printed)
+        # Enrich spell_list with school/sphere from cross-reference
+        for s in spell_list:
+            name = (s.get("entry_name") or "").lower()
+            if name in spell_meta:
+                s["school"] = spell_meta[name].get("school")
+                s["sphere"] = spell_meta[name].get("sphere")
+
+        # Build extended ToC
+        extended_toc = build_extended_toc(toc_all, spell_list, authority_entries, config)
+
+        # Build entries from stream
+        entries = build_entries_from_stream(markdown, extended_toc, config, watermarks)
 
         # Collect sub-headings
         collect_sub_headings(entries, toc_all, config)

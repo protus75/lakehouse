@@ -476,6 +476,618 @@ def _is_valid_section_heading(heading: str, toc_sections: list[dict], config: di
     return False
 
 
+# ── Stream-based entry building ──────────────────────────────────
+
+
+def build_extended_toc(
+    toc_all: list[dict],
+    spell_list: list[dict],
+    authority_entries: list[dict],
+    config: dict,
+) -> list[dict]:
+    """Extend the real ToC with entries from config, spell_list, and authority tables.
+
+    Walks chapters in page order. For each chapter, checks section_parsing config:
+    - per_list (spell_list_entries): group spells by level, inject alphabetically
+      under the matching level sub-section heading
+    - per_list (authority_table_entries): inject authority entries alphabetically
+    - per_anchor: inject entry_anchors from config as leaf nodes
+    - entry_anchors without entry_mode: inject anchors (e.g. "The Real Basics")
+    - toc (default): sub-sections from ToC are leaves
+
+    Returns a flat ordered list ready for stream matching.
+    """
+    section_cfg = config.get("section_parsing", {}) if config else {}
+    level_mapping = config.get("spell_level_mapping", {}) if config else {}
+
+    chapters = [t for t in toc_all if t.get("is_chapter") and not t.get("is_excluded")]
+    extended = []
+
+    for ch in chapters:
+        ch_title = ch["title"]
+
+        # Add the chapter node (never a leaf)
+        extended.append({
+            **ch, "is_leaf": False, "entry_mode": "toc",
+            "spell_class": None, "spell_level": None,
+            "school": None, "sphere": None, "source": "toc",
+        })
+
+        # Find matching section_parsing config for this chapter
+        # Match on chapter title containing the config key OR sub-section parent
+        entry_mode = "toc"
+        matched_cfg = None
+        for sec_key, sec_cfg in section_cfg.items():
+            if sec_key.lower() in ch_title.lower():
+                entry_mode = sec_cfg.get("entry_mode", "toc")
+                matched_cfg = sec_cfg
+                break
+
+        # Sub-sections from real ToC, page-ordered
+        subs = sorted(
+            [t for t in toc_all if t.get("parent_title") == ch_title and not t.get("is_excluded")],
+            key=lambda s: s.get("page_start", 0),
+        )
+
+        # Also check if any sub-section has its own section_parsing config
+        # (e.g. "Nonweapon Proficiency Descriptions" is a sub-section of Ch5)
+        sub_configs = {}
+        for sub in subs:
+            for sec_key, sec_cfg in section_cfg.items():
+                if sec_key.lower() in sub.get("title", "").lower():
+                    sub_configs[sub["title"]] = sec_cfg
+                    break
+
+        if entry_mode == "per_list" and matched_cfg:
+            _extend_per_list(extended, ch, subs, matched_cfg, spell_list,
+                             authority_entries, level_mapping)
+        elif entry_mode == "per_anchor" and matched_cfg:
+            _extend_per_anchor(extended, ch, subs, matched_cfg)
+        elif matched_cfg and "entry_anchors" in matched_cfg:
+            # Has anchors but no entry_mode (like "The Real Basics")
+            _extend_per_anchor(extended, ch, subs, matched_cfg)
+        else:
+            # Default toc mode — sub-sections are leaves
+            # But check if individual sub-sections have their own config
+            for sub in subs:
+                sub_cfg = sub_configs.get(sub["title"])
+                if sub_cfg and sub_cfg.get("entry_mode") == "per_list":
+                    # This sub-section expands into per_list entries
+                    extended.append({
+                        **sub, "is_leaf": False, "entry_mode": "per_list",
+                        "spell_class": None, "spell_level": None,
+                        "school": None, "sphere": None, "source": "toc",
+                    })
+                    _extend_sub_per_list(extended, ch, sub, sub_cfg,
+                                         authority_entries)
+                elif sub_cfg and "entry_anchors" in sub_cfg:
+                    extended.append({
+                        **sub, "is_leaf": False, "entry_mode": "per_anchor",
+                        "spell_class": None, "spell_level": None,
+                        "school": None, "sphere": None, "source": "toc",
+                    })
+                    _extend_per_anchor(extended, ch, [], sub_cfg)
+                else:
+                    extended.append({
+                        **sub,
+                        "is_leaf": not sub.get("is_table", False),
+                        "entry_mode": "toc",
+                        "spell_class": None, "spell_level": None,
+                        "school": None, "sphere": None, "source": "toc",
+                    })
+
+    leaf_count = sum(1 for e in extended if e.get("is_leaf"))
+    spell_count = sum(1 for e in extended if e.get("source") == "spell_list")
+    auth_count = sum(1 for e in extended if e.get("source") == "authority")
+    anchor_count = sum(1 for e in extended if e.get("source") == "anchor")
+    _log(f"  Extended ToC: {len(extended)} nodes, {leaf_count} leaves "
+         f"({spell_count} spells, {auth_count} authority, {anchor_count} anchors)")
+    return extended
+
+
+def _extend_per_list(extended, ch, subs, cfg, spell_list, authority_entries,
+                     level_mapping):
+    """Extend ToC for a per_list chapter (spells or authority entries)."""
+    list_source = cfg.get("list_source", "")
+    list_filter = cfg.get("list_filter_type", "")
+    sub_pat = cfg.get("sub_section_pattern", "")
+    ch_title = ch["title"]
+
+    # Determine spell class from chapter title
+    spell_class = None
+    ch_lower = ch_title.lower()
+    if "wizard" in ch_lower:
+        spell_class = "wizard"
+    elif "priest" in ch_lower:
+        spell_class = "priest"
+
+    if list_source == "spell_list_entries":
+        # Group spells by level, sorted alphabetically within each
+        spells_by_level = {}
+        for s in spell_list:
+            sc = (s.get("entry_class") or s.get("spell_class") or "").lower()
+            if spell_class and sc != spell_class:
+                continue
+            lvl = int(s.get("entry_level") or s.get("spell_level") or 0)
+            spells_by_level.setdefault(lvl, []).append(s)
+        for lvl in spells_by_level:
+            spells_by_level[lvl].sort(
+                key=lambda s: (s.get("entry_name") or s.get("spell_name") or "").lower()
+            )
+
+        for sub in subs:
+            is_table = sub.get("is_table", False)
+            extended.append({
+                **sub, "is_leaf": is_table, "entry_mode": "per_list",
+                "spell_class": spell_class, "spell_level": None,
+                "school": None, "sphere": None, "source": "toc",
+            })
+            if is_table:
+                continue
+
+            # Check if this sub-section is a level header
+            matched_level = None
+            if sub_pat:
+                sub_title = sub.get("title", "")
+                if re.match(sub_pat, sub_title, re.IGNORECASE):
+                    for word, lvl in level_mapping.items():
+                        if word.lower() in sub_title.lower():
+                            matched_level = lvl
+                            break
+
+            if matched_level is not None and matched_level in spells_by_level:
+                for s in spells_by_level[matched_level]:
+                    name = s.get("entry_name") or s.get("spell_name") or ""
+                    extended.append(_make_leaf(
+                        name, ch_title, sub.get("page_start", 0),
+                        sub.get("page_end", 9999),
+                        entry_mode="per_list", source="spell_list",
+                        spell_class=spell_class, spell_level=matched_level,
+                        school=s.get("school"), sphere=s.get("sphere"),
+                    ))
+
+    elif list_source == "authority_table_entries":
+        for sub in subs:
+            extended.append({
+                **sub, "is_leaf": sub.get("is_table", False), "entry_mode": "per_list",
+                "spell_class": None, "spell_level": None,
+                "school": None, "sphere": None, "source": "toc",
+            })
+
+        names = sorted(
+            [a for a in authority_entries
+             if not list_filter or a.get("entry_type", "") == list_filter],
+            key=lambda a: a.get("entry_name", "").lower(),
+        )
+        for a in names:
+            extended.append(_make_leaf(
+                a.get("entry_name", ""), ch_title,
+                ch.get("page_start", 0), ch.get("page_end", 9999),
+                entry_mode="per_list", source="authority",
+            ))
+
+
+def _extend_sub_per_list(extended, ch, sub, cfg, authority_entries):
+    """Extend ToC for a sub-section that is per_list (e.g. Proficiency Descriptions)."""
+    list_source = cfg.get("list_source", "")
+    list_filter = cfg.get("list_filter_type", "")
+    ch_title = ch["title"]
+
+    if list_source == "authority_table_entries":
+        names = sorted(
+            [a for a in authority_entries
+             if not list_filter or a.get("entry_type", "") == list_filter],
+            key=lambda a: a.get("entry_name", "").lower(),
+        )
+        for a in names:
+            extended.append(_make_leaf(
+                a.get("entry_name", ""), ch_title,
+                sub.get("page_start", 0), sub.get("page_end", 9999),
+                entry_mode="per_list", source="authority",
+            ))
+
+
+def _extend_per_anchor(extended, ch, subs, cfg):
+    """Extend ToC for a per_anchor section.
+
+    per_anchor was needed when the matcher only searched heading-formatted lines.
+    Now that _find_in_stream searches all lines, per_anchor is equivalent to toc
+    mode — the ToC sub-sections are the truth. Anchors only matter for entries
+    NOT already in the ToC subs (injected as new leaf nodes).
+    """
+    anchors = cfg.get("entry_anchors", [])
+    name_map = cfg.get("anchor_name_map", {})
+    ch_title = ch["title"]
+
+    # Add ToC subs as usual
+    sub_titles_lower = set()
+    for sub in subs:
+        sub_titles_lower.add(sub.get("title", "").lower())
+        extended.append({
+            **sub,
+            "is_leaf": not sub.get("is_table", False),
+            "entry_mode": "toc",
+            "spell_class": None, "spell_level": None,
+            "school": None, "sphere": None, "source": "toc",
+        })
+
+    # Only add anchors that are NOT already in the ToC subs
+    for anchor in anchors:
+        raw = anchor.replace("**", "").strip()
+        display_name = name_map.get(anchor, raw)
+        if raw.lower() not in sub_titles_lower and display_name.lower() not in sub_titles_lower:
+            extended.append(_make_leaf(
+                display_name, ch_title,
+                ch.get("page_start", 0), ch.get("page_end", 9999),
+                entry_mode="toc", source="anchor",
+                _anchor_text=anchor,
+            ))
+
+
+def _make_leaf(title, parent_title, page_start, page_end,
+               entry_mode="toc", source="toc", **kwargs):
+    """Create a leaf node for the extended ToC."""
+    return {
+        "title": title,
+        "parent_title": parent_title,
+        "is_chapter": False,
+        "is_table": False,
+        "is_excluded": False,
+        "is_leaf": True,
+        "page_start": page_start,
+        "page_end": page_end,
+        "entry_mode": entry_mode,
+        "spell_class": kwargs.get("spell_class"),
+        "spell_level": kwargs.get("spell_level"),
+        "school": kwargs.get("school"),
+        "sphere": kwargs.get("sphere"),
+        "source": source,
+        "_anchor_text": kwargs.get("_anchor_text"),
+        "sub_headings": [],
+        "tables": [],
+    }
+
+
+def _clean_line_for_matching(text: str) -> str:
+    """Strip markdown formatting from a line for fuzzy matching."""
+    clean = text.strip()
+    while clean.startswith("#"):
+        clean = clean[1:]
+    clean = clean.replace("**", "").replace("*", "").strip()
+    # Remove trailing parenthetical (school names, chapter refs)
+    paren = clean.rfind("(")
+    if paren > 0 and clean.endswith(")"):
+        clean = clean[:paren].strip()
+    # Remove "Reversible" suffix
+    if clean.lower().endswith("reversible"):
+        clean = clean[:clean.lower().rfind("reversible")].strip()
+    return clean
+
+
+def _find_in_stream(lines: list[str], target: str, start: int, end: int,
+                    threshold: int = 80) -> int:
+    """Find a line in the stream that matches target using fuzzy matching.
+
+    Searches lines[start:end] for a line whose cleaned text is a good fuzzy
+    match against target. Only considers lines that look like headings or
+    short standalone text (not buried in paragraphs).
+
+    Returns line index or -1.
+    """
+    from rapidfuzz import fuzz
+    target_lower = target.lower().strip()
+    if not target_lower:
+        return -1
+
+    for i in range(start, min(end, len(lines))):
+        raw = lines[i].strip()
+        if not raw:
+            continue
+
+        clean = _clean_line_for_matching(raw)
+        if not clean:
+            continue
+        clean_lower = clean.lower()
+
+        # Exact match (works on any line length)
+        if clean_lower == target_lower:
+            return i
+
+        # Check if the target appears at the start of the line (even long lines)
+        # Handles "Dwarves are short, stocky..." matching "Dwarves"
+        if len(target_lower) >= 4 and clean_lower.startswith(target_lower):
+            after = clean_lower[len(target_lower):]
+            if not after or not after[0].isalpha():
+                # Number guard for startswith too
+                t_nums = [w for w in target_lower.split() if w.isdigit()]
+                c_nums = [w for w in clean_lower.split() if w.isdigit()]
+                if t_nums and c_nums and t_nums != c_nums:
+                    continue
+                return i
+
+        # Skip remaining checks for very long lines
+        if len(clean) > len(target) * 3 + 40:
+            continue
+
+        # Fuzzy match — only on lines short enough to be headings
+        if len(clean) <= len(target) * 2 + 20:
+            score = fuzz.ratio(clean_lower, target_lower)
+            if score >= threshold:
+                # Guard against numbered near-misses: "Chapter 11" != "Chapter 12"
+                # If both contain a number, the numbers must match
+                t_nums = [w for w in target_lower.split() if w.isdigit()]
+                c_nums = [w for w in clean_lower.split() if w.isdigit()]
+                if t_nums and c_nums and t_nums != c_nums:
+                    continue
+                return i
+
+    return -1
+
+
+def build_entries_from_stream(
+    markdown: str,
+    extended_toc: list[dict],
+    config: dict,
+    watermarks: set[str] = None,
+) -> list[dict]:
+    """Build entries by walking the markdown stream against the extended ToC.
+
+    Algorithm:
+    1. Strip watermark lines
+    2. Find chapter boundaries (search all lines, not just headings)
+    3. Within each chapter, find leaf nodes in order using fuzzy matching
+    4. Extract content between consecutive matched positions
+
+    Returns list of entry dicts ready for silver_entries.
+    """
+    if not extended_toc:
+        return []
+
+    # Apply content_substitutions before splitting — fixes OCR errors for matching
+    for sub in config.get("content_substitutions", []):
+        if len(sub) == 2:
+            markdown = markdown.replace(sub[0], sub[1])
+
+    lines = markdown.split("\n")
+    if watermarks:
+        lines = [l if l.strip() not in watermarks else "" for l in lines]
+
+    min_content = config.get("ingestion", {}).get("min_entry_content", 10) if config else 10
+
+    # ── Phase 1: Find chapter boundaries ──
+    # Chapters use ONLY heading-formatted lines (# or **) with exact number match.
+    # This avoids false matches on body text and Marker page header repeats.
+    chapters_only = [e for e in extended_toc if e.get("is_chapter")]
+
+    # Index heading-formatted lines only
+    heading_lines = []  # (line_idx, clean_text)
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped.startswith("#") or (stripped.startswith("**") and "**" in stripped[2:]):
+            clean = _clean_line_for_matching(stripped)
+            if clean and len(clean) >= 2:
+                heading_lines.append((i, clean))
+
+    def _find_chapter_heading(target: str, start: int) -> int:
+        """Find a chapter heading. Only searches heading-formatted lines.
+        Requires exact number match for numbered chapters."""
+        from rapidfuzz import fuzz
+        target_lower = target.lower().strip()
+        # Extract numbers from target
+        t_nums = [w for w in target_lower.split() if w.isdigit()]
+
+        for h_line, h_clean in heading_lines:
+            if h_line < start:
+                continue
+            h_lower = h_clean.lower()
+            # Number guard: if target has numbers, line must have same numbers
+            h_nums = [w for w in h_lower.split() if w.isdigit()]
+            if t_nums and h_nums and t_nums != h_nums:
+                continue
+
+            if h_lower == target_lower:
+                return h_line
+            if fuzz.ratio(h_lower, target_lower) >= 85:
+                return h_line
+        return -1
+
+    chapter_start = {}
+    search_from = 0
+    for ch in chapters_only:
+        ch_title = ch["title"]
+        # Try descriptive part FIRST — it appears before "Chapter N" page headers
+        # in the stream because the actual content heading comes first.
+        # "Chapter N" page headers are Marker artifacts that appear mid-chapter.
+        candidates = []
+        if ":" in ch_title:
+            desc = ch_title.split(":", 1)[-1].strip()
+            candidates.append(desc)
+            # Also try shortened form
+            for prefix in ("Player Character ", "PC "):
+                if desc.lower().startswith(prefix.lower()):
+                    candidates.append(desc[len(prefix):].strip())
+            candidates.append(ch_title)
+            candidates.append(ch_title.split(":", 1)[0].strip())
+        else:
+            candidates.append(ch_title)
+        for c in list(candidates):
+            paren = c.rfind("(")
+            if paren > 0:
+                candidates.append(c[:paren].strip())
+
+        pos = -1
+        matched_cand = ""
+        for cand in candidates:
+            if len(cand) < 3:
+                continue
+            pos = _find_chapter_heading(cand, search_from)
+            if pos >= 0:
+                matched_cand = cand
+                break
+        if pos >= 0:
+            chapter_start[ch_title] = pos
+            _log(f"    ch {pos:5d}: [{ch_title}] via [{matched_cand}] -> [{_clean_line_for_matching(lines[pos])}]")
+            search_from = pos + 1
+        else:
+            _log(f"    ch  MISS: [{ch_title}]")
+
+    # Build chapter bounds
+    chapter_bounds = {}
+    ch_titles = list(chapter_start.keys())
+    for i, title in enumerate(ch_titles):
+        start = chapter_start[title]
+        end = chapter_start[ch_titles[i + 1]] if i + 1 < len(ch_titles) else len(lines)
+        chapter_bounds[title] = (start, end)
+
+    _log(f"  Chapter boundaries: {len(chapter_bounds)} of {len(chapters_only)} chapters found")
+
+    # ── Phase 2: Find leaf nodes within chapter ranges ──
+    # Rare-first strategy: match unique/long titles first (they have fewer false
+    # matches), then fill in common/short titles constrained between neighbors.
+
+    # Collect all leaves with their chapter ranges
+    leaf_items = []  # (toc_index, node, ch_start, ch_end)
+    current_chapter = None
+    ch_s, ch_e = 0, len(lines)
+    for toc_idx, node in enumerate(extended_toc):
+        if node.get("is_chapter"):
+            current_chapter = node["title"]
+            bounds = chapter_bounds.get(current_chapter)
+            if bounds:
+                ch_s, ch_e = bounds
+            continue
+        if node.get("is_excluded") or node.get("is_table") or not node.get("is_leaf"):
+            continue
+        leaf_items.append((toc_idx, node, ch_s, ch_e))
+
+    def _occurrence_count(title: str, ch_s: int, ch_e: int) -> int:
+        """Count how many lines in the chapter range contain this title.
+        Fewer occurrences = more unique = should match first."""
+        t_lower = title.lower().strip()
+        if not t_lower:
+            return 9999
+        count = 0
+        for i in range(ch_s, min(ch_e, len(lines))):
+            if t_lower in lines[i].lower():
+                count += 1
+        return count
+
+    def _match_leaf(node, search_start, search_end):
+        """Try to find a leaf node in the stream. Returns line index or -1."""
+        target = node.get("title", "")
+        anchor_text = node.get("_anchor_text")
+
+        candidates = [target]
+        if ":" in target:
+            candidates.append(target.split(":", 1)[-1].strip())
+        for c in list(candidates):
+            paren = c.rfind("(")
+            if paren > 0:
+                candidates.append(c[:paren].strip())
+
+        for cand in candidates:
+            if len(cand) < 3:
+                continue
+            pos = _find_in_stream(lines, cand, search_start, search_end, 80)
+            if pos >= 0:
+                return pos
+
+        if anchor_text:
+            for i in range(search_start, min(search_end, len(lines))):
+                if anchor_text in lines[i]:
+                    return i
+        return -1
+
+    # Pass 1: Match rare leaves first (sorted by uniqueness, descending)
+    # These anchor the stream positions reliably
+    matched = {}  # toc_index -> line_idx
+    sorted_by_rarity = sorted(leaf_items, key=lambda x: _occurrence_count(x[1]["title"], x[2], x[3]))
+
+    for toc_idx, node, ch_s, ch_e in sorted_by_rarity:
+        pos = _match_leaf(node, ch_s, ch_e)
+        if pos >= 0:
+            matched[toc_idx] = pos
+
+    rare_count = len(matched)
+
+    # Pass 2: Fill in unmatched leaves, constrained between their matched neighbors
+    # For each unmatched leaf, find the nearest matched neighbors in ToC order
+    # and search only between those positions
+    for toc_idx, node, ch_s, ch_e in leaf_items:
+        if toc_idx in matched:
+            continue
+
+        # Find nearest matched predecessor in ToC order
+        search_start = ch_s
+        for prev_idx, prev_node, _, _ in reversed(leaf_items):
+            if prev_idx < toc_idx and prev_idx in matched:
+                search_start = matched[prev_idx] + 1
+                break
+
+        # Find nearest matched successor in ToC order
+        search_end = ch_e
+        for next_idx, next_node, _, _ in leaf_items:
+            if next_idx > toc_idx and next_idx in matched:
+                search_end = matched[next_idx]
+                break
+
+        if search_start < search_end:
+            pos = _match_leaf(node, search_start, search_end)
+            if pos >= 0:
+                matched[toc_idx] = pos
+
+    # Build matched_leaves in document order (sorted by line position)
+    toc_idx_to_node = {toc_idx: node for toc_idx, node, _, _ in leaf_items}
+    matched_leaves = sorted(
+        [(line_idx, toc_idx_to_node[toc_idx]) for toc_idx, line_idx in matched.items()],
+        key=lambda x: x[0],
+    )
+
+    _log(f"  Matched leaves: {len(matched_leaves)} of {len(leaf_items)} "
+         f"({rare_count} rare, {len(matched_leaves) - rare_count} filled)")
+
+    # ── Phase 3: Extract content between consecutive matched leaves ──
+    entries = []
+    for i, (line_idx, node) in enumerate(matched_leaves):
+        if i + 1 < len(matched_leaves):
+            end_line = matched_leaves[i + 1][0]
+        else:
+            # Last entry — use chapter end
+            ch_title = node.get("parent_title") or current_chapter
+            bounds = chapter_bounds.get(ch_title)
+            end_line = bounds[1] if bounds else len(lines)
+
+        raw_content = "\n".join(lines[line_idx:end_line]).strip()
+        content = _clean_entry_content(raw_content, config) if config else raw_content
+
+        if len(content) < min_content:
+            continue
+
+        # Find parent chapter
+        parent_title = node.get("parent_title", "")
+        parent_ch = None
+        for ch in chapters_only:
+            if ch["title"] == parent_title:
+                parent_ch = ch
+                break
+        toc_entry = parent_ch or node
+
+        entries.append({
+            "toc_entry": toc_entry,
+            "section_title": node.get("title"),
+            "entry_title": node.get("title"),
+            "content": content,
+            "school": node.get("school"),
+            "sphere": node.get("sphere"),
+            "spell_class": node.get("spell_class"),
+            "spell_level": node.get("spell_level"),
+            "page_numbers": [node.get("page_start", 0)],
+        })
+
+    _log(f"  Entries built: {len(entries)}")
+    return entries
+
+
 def build_entries(
     markdown: str,
     heading_chapter_map: dict[int, dict],
