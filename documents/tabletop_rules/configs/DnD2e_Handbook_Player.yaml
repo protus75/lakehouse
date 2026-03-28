@@ -13,6 +13,11 @@ toc:
   toc_scan_pages: 15
   page_number_pattern: '^\d{1,3}$'
 
+# Optional: text that appears on every page in Marker output, usable as
+# a page delimiter to split continuous markdown into per-page chunks.
+# Not all PDFs have this — only set if a reliable per-page marker exists.
+page_delimiter: "Richard Protus (Order #46790461)"
+
 index_headings:
   - "index"
   - "alphabetical index"
