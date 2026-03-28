@@ -6,6 +6,7 @@ Usage:
     python scripts/dagster.py status <run_id>
     python scripts/dagster.py logs <run_id> [N]
     python scripts/dagster.py cancel <run_id>
+    python scripts/dagster.py reset              Clear caches + restart Dagster
     python scripts/dagster.py reload
     python scripts/dagster.py jobs
     python scripts/dagster.py runs [N]
@@ -14,7 +15,9 @@ Usage:
 import json
 import subprocess
 import sys
+import time
 from datetime import datetime
+from pathlib import Path
 
 CONTAINER = "lakehouse-dagster-webserver"
 GQL_URL = "http://localhost:3000/graphql"
@@ -90,6 +93,36 @@ def cmd_cancel(run_id: str):
         print(f"Error: {d.get('message', d['__typename'])}")
 
 
+def cmd_reset():
+    """Clear all caches and restart Dagster containers."""
+    project_root = Path(__file__).resolve().parent.parent
+    containers = ["lakehouse-dagster-daemon", "lakehouse-dagster-webserver"]
+
+    # Clear host pycache
+    count = 0
+    for p in project_root.rglob("__pycache__"):
+        if p.is_dir():
+            import shutil
+            shutil.rmtree(p, ignore_errors=True)
+            count += 1
+    print(f"Cleared {count} host __pycache__ dirs")
+
+    # Clear container pycache
+    for c in containers:
+        subprocess.run(
+            ["docker", "exec", c, "bash", "-c",
+             "find /workspace -name __pycache__ -type d -exec rm -rf {} + 2>/dev/null"],
+            capture_output=True, env={**subprocess.os.environ, "MSYS_NO_PATHCONV": "1"},
+        )
+    print("Cleared container __pycache__")
+
+    # Restart containers
+    subprocess.run(["docker", "restart"] + containers, capture_output=True)
+    print("Restarted Dagster containers, waiting 15s for grpc...")
+    time.sleep(15)
+    print("Ready")
+
+
 def cmd_reload():
     q = f'''mutation {{ reloadRepositoryLocation(repositoryLocationName: "{LOCATION}") {{
         __typename
@@ -141,6 +174,8 @@ if __name__ == "__main__":
             cmd_logs(args[1], int(args[2]) if len(args) > 2 else 20)
         elif cmd == "cancel":
             cmd_cancel(args[1])
+        elif cmd == "reset":
+            cmd_reset()
         elif cmd == "reload":
             cmd_reload()
         elif cmd == "jobs":

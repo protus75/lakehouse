@@ -350,6 +350,16 @@ tabletop_without_enrichment = define_asset_job(
     selection=[bronze_tabletop, toc_review, bronze_ocr_check, dbt_build, publish_to_iceberg, dbt_test],
 )
 
+bronze_and_review = define_asset_job(
+    name="bronze_and_review",
+    selection=[bronze_tabletop, toc_review],
+)
+
+silver_and_publish = define_asset_job(
+    name="silver_and_publish",
+    selection=[dbt_build, publish_to_iceberg, dbt_test],
+)
+
 enrichment_only = define_asset_job(
     name="enrichment_only",
     selection=[gold_ai_summaries, gold_ai_annotations],
@@ -367,5 +377,5 @@ defs = Definitions(
         bronze_tabletop, toc_review, bronze_ocr_check, dbt_build,
         publish_to_iceberg, dbt_test, gold_ai_summaries, gold_ai_annotations,
     ],
-    jobs=[seed_models, tabletop_full_pipeline, tabletop_without_enrichment, enrichment_only],
+    jobs=[seed_models, tabletop_full_pipeline, tabletop_without_enrichment, bronze_and_review, silver_and_publish, enrichment_only],
 )

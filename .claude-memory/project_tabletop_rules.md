@@ -1,15 +1,17 @@
 ---
 name: Tabletop rules project — settings, status, and pipeline details
-description: Tabletop-specific — PHB only, Marker PDF, Dagster jobs, enrichment, validation, config, pipeline status, gold enrichment plans
+description: Tabletop-specific — PHB only, pymupdf page_texts for content, Dagster jobs, enrichment, pipeline status
 type: project
 ---
 
 ## Current focus: Player's Handbook (PHB) only
 Process one book until validation passes before moving to others. Never run all 6 PDFs — wastes 30-45 min during debugging.
 
-## PDF extraction: Marker
-- Marker is the chosen PDF-to-markdown tool. Docling was tried and performed poorly — don't suggest switching.
-- Always read printed page numbers from PDF text. Never calculate offsets — PDFs have unnumbered pages that break offset math.
+## PDF extraction: pymupdf (primary) + Marker (tables/formatting)
+- **pymupdf page_texts** is the primary content source — has clean text for every page
+- **Marker drops whole pages** (chapter openers with decorative layouts) — confirmed pages 10, 18, and ~30 others missing from Marker output. pymupdf has them all.
+- Marker still useful for: table extraction, markdown formatting hints
+- Always read printed page numbers from PDF text. Never calculate offsets.
 - Fix quality issues at ingestion/cleanup layer, not by switching tools.
 
 ## Config-driven approach
@@ -17,7 +19,6 @@ Process one book until validation passes before moving to others. Never run all 
 - Per-book configs: `documents/tabletop_rules/configs/`
 - Default config: `_default.yaml`
 - Authority tables define ground-truth entry names
-- Entry anchors for entries Marker doesn't render as headings
 - OCR corrections via `content_substitutions` in per-book config
 
 ## Dagster jobs
@@ -28,7 +29,6 @@ Process one book until validation passes before moving to others. Never run all 
 ## Enrichment workflow
 - Summaries + annotations use `llama3:70b` (~42GB VRAM+RAM)
 - Vision (OCR) uses `minicpm-v:latest`
-- Unload models between passes: `POST /api/generate {"model":"<name>","keep_alive":0}`
 - AI summaries + annotations are stale — need re-run after stable keys migration
 
 ## Pipeline
@@ -44,43 +44,35 @@ PDF → Bronze (dlt, ~12s) → Silver+Gold (dbt, ~6s) → Publish (Iceberg) → 
 
 ## Silver (`dbt/.../tabletop/silver/`)
 - silver_entries, silver_spell_crosscheck (rapidfuzz across 4 appendixes)
-- 100% level, 99.7% school, 100% sphere, 100% reversible
 - silver_page_anchors, silver_toc_sections, silver_known_entries, silver_files
 
 ## Gold (`dbt/.../tabletop/gold/`)
 - gold_entry_index: 438 spells with ZERO gaps
-- gold_chunks: 2816 query-ready chunks
-- gold_ai_summaries: 751 entries (stale)
-- gold_ai_annotations: 495 combat/popular flags (stale)
-
-## 42 pass, 8 fail (50 total tests including gold)
+- gold_chunks, gold_ai_summaries (stale), gold_ai_annotations (stale)
 
 ## What's Done
-- Pipeline split: dbt_build → publish_to_iceberg → dbt_test (data on S3 even when tests fail)
-- Test results on S3 at meta.dbt_test_results
-- 69/69 ToC tables extracted (including unlabeled Weapons/Armor via config hints)
-- Tables stripped from entry content — standalone data in silver_tables/gold_tables
-- ToC truth used for extraction when toc_reviewed=true (reads from Iceberg, not re-extracting)
-- OCR: 16→8 issues (garble stripped, hyphen rejoining, gibberish detection)
-- Duplicate heading dedup (Marker page header repeats discarded)
-- All uniqueness tests pass (toc_id, entry_id with page_start + content_prefix in hash)
-- write_iceberg overwrite_all properly handles stale catalog
-- Spell data validated across 4 appendix sources, zero gaps
-- Spell crosscheck with rapidfuzz
+- Pipeline split: dbt_build → publish_to_iceberg → dbt_test
+- 69/69 ToC tables extracted
+- ToC truth used for extraction when toc_reviewed=true
+- Spell crosscheck with rapidfuzz, zero gaps
+- `build_entries_from_pages()` in tabletop_cleanup.py — pymupdf-based entry builder
+- `build_entries_from_stream()` — Marker-based (legacy, kept for reference)
+- Hyphen rejoining for pymupdf text (`_rejoin_page_text`)
+- Extended ToC with spells injected by level (alphabetical)
 
-## What Needs Work — CRITICAL: Entry builder rewrite
-build_entries() must produce one silver record per ToC entry:
-- **toc mode** (default): one entry per ToC sub-section
-- **per_list mode**: one entry per spell (from spell_list_entries) or proficiency (from authority_table_entries)
-- **per_anchor mode**: one entry per config anchor (races, etc.)
-
-Current WIP has 151 entries (need 700+). Per_list spell matching not finding headings within chapter ranges. **Next approach: page-first splitting**
-1. Split by page texts (pymupdf per-page, already in bronze)
-2. Assign pages to chapters using ToC page ranges
-3. Within each chapter, split into sub-sections/spells by heading match
-4. Assemble multi-page entries by linking across page boundaries within chapter
-
-entry_mode config added to DnD2e_Handbook_Player.yaml (per_list for spell sections, per_anchor for races).
+## Entry builder status — WIP
+`build_entries_from_pages()` uses pymupdf page_texts + ToC page ranges:
+- 199/206 non-spell ToC sections matched with normalized fuzzy matching
+- **Problem: common-word sections match wrong occurrence** (e.g., "Elves" matches
+  a mention in Dwarves text instead of the actual Elves heading on page 28)
+- The current approach concatenates all chapter pages then searches — loses page boundaries
+- **Next approach: search each section's specific ToC page FIRST.** The ToC says "Elves"
+  starts on page 28, so search page 28's text for "Elves" at a paragraph start.
+  Then expand to adjacent pages for the content body.
+- For sections sharing a page (same page_start), find titles in order within that page.
+- Chapter intro text (before first sub-section) now captured separately.
+- Spells need work — only 36 matched (need ~487). Same common-word problem.
+- Tables skipped for now — decide later whether pymupdf or Marker has better tables.
 
 ## Other remaining work
 1. Table cell quality (36 few_columns, 39 smushed) — Marker rendering issues
@@ -90,6 +82,5 @@ entry_mode config added to DnD2e_Handbook_Player.yaml (per_list for spell sectio
 
 ## Validation requirements
 - Zero errors before new features
-- Rules data must be 100% accurate
 - Rules data must be 100% accurate — this is a rules reference, not "best effort"
 - Run ALL validators after every change, fix everything before committing

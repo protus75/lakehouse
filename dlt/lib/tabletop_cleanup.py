@@ -503,12 +503,22 @@ def build_entries_from_pages(
 
     section_cfg = config.get("section_parsing", {}) if config else {}
     level_mapping = config.get("spell_level_mapping", {}) if config else {}
+    spell_heading_overrides = config.get("spell_heading_overrides", {}) if config else {}
     min_content = config.get("ingestion", {}).get("min_entry_content", 10) if config else 10
 
+    # Unicode → ASCII replacements for pymupdf text
+    _unicode_replacements = str.maketrans({
+        "\u2018": "'", "\u2019": "'",  # smart single quotes
+        "\u201c": '"', "\u201d": '"',  # smart double quotes
+        "\u2013": "-", "\u2014": "-",  # en/em dash
+        "\u00a0": " ",                 # non-breaking space
+    })
+
     def _rejoin_page_text(text: str) -> str:
-        """Clean pymupdf page text: rejoin hyphenated words and soft line breaks."""
+        """Clean pymupdf page text: normalize unicode, rejoin hyphenated words."""
         if not text:
             return text
+        text = text.translate(_unicode_replacements)
         lines = text.split("\n")
         result = []
         i = 0
@@ -527,14 +537,25 @@ def build_entries_from_pages(
             i += 1
         return "\n".join(result)
 
-    # Strip watermarks and rejoin hyphenated lines
+    # Strip watermarks, page numbers, and rejoin hyphenated lines
     clean_pages = {}
     for pnum, text in page_texts.items():
+        lines = text.split("\n")
         if watermarks:
-            lines = text.split("\n")
             lines = [l for l in lines if l.strip() not in watermarks]
-            text = "\n".join(lines)
-        clean_pages[pnum] = _rejoin_page_text(text)
+        # Strip printed page number — bare number matching this page's number
+        # on first or last non-blank lines
+        page_str = str(pnum)
+        cleaned = []
+        for i, l in enumerate(lines):
+            if l.strip() == page_str:
+                # Only strip if near top or bottom of page (within 3 lines of edge)
+                non_blank_before = sum(1 for x in lines[:i] if x.strip())
+                non_blank_after = sum(1 for x in lines[i+1:] if x.strip())
+                if non_blank_before <= 2 or non_blank_after <= 2:
+                    continue
+            cleaned.append(l)
+        clean_pages[pnum] = _rejoin_page_text("\n".join(cleaned))
 
     def _get_page_range_text(page_start: int, page_end: int) -> tuple:
         """Concatenate page texts for a range of printed page numbers.
@@ -574,25 +595,75 @@ def build_entries_from_pages(
         """Check if position is at the start of a paragraph (after blank line or start of text)."""
         if pos == 0:
             return True
-        # Look backwards for double newline or start of text
-        before = text[max(0, pos - 3):pos]
-        return "\n\n" in before or "\n \n" in text[max(0, pos - 5):pos]
+        before = text[max(0, pos - 5):pos]
+        return "\n\n" in before or "\n \n" in before
+
+    def _is_line_start(text: str, pos: int) -> bool:
+        """Check if position is at the start of a line (after newline, optional whitespace)."""
+        if pos == 0:
+            return True
+        i = pos - 1
+        while i >= 0 and text[i] in " \t":
+            i -= 1
+        return i < 0 or text[i] == "\n"
+
+    def _get_line_at(text: str, pos: int) -> str:
+        """Get the full line containing position pos."""
+        start = text.rfind("\n", 0, pos)
+        start = start + 1 if start >= 0 else 0
+        end = text.find("\n", pos)
+        end = end if end >= 0 else len(text)
+        return text[start:end]
+
+    def _heading_score(text: str, pos: int, title: str) -> int:
+        """Score how well a match position looks like a heading.
+
+        Returns 0-3:
+          3 = line start + line starts with title (heading pattern)
+          2 = line start + short line (heading-length)
+          1 = line start only
+          0 = not at line start
+        """
+        if not _is_line_start(text, pos):
+            return 0
+        line = _get_line_at(text, pos).strip()
+        title_clean = title.strip()
+        # Line starts with the title — handles "Encumbrance (Optional Rule)"
+        # matching ToC title "Encumbrance"
+        if line.lower().startswith(title_clean.lower()):
+            return 3
+        # Line is short enough to be a heading (not body text)
+        max_len = max(len(title_clean) + 5, int(len(title_clean) * 1.5))
+        if len(line) <= max_len:
+            return 2
+        return 1
+
+    def _is_word_boundary(norm_text: str, start: int, end: int) -> bool:
+        """Check if match is at word boundaries in normalized text."""
+        if start > 0 and norm_text[start - 1].isalnum():
+            return False
+        if end < len(norm_text) and norm_text[end].isalnum():
+            return False
+        return True
 
     def _find_title_in_text(title: str, text: str, search_from: int = 0,
+                            search_until: int = -1,
                             prefer_para_start: bool = True) -> int:
         """Find a section title in text using normalized matching.
 
         Handles line breaks mid-title and OCR variations.
-        When prefer_para_start is True and multiple matches exist,
-        prefers matches at paragraph boundaries (after blank lines).
+        Requires word boundaries on matches.
+        Prefers matches on standalone heading lines over body text.
+        search_until: if >= 0, limit search to this char position in text.
         Returns char position in original text, or -1.
         """
-        title_norm = _normalize(title).lower()
+        title_norm = _normalize(title.translate(_unicode_replacements)).lower()
         if not title_norm:
             return -1
 
         norm_text, text_chars = _build_norm_map(text)
         norm_from = 0
+        norm_until = len(norm_text)
 
         if search_from > 0:
             for ni, (oi, _) in enumerate(text_chars):
@@ -600,43 +671,51 @@ def build_entries_from_pages(
                     norm_from = ni
                     break
 
-        # Find all normalized matches
+        if search_until >= 0:
+            for ni, (oi, _) in enumerate(text_chars):
+                if oi >= search_until:
+                    norm_until = ni
+                    break
+
+        # Find all normalized matches with word boundaries
         matches = []
         pos = norm_from
         while True:
             pos = norm_text.find(title_norm, pos)
-            if pos < 0:
+            if pos < 0 or pos >= norm_until:
                 break
-            orig_pos = text_chars[pos][0]
-            matches.append(orig_pos)
+            if _is_word_boundary(norm_text, pos, pos + len(title_norm)):
+                orig_pos = text_chars[pos][0]
+                matches.append(orig_pos)
             pos += 1
 
         if not matches:
-            # Fuzzy fallback for shorter titles
-            if len(title_norm) > 60:
-                return -1
-            window = len(title_norm) + 5
-            best_score = 0
-            best_pos = -1
-            for wi in range(norm_from, len(norm_text) - len(title_norm) + 5):
-                chunk = norm_text[wi:wi + window]
-                score = fuzz.ratio(chunk, title_norm)
-                if score > best_score and score >= 80:
-                    best_score = score
-                    best_pos = wi
-            if best_pos >= 0:
-                return text_chars[best_pos][0]
+            # Log miss with context for debugging
+            # Check if title exists without word boundary requirement
+            raw_pos = norm_text.find(title_norm, norm_from)
+            if raw_pos >= 0 and raw_pos < norm_until:
+                orig = text_chars[raw_pos][0]
+                ctx = text[max(0, orig-20):orig+len(title)+20]
+                _log(f"    MISS (word boundary): '{title}' found at {orig} but failed boundary. Context: [{ctx.replace(chr(10), '|')}]")
+            else:
+                snippet = norm_text[norm_from:norm_from+100]
+                _log(f"    MISS (not found): '{title}' not in search area [{norm_from}:{norm_until}]. Start: [{snippet[:60]}]")
             return -1
 
-        if len(matches) == 1 or not prefer_para_start:
+        if len(matches) == 1 and not prefer_para_start:
             return matches[0]
 
-        # Multiple matches — prefer one at paragraph start
-        for m in matches:
-            if _is_para_start(text, m):
-                return m
+        # Rank matches by heading score (3=exact heading > 2=short line > 1=line start > 0)
+        scored = [(m, _heading_score(text, m, title)) for m in matches]
+        scored.sort(key=lambda x: -x[1])
+        if scored[0][1] > 0:
+            return scored[0][0]
 
-        # No paragraph-start match, return first
+        # Fall back to paragraph start
+        para_matches = [m for m in matches if _is_para_start(text, m)]
+        if para_matches:
+            return para_matches[0]
+
         return matches[0]
 
     def _count_occurrences(title: str, text: str) -> int:
@@ -656,12 +735,16 @@ def build_entries_from_pages(
         return count
 
     def _split_sections_in_text(text: str, sections: list[dict],
-                               page_offsets: dict = None) -> tuple:
+                               page_offsets: dict = None,
+                               table_titles: list[str] = None,
+                               bound_to_page: bool = True) -> tuple:
         """Split text into sections by finding each title in order.
 
         page_offsets: {printed_page_num: char_offset_in_text} — when provided,
         uses each section's page_start to narrow the search to the right page
         area, avoiding false matches on earlier pages.
+        table_titles: list of table heading strings — regions around these
+        are excluded from section matching.
 
         Returns (intro_str, [(section_dict, content_str), ...]).
         intro_str is text before the first matched section (may be empty)."""
@@ -669,9 +752,25 @@ def build_entries_from_pages(
         if not sections:
             return text.strip(), []
 
+        # Find table positions and build excluded ranges
+        table_zones = []
+        for tt in (table_titles or []):
+            tpos = _find_title_in_text(tt, text, prefer_para_start=False)
+            if tpos >= 0:
+                # Exclude from table heading to next blank line or 2000 chars
+                end = text.find("\n\n", tpos + len(tt))
+                if end < 0 or end - tpos > 2000:
+                    end = tpos + 2000
+                table_zones.append((tpos, end))
+
+        def _in_table_zone(pos):
+            return any(start <= pos < end for start, end in table_zones)
+
         matched = {}  # idx -> char_pos
 
-        # Match each section, using page_start to guide the search area
+        # Sections arrive in sort_order (book order).
+        # For each: search_from = max(after previous match, this section's page offset)
+        #           search_until = next section's page offset if on a later page
         for idx, sec in enumerate(sections):
             title = sec["title"]
             page_start = sec.get("page_start", 0)
@@ -680,20 +779,29 @@ def build_entries_from_pages(
             search_from = 0
             for prev_idx in range(idx - 1, -1, -1):
                 if prev_idx in matched:
-                    prev_end = matched[prev_idx] + len(sections[prev_idx]["title"])
-                    search_from = prev_end
+                    search_from = matched[prev_idx] + len(sections[prev_idx]["title"])
                     break
 
-            # If still on an earlier page than this section's page_start,
-            # jump forward to the section's page (avoids false matches)
+            # Jump forward to this section's page if we're still earlier
             if page_offsets and page_start in page_offsets:
                 page_offset = page_offsets[page_start]
                 if search_from < page_offset:
                     search_from = page_offset
 
+            # Heading is on its stated page — bound search to that page + next
+            # (prevents matching duplicate headings on later pages).
+            # Disabled for sequential lists (spells) where names are unique.
+            search_until = -1
+            if page_offsets and bound_to_page:
+                for bound_page in (page_start + 1, page_start + 2):
+                    if bound_page in page_offsets:
+                        search_until = page_offsets[bound_page]
+                        break
+
             pos = _find_title_in_text(title, text, search_from,
+                                       search_until=search_until,
                                        prefer_para_start=True)
-            if pos >= 0:
+            if pos >= 0 and not _in_table_zone(pos):
                 matched[idx] = pos
 
         # Sort matched by position
@@ -722,7 +830,7 @@ def build_entries_from_pages(
     # Get chapters (non-excluded, in page order)
     chapters = sorted(
         [t for t in toc_all if t.get("is_chapter") and not t.get("is_excluded")],
-        key=lambda t: t.get("page_start", 0),
+        key=lambda t: t.get("sort_order", t.get("page_start", 0)),
     )
 
     entries = []
@@ -741,14 +849,20 @@ def build_entries_from_pages(
                 matched_cfg = sec_cfg
                 break
 
-        # Get non-excluded sub-sections, in page order
+        # Get non-excluded sub-sections, in ToC order (sort_order preserves book order)
         subs = sorted(
             [t for t in toc_all
              if t.get("parent_title") == ch_title
              and not t.get("is_excluded")
              and not t.get("is_table")],
-            key=lambda t: t.get("page_start", 0),
+            key=lambda t: t.get("sort_order", t.get("page_start", 0)),
         )
+
+        # Collect table titles for this chapter (to exclude from section matching)
+        ch_table_titles = [
+            t["title"] for t in toc_all
+            if t.get("parent_title") == ch_title and t.get("is_table")
+        ]
 
         # Also check if any sub has its own section_parsing config
         sub_cfgs = {}
@@ -807,22 +921,24 @@ def build_entries_from_pages(
                     level_text, level_offsets = _get_page_range_text(ls_start, ls_end)
 
                     spells = spells_by_level.get(lvl, [])
-                    # Build section list from spell names, with page_start for offset guidance
-                    spell_sections = [
-                        {"title": s.get("entry_name", ""), "spell": s,
-                         "page_start": ls_start}
-                        for s in spells
-                    ]
-                    _intro, found = _split_sections_in_text(level_text, spell_sections, level_offsets)
+                    # Build section list — apply heading overrides from config
+                    spell_sections = []
+                    for s in spells:
+                        name = s.get("entry_name", "")
+                        title = spell_heading_overrides.get(name, name)
+                        spell_sections.append({"title": title, "spell": s,
+                                               "page_start": s.get("ref_page", ls_start)})
+                    _intro, found = _split_sections_in_text(level_text, spell_sections, level_offsets, bound_to_page=False)
                     for sec, content in found:
                         spell = sec.get("spell", {})
+                        original_name = spell.get("entry_name", sec["title"])
                         content = _clean_entry_content(content, config)
                         if len(content) < min_content:
                             continue
                         entries.append({
                             "toc_entry": ch,
-                            "section_title": sec["title"],
-                            "entry_title": sec["title"],
+                            "section_title": original_name,
+                            "entry_title": original_name,
                             "content": content,
                             "school": spell.get("school"),
                             "sphere": spell.get("sphere"),
@@ -839,7 +955,7 @@ def build_entries_from_pages(
                     key=lambda a: a.get("entry_name", "").lower(),
                 )
                 item_sections = [{"title": a.get("entry_name", ""), "authority": a} for a in items]
-                _intro, found = _split_sections_in_text(ch_text, item_sections, ch_page_offsets)
+                _intro, found = _split_sections_in_text(ch_text, item_sections, ch_page_offsets, bound_to_page=False)
                 for sec, content in found:
                     content = _clean_entry_content(content, config)
                     if len(content) < min_content:
@@ -877,7 +993,7 @@ def build_entries_from_pages(
                                 key=lambda a: a.get("entry_name", "").lower(),
                             )
                             item_sections = [{"title": a.get("entry_name", ""), "page_start": sub_start} for a in items]
-                            _intro, found = _split_sections_in_text(sub_text, item_sections, sub_offsets)
+                            _intro, found = _split_sections_in_text(sub_text, item_sections, sub_offsets, bound_to_page=False)
                             for sec, content in found:
                                 content = _clean_entry_content(content, config)
                                 if len(content) < min_content:
@@ -895,7 +1011,7 @@ def build_entries_from_pages(
                         regular_subs.append(sub)
 
                 # Split remaining subs from chapter text
-                intro, found = _split_sections_in_text(ch_text, regular_subs, ch_page_offsets)
+                intro, found = _split_sections_in_text(ch_text, regular_subs, ch_page_offsets, ch_table_titles)
 
                 # Chapter intro: content before the first sub-section
                 if intro:

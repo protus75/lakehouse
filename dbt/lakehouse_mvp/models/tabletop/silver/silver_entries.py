@@ -43,10 +43,10 @@ def model(dbt, session):
         ))
         total_pages = len(pages_df)
 
-        # Load full ToC
+        # Load full ToC — sort_order preserves book order within same page
         toc_df = session.execute(
-            f"SELECT title, page_start, page_end, is_excluded, is_chapter, is_table, parent_title "
-            f"FROM bronze_tabletop.toc_raw WHERE source_file = '{sf}' ORDER BY page_start"
+            f"SELECT title, page_start, page_end, is_excluded, is_chapter, is_table, parent_title, sort_order "
+            f"FROM bronze_tabletop.toc_raw WHERE source_file = '{sf}' ORDER BY sort_order"
         ).fetchdf()
 
         toc_all = []
@@ -59,6 +59,7 @@ def model(dbt, session):
                 "is_chapter": bool(row["is_chapter"]),
                 "is_table": bool(row.get("is_table", False)),
                 "parent_title": row.get("parent_title"),
+                "sort_order": int(row["sort_order"]) if row.get("sort_order") is not None else 0,
                 "sub_headings": [],
                 "tables": [],
             })
@@ -92,20 +93,25 @@ def model(dbt, session):
         # Load cross-referenced spell metadata (school, sphere)
         try:
             meta_df = session.execute(
-                f"SELECT entry_name, school, sphere FROM bronze_tabletop.known_entries_raw "
-                f"WHERE source_file = '{sf}' AND entry_class IS NOT NULL AND school IS NOT NULL"
+                f"SELECT entry_name, school, sphere, ref_page FROM bronze_tabletop.known_entries_raw "
+                f"WHERE source_file = '{sf}' AND entry_class IS NOT NULL AND (school IS NOT NULL OR ref_page IS NOT NULL)"
             ).fetchdf()
             if not meta_df.empty:
                 spell_meta = {}
                 for _, r in meta_df.iterrows():
                     name = r["entry_name"].lower()
+                    ref_page = int(r["ref_page"]) if r.get("ref_page") else None
                     if name not in spell_meta:
-                        spell_meta[name] = {"school": r["school"], "sphere": r.get("sphere")}
+                        spell_meta[name] = {"school": r["school"], "sphere": r.get("sphere"),
+                                            "ref_page": ref_page}
+                    elif ref_page and not spell_meta[name].get("ref_page"):
+                        spell_meta[name]["ref_page"] = ref_page
                 for s in spell_list:
                     name = (s.get("entry_name") or "").lower()
                     if name in spell_meta:
                         s["school"] = spell_meta[name].get("school")
                         s["sphere"] = spell_meta[name].get("sphere")
+                        s["ref_page"] = spell_meta[name].get("ref_page")
         except Exception:
             pass
 

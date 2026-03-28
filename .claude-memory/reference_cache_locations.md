@@ -42,6 +42,9 @@ type: reference
 6. Verify GPU usage: `curl http://localhost:11434/api/ps` — check size_vram > 0 for loaded model
 7. Check Ollama throughput: first chunk should complete in <15s for llama3:8b on GPU
 
+## Bronze skip logic — CRITICAL
+Bronze checks `files` table for existing source_file + config_hash. If matched, it SKIPS extraction entirely. Changing bronze code without changing config or using `--force` means the new code NEVER RUNS. Always use `--force` when bronze extraction code changes.
+
 ## Reset sequence after code changes (ALL STEPS REQUIRED)
 1. Clear __pycache__: `find d:/source/lakehouse/lakehouse -name '__pycache__' -exec rm -rf {} +`
 2. Restart BOTH Dagster containers: `docker restart lakehouse-dagster-daemon lakehouse-dagster-webserver`

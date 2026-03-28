@@ -7,7 +7,8 @@
 - [feedback_pipeline_ops.md](feedback_pipeline_ops.md) — Kill stale processes before runs, finish before moving on (rest in CLAUDE.md/hooks)
 - [feedback_system_ops.md](feedback_system_ops.md) — Stop means immediately, kill all means ALL, save debug state aggressively
 - [project_infrastructure.md](project_infrastructure.md) — D drive, S3+Iceberg migration done, model seeding, Docker image split plan
-- [project_tabletop_rules.md](project_tabletop_rules.md) — Tabletop: PHB only, Marker PDF, Dagster jobs, enrichment, pipeline status, gold plans
+- [project_tabletop_rules.md](project_tabletop_rules.md) — Tabletop: PHB only, pymupdf primary, entry builder WIP, next: page-guided section search
+- [feedback_matching.md](feedback_matching.md) — No exact matches, use fuzzy, search ToC page first for common words, rejoin hyphens
 - [project_tabletop_content_quality.md](project_tabletop_content_quality.md) — Tabletop: 25 content quality issues and gold features, priority order
 - [project_tabletop_integer_keys.md](project_tabletop_integer_keys.md) — Tabletop: replace auto-increment IDs with hash-based stable keys (7 phases)
 - [reference_ollama_setup.md](reference_ollama_setup.md) — Ollama on host, D:\ollama\models, llama3:70b + minicpm-v, API endpoints

@@ -36,6 +36,10 @@ strip_content_patterns:
   - '^Reversible\s*$'
   - '^\([\w/,\s*]+\)\s+Reversible\s*$'
 
+# Spell names that differ between spell index and content headings
+spell_heading_overrides:
+  "fool's gold": "fools' gold"
+
 content_substitutions:
   - ['D- M', 'DM']
   - ['| Tal | bl | e | 4 |', 'Table 45: Missile Weapon Ranges']

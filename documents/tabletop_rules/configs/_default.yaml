@@ -144,6 +144,21 @@ authority_skip_values:
   - "roll"
   - "d100"
   - "secondary skill"
+  # Proficiency group/category names (not individual proficiencies)
+  - "general"
+  - "priest"
+  - "rogue"
+  - "warrior"
+  - "wizard"
+  - "bard"
+  - "ranger"
+  - "paladin"
+  - "druid"
+  - "mage"
+  - "illusionist"
+  - "thief"
+  - "fighter"
+  - "cleric"
 
 # Regex patterns for authority table cells to skip (prices, units, modifiers, table refs)
 authority_skip_patterns:

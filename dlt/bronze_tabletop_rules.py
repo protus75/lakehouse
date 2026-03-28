@@ -37,6 +37,13 @@ CONFIGS_DIR = Path("/workspace/documents/tabletop_rules/configs")
 
 NAMESPACE = "bronze_tabletop"
 
+_UNICODE_TO_ASCII = str.maketrans({
+    "\u2018": "'", "\u2019": "'",
+    "\u201c": '"', "\u201d": '"',
+    "\u2013": "-", "\u2014": "-",
+    "\u00a0": " ",
+})
+
 
 # ── Lineage & Catalog ────────────────────────────────────────────
 
@@ -723,7 +730,7 @@ def extract_known_entries(page_texts: list[str], page_printed: dict[int, int],
                         continue
 
                     entry = {
-                        "entry_name": name.lower(),
+                        "entry_name": name.translate(_UNICODE_TO_ASCII).lower(),
                         "entry_class": grouped_class_map.get("by_school", "wizard") if is_school_index else grouped_class_map.get("by_sphere", "priest"),
                         "entry_level": level,
                         "ref_page": None,
@@ -771,7 +778,7 @@ def extract_known_entries(page_texts: list[str], page_printed: dict[int, int],
                         continue
 
                     entry = {
-                        "entry_name": name.lower(),
+                        "entry_name": name.translate(_UNICODE_TO_ASCII).lower(),
                         "entry_class": entry_class,
                         "entry_level": entry_level,
                         "ref_page": ref_page,
@@ -926,8 +933,8 @@ def extract_spell_list_entries(filepath: Path, page_printed: dict[int, int],
         last_name = ""
 
         for abs_y, x, text, italic in col_spans:
-            # Continuation: indented > 5px from base_x
-            is_continuation = round(x) > base_x_col + 5
+            # Continuation: indented > 5px from base_x, or starts lowercase
+            is_continuation = round(x) > base_x_col + 5 or (text[0].islower() and pending_name)
 
             if is_continuation and pending_name:
                 pending_name += " " + text
@@ -935,7 +942,7 @@ def extract_spell_list_entries(filepath: Path, page_printed: dict[int, int],
             else:
                 # Flush previous
                 if pending_name:
-                    name_lower = pending_name.lower().strip()
+                    name_lower = pending_name.translate(_UNICODE_TO_ASCII).lower().strip()
                     # Alphabetical sanity check
                     if last_name and name_lower < last_name:
                         _log(f"    Warning: '{name_lower}' before '{last_name}' in {spell_class} L{level_num}")
@@ -953,7 +960,7 @@ def extract_spell_list_entries(filepath: Path, page_printed: dict[int, int],
         # Flush last
         if pending_name:
             entries.append({
-                "entry_name": pending_name.lower().strip(),
+                "entry_name": pending_name.translate(_UNICODE_TO_ASCII).lower().strip(),
                 "entry_class": spell_class,
                 "entry_level": level_num,
                 "is_reversible": pending_italic,
@@ -1322,7 +1329,7 @@ def extract_authority_entries(all_tables: list[dict], config: dict) -> list[dict
                         continue
 
                     entries.append({
-                        "entry_name": part.lower(),
+                        "entry_name": part.translate(_UNICODE_TO_ASCII).lower(),
                         "entry_type": entry_type,
                         "source_table": table_name,
                     })
@@ -1372,7 +1379,10 @@ def store_bronze(filepath: Path, config: dict, run_id: str,
     """Write all raw extraction data to bronze Iceberg tables on S3."""
     now = datetime.now(timezone.utc)
     sf = filepath.name
-    ow = dict(overwrite_filter="source_file", overwrite_filter_value=sf)
+    # DuckDB's iceberg extension doesn't honor PyIceberg position-delete files,
+    # so overwrite_filter leaves stale rows visible. Use overwrite_all (drop+recreate)
+    # until multi-book support needs per-file overwrites.
+    ow = dict(overwrite_all=True)
 
     # Files
     write_iceberg(NAMESPACE, "files", pa.table({
@@ -1403,6 +1413,7 @@ def store_bronze(filepath: Path, config: dict, run_id: str,
             "title": [s["title"] for s in toc_sections],
             "page_start": [s["page_start"] for s in toc_sections],
             "page_end": [s["page_end"] for s in toc_sections],
+            "sort_order": pa.array(list(range(len(toc_sections))), type=pa.int32()),
             "depth": pa.array([s.get("depth", 0) for s in toc_sections], type=pa.int32()),
             "is_chapter": [s.get("is_chapter", True) for s in toc_sections],
             "is_table": [s.get("is_table", False) for s in toc_sections],
@@ -1580,6 +1591,50 @@ def extract_pdf(filepath: Path) -> None:
 
         # 5. Spell list entries (Appendix 1 — with italic/reversible info)
         spell_list = extract_spell_list_entries(filepath, page_printed, toc_sections, config)
+
+        # Auto-fix split spell names by cross-referencing with known_entries.
+        # If consecutive same-class/level spell_list entries join to match a known_entry, merge them.
+        from rapidfuzz import fuzz
+        # Group known entries by class for scoped matching
+        known_by_class = {}
+        for e in known_entries:
+            if e.get("entry_class"):
+                known_by_class.setdefault(e["entry_class"].lower(), set()).add(e["entry_name"].lower())
+
+        # Find known spells with no close match (>=90%) in spell_list for same class
+        spell_by_class = {}
+        for e in spell_list:
+            spell_by_class.setdefault(e["entry_class"], set()).add(e["entry_name"])
+
+        def _is_close_match(a, b):
+            shorter, longer = (a, b) if len(a) <= len(b) else (b, a)
+            return len(shorter) >= len(longer) * 0.7 and fuzz.ratio(a, b) >= 90
+
+        unmatched_known = set()
+        for cls, names in known_by_class.items():
+            cls_spells = spell_by_class.get(cls, set())
+            for kn in names:
+                if not any(_is_close_match(kn, sp) for sp in cls_spells):
+                    unmatched_known.add(kn)
+
+        if unmatched_known:
+            fixed = []
+            i = 0
+            while i < len(spell_list):
+                if i + 1 < len(spell_list) \
+                        and spell_list[i]["entry_class"] == spell_list[i + 1]["entry_class"] \
+                        and spell_list[i]["entry_level"] == spell_list[i + 1]["entry_level"]:
+                    joined = spell_list[i]["entry_name"] + " " + spell_list[i + 1]["entry_name"]
+                    if any(_is_close_match(joined, uk) for uk in unmatched_known):
+                        _log(f"  Spell join: '{spell_list[i]['entry_name']}' + '{spell_list[i + 1]['entry_name']}' → '{joined}'")
+                        merged = {**spell_list[i], "entry_name": joined}
+                        fixed.append(merged)
+                        i += 2
+                        continue
+                fixed.append(spell_list[i])
+                i += 1
+            spell_list = fixed
+
         step(f"Spell list: {len(spell_list)} entries")
 
         # 6. Extract tables using ToC as driver, then strip from markdown
@@ -2124,7 +2179,7 @@ def review_toc(source_file: str | None = None) -> dict:
     from dlt.lib.duckdb_reader import get_reader
     conn = get_reader(namespaces=[NAMESPACE])
 
-    files = _list_source_files("toc_raw", source_file)
+    files = _list_source_files("files", source_file)
     if not files:
         _log("No files found for ToC review")
         return {"status": "no_files", "files": []}
@@ -2328,6 +2383,25 @@ def apply_toc_review(source_file: str) -> None:
     for i, ch in enumerate(chapters):
         ch["page_end"] = chapters[i + 1]["page_start"] - 1 if i + 1 < len(chapters) else 9999
 
+    # Recompute page_end for sub-sections — next SECTION sibling's page_start.
+    # Tables are interleaved in the book and don't define section boundaries.
+    for ch in chapters:
+        subs = [e for e in toc_entries if e.get("parent_title") == ch["title"]]
+        subs.sort(key=lambda e: e["sort_order"])
+        for i, sub in enumerate(subs):
+            if sub.get("page_end", sub["page_start"]) != sub["page_start"]:
+                continue  # already has explicit page_end from YAML
+            # Find next non-table sibling
+            next_page = None
+            for j in range(i + 1, len(subs)):
+                if not subs[j].get("is_table"):
+                    next_page = subs[j]["page_start"]
+                    break
+            if next_page is not None:
+                sub["page_end"] = max(sub["page_start"], next_page)
+            else:
+                sub["page_end"] = ch["page_end"]
+
     # Write to toc_raw, replacing existing data for this source file
     sf = source_file
     run_id = start_run(sf, "toc_review_apply", load_config(Path(sf), DOCUMENTS_DIR.parent / "configs"))
@@ -2345,7 +2419,7 @@ def apply_toc_review(source_file: str) -> None:
         "is_excluded": [e["is_excluded"] for e in toc_entries],
         "parent_title": [e["parent_title"] for e in toc_entries],
         "run_id": [run_id] * len(toc_entries),
-    }), overwrite_filter="source_file", overwrite_filter_value=sf)
+    }), overwrite_all=True)
 
     finish_run(run_id, "success", {"toc_entries": len(toc_entries)})
 

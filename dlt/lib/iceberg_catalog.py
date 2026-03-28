@@ -82,11 +82,11 @@ def write_iceberg(
         bucket = parts[0]
         base = parts[1] if len(parts) > 1 else ""
         prefix = f"{base}/{namespace}/{table_name}/"
+        # SeaweedFS doesn't support batch delete_objects — use single deletes
         paginator = s3.get_paginator("list_objects_v2")
         for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
-            if "Contents" in page:
-                keys = [{"Key": obj["Key"]} for obj in page["Contents"]]
-                s3.delete_objects(Bucket=bucket, Delete={"Objects": keys})
+            for obj in page.get("Contents", []):
+                s3.delete_object(Bucket=bucket, Key=obj["Key"])
 
         tbl = catalog.create_table(full_name, schema=arrow_table.schema)
         tbl.append(arrow_table)

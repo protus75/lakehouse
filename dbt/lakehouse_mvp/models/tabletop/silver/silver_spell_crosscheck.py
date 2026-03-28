@@ -19,11 +19,6 @@ def _fuzzy_match(name: str, candidates: dict, threshold: int = 80) -> str | None
         if score > best_score and score >= threshold:
             best_score = score
             best_match = candidate
-        # Also try partial matching for abbreviated names
-        partial = fuzz.partial_ratio(name, candidate)
-        if partial > best_score and partial >= threshold + 10:
-            best_score = partial
-            best_match = candidate
     return best_match
 
 
