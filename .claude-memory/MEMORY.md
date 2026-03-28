@@ -1,18 +1,13 @@
 - [feedback_memory_location.md](feedback_memory_location.md) — Memory is in .claude-memory/ in repo root, NOT system default path
 - [user_profile.md](user_profile.md) — User prefers CLI/PowerShell, not Jupyter, experienced Windows dev with RTX 4090
-- [feedback_coding_rules.md](feedback_coding_rules.md) — Fix at ingestion not export, never set test severity to warn (rest moved to CLAUDE.md)
-- [feedback_tooling.md](feedback_tooling.md) — VSCode only, no jq, WSL GPU fix, Streamlit restart, read-only perms, test before asking
-- [feedback_no_cd_prefix.md](feedback_no_cd_prefix.md) — Never cd prefix in Bash tool — breaks allow-list matching
-- [feedback_time_estimates.md](feedback_time_estimates.md) — Always give time estimates for tasks >15s, never leave user waiting blind
-- [feedback_pipeline_ops.md](feedback_pipeline_ops.md) — Kill stale processes before runs, finish before moving on (rest in CLAUDE.md/hooks)
-- [feedback_system_ops.md](feedback_system_ops.md) — Stop means immediately, kill all means ALL, save debug state aggressively
+- [feedback_shell_and_tools.md](feedback_shell_and_tools.md) — VSCode only, MSYS_NO_PATHCONV, read-only perms, WSL GPU fix, Streamlit, give links
+- [feedback_data_and_parsing.md](feedback_data_and_parsing.md) — Fix at ingestion, fuzzy matching, preserve casing, page-guided search, ToC ordering
+- [feedback_operations.md](feedback_operations.md) — Kill stale processes, stop means immediately, save debug state
 - [project_infrastructure.md](project_infrastructure.md) — D drive, S3+Iceberg migration done, model seeding, Docker image split plan
 - [project_tabletop_rules.md](project_tabletop_rules.md) — Tabletop: PHB only, pymupdf primary, entry builder WIP, next: page-guided section search
-- [feedback_matching.md](feedback_matching.md) — No exact matches, use fuzzy, search ToC page first for common words, rejoin hyphens
-- [feedback_toc_order.md](feedback_toc_order.md) — Tables have no order in ToC, only chapters/sections. Skip tables for sibling page_end
 - [project_tabletop_content_quality.md](project_tabletop_content_quality.md) — Tabletop: 25 content quality issues and gold features, priority order
 - [project_tabletop_integer_keys.md](project_tabletop_integer_keys.md) — Tabletop: replace auto-increment IDs with hash-based stable keys (7 phases)
-- [reference_ollama_setup.md](reference_ollama_setup.md) — Ollama on host, D:\ollama\models, llama3:70b + minicpm-v, API endpoints
-- [reference_cache_locations.md](reference_cache_locations.md) — All caches, reset sequence after code changes, pre-run checks
 - [project_multi_project_plan.md](project_multi_project_plan.md) — Future TODO: multi-project config refactor + Dagster cache/restart DX improvements
 - [project_gamerules_domain.md](project_gamerules_domain.md) — gamerules.ai domain via Cloudflare Tunnel to Dash app on port 8000
+- [reference_ollama_setup.md](reference_ollama_setup.md) — Ollama on host, D:\ollama\models, llama3:70b + minicpm-v, API endpoints
+- [reference_cache_locations.md](reference_cache_locations.md) — All caches, reset sequence after code changes, pre-run checks

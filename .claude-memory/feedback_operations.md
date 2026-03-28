@@ -1,8 +1,13 @@
 ---
-name: System operations rules
-description: Stop/kill behavior, save working state — not covered by CLAUDE.md or hooks
+name: Pipeline and system operations
+description: Kill stale processes before runs, stop means immediately, kill-all sequence, save debug state to memory
 type: feedback
 ---
+
+## Kill stale processes before every pipeline run
+Check for leftover python processes in containers before runs. After completion: verify cleanup. Report GPU state.
+
+**Why:** Stale processes hold GPU memory and cause OOM or hangs on the next run.
 
 ## Stop means stop — immediately
 When user says "stop" or "stop everything": `docker stop $(docker ps -q)` FIRST. Then report. Don't ask questions or investigate first.
