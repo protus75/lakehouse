@@ -128,7 +128,8 @@ def model(dbt, session):
 
         # Build entries — ToC-driven with entry_mode config
         entries = build_entries(markdown, heading_chapter_map, known_entries, config, toc_all,
-                               spell_list=spell_list, authority_entries=authority_entries)
+                               spell_list=spell_list, authority_entries=authority_entries,
+                               page_texts=page_texts, page_printed=page_printed)
 
         # Collect sub-headings
         collect_sub_headings(entries, toc_all, config)

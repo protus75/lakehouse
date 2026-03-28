@@ -484,6 +484,8 @@ def build_entries(
     toc_sections: list[dict] = None,
     spell_list: list[dict] = None,
     authority_entries: list[dict] = None,
+    page_texts: list[str] = None,
+    page_printed: dict = None,
 ) -> list[dict]:
     """Build silver entries driven by ToC truth.
 
@@ -574,27 +576,44 @@ def build_entries(
             return "priest"
         return ""
 
-    # ── Build chapter ranges: map each chapter to its line range in markdown ──
+    # ── Build chapter ranges using page positions (not heading matching) ──
+    # Page anchors map markdown char positions to printed page numbers.
+    # Each chapter's content starts at its ToC page_start position in markdown.
+    page_anchors = _build_page_position_map(
+        markdown, page_texts, page_printed, len(page_texts), config
+    )
+
+    def _page_to_line(printed_page: int) -> int:
+        """Find the markdown line nearest to a printed page number."""
+        # Find the char position for this page from anchors
+        best_pos = 0
+        for md_pos, pp in page_anchors:
+            if pp <= printed_page:
+                best_pos = md_pos
+            elif pp > printed_page:
+                break
+        # Convert char position to line index
+        for li in range(len(line_starts) - 1, -1, -1):
+            if line_starts[li] <= best_pos:
+                return li
+        return 0
+
     chapters = [s for s in toc_sections if s.get("is_chapter") and not s.get("is_excluded")]
     chapter_ranges = {}  # chapter_title -> (start_line, end_line)
     for i, ch in enumerate(chapters):
-        start = _find_heading(ch["title"])
-        if start < 0:
-            # Try partial match (descriptive part after colon)
-            desc = ch["title"].split(":", 1)[-1].strip()
-            start = _find_heading(desc) if desc else -1
-        if start < 0:
-            continue
-        # End = start of next chapter, or end of doc
-        end = len(lines)
-        for j in range(i + 1, len(chapters)):
-            next_start = _find_heading(chapters[j]["title"])
-            if next_start < 0:
-                desc = chapters[j]["title"].split(":", 1)[-1].strip()
-                next_start = _find_heading(desc) if desc else -1
-            if next_start > 0:
-                end = next_start
+        raw_start = _page_to_line(ch.get("page_start", 0))
+        # Back up to nearest heading before the page anchor — page anchors
+        # can land mid-page, missing content at the top of the first page
+        start = raw_start
+        for back in range(raw_start, max(0, raw_start - 30), -1):
+            if re.match(r"^#{1,4}\s", lines[back]):
+                start = back
                 break
+        # End = line position of next chapter's page, or end of doc
+        if i + 1 < len(chapters):
+            end = _page_to_line(chapters[i + 1].get("page_start", 9999))
+        else:
+            end = len(lines)
         chapter_ranges[ch["title"]] = (start, end)
 
     # ── Walk ToC, build entries ──
