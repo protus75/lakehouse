@@ -482,13 +482,350 @@ def build_entries(
     known_entries: set[str],
     config: dict = None,
     toc_sections: list[dict] = None,
+    spell_list: list[dict] = None,
+    authority_entries: list[dict] = None,
 ) -> list[dict]:
-    """Parse Marker markdown into entries using heading-chapter map for ToC assignment.
+    """Build silver entries driven by ToC truth.
 
-    No page splitting. Marker's continuous markdown is parsed by headings.
-    Each heading's chapter comes from heading_chapter_map (page-position based).
-    known_entries whitelist only applies in spell sections -- non-spell sections
-    treat every H3/H4 heading as a new entry."""
+    Walks the ToC in order. For each section, uses entry_mode from config:
+    - toc (default): one entry per ToC sub-section
+    - per_list: one entry per item in reference list (spells, proficiencies)
+    - per_anchor: one entry per config anchor
+
+    Content is extracted from markdown by finding headings/anchors that match
+    entry names, then taking content between consecutive matches.
+    """
+    from rapidfuzz import fuzz
+
+    if not toc_sections:
+        return []
+
+    section_cfg = config.get("section_parsing", {}) if config else {}
+    level_mapping = config.get("spell_level_mapping", {}) if config else {}
+    type_mapping = config.get("entry_type_mapping", {}) if config else {}
+    min_content = config.get("ingestion", {}).get("min_entry_content", 10) if config else 10
+
+    # Build spell list lookup: name -> {spell_class, spell_level, school, sphere, ...}
+    spell_lookup = {}
+    if spell_list:
+        for s in spell_list:
+            spell_lookup[s.get("spell_name", "").lower()] = s
+
+    # Build authority entries lookup: name -> {entry_type, ...}
+    authority_lookup = {}
+    if authority_entries:
+        for a in authority_entries:
+            authority_lookup[a.get("entry_name", "").lower()] = a
+
+    # ── Index all headings in markdown by position ──
+    lines = markdown.split("\n")
+    line_starts = []
+    pos = 0
+    for line in lines:
+        line_starts.append(pos)
+        pos += len(line) + 1
+
+    # heading_positions: [(line_idx, clean_title, raw_line), ...]
+    heading_positions = []
+    for i, line in enumerate(lines):
+        m = re.match(r"^(#{1,4})\s+(.+)", line)
+        if m:
+            raw_heading = m.group(2).strip()
+            clean = re.sub(r"\*+", "", raw_heading).strip()
+            clean = re.sub(r"\s*\([\w/,\s]+\)\s*$", "", clean).strip()
+            heading_positions.append((i, clean, line))
+
+    # Also find bold-text anchors: **Title** at start of line
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped.startswith("**") and "**" in stripped[2:]:
+            end = stripped.index("**", 2)
+            title = stripped[2:end].strip()
+            if len(title) >= 3:
+                heading_positions.append((i, title, line))
+
+    heading_positions.sort(key=lambda x: x[0])
+
+    def _find_heading(name: str, after_line: int = 0, before_line: int = None) -> int:
+        """Find the first heading matching name after after_line. Returns line index or -1."""
+        if before_line is None:
+            before_line = len(lines)
+        name_lower = name.lower()
+        for line_idx, clean_title, raw in heading_positions:
+            if line_idx < after_line or line_idx >= before_line:
+                continue
+            if clean_title.lower() == name_lower:
+                return line_idx
+            if fuzz.ratio(clean_title.lower(), name_lower) >= 85:
+                return line_idx
+        return -1
+
+    def _extract_content(start_line: int, end_line: int) -> str:
+        """Extract and clean content between two line indices."""
+        raw = "\n".join(lines[start_line:end_line]).strip()
+        return _clean_entry_content(raw, config) if config else raw
+
+    def _toc_spell_class(toc_entry: dict) -> str:
+        """Determine spell class from ToC entry title."""
+        title = toc_entry.get("title", "").lower()
+        if "wizard" in title:
+            return "wizard"
+        if "priest" in title:
+            return "priest"
+        return ""
+
+    # ── Build chapter ranges: map each chapter to its line range in markdown ──
+    chapters = [s for s in toc_sections if s.get("is_chapter") and not s.get("is_excluded")]
+    chapter_ranges = {}  # chapter_title -> (start_line, end_line)
+    for i, ch in enumerate(chapters):
+        start = _find_heading(ch["title"])
+        if start < 0:
+            # Try partial match (descriptive part after colon)
+            desc = ch["title"].split(":", 1)[-1].strip()
+            start = _find_heading(desc) if desc else -1
+        if start < 0:
+            continue
+        # End = start of next chapter, or end of doc
+        end = len(lines)
+        for j in range(i + 1, len(chapters)):
+            next_start = _find_heading(chapters[j]["title"])
+            if next_start < 0:
+                desc = chapters[j]["title"].split(":", 1)[-1].strip()
+                next_start = _find_heading(desc) if desc else -1
+            if next_start > 0:
+                end = next_start
+                break
+        chapter_ranges[ch["title"]] = (start, end)
+
+    # ── Walk ToC, build entries ──
+    entries = []
+
+    for ch in chapters:
+        ch_range = chapter_ranges.get(ch["title"])
+        if not ch_range:
+            continue
+        ch_start, ch_end = ch_range
+
+        # Determine entry_mode for this chapter
+        entry_mode = "toc"  # default
+        matched_cfg = None
+        for sec_key, sec_cfg in section_cfg.items():
+            if sec_key.lower() in ch["title"].lower():
+                entry_mode = sec_cfg.get("entry_mode", "toc")
+                matched_cfg = sec_cfg
+                break
+
+        # Get sub-sections for this chapter from ToC
+        sub_sections = [s for s in toc_sections
+                        if s.get("parent_title") == ch["title"]
+                        and not s.get("is_excluded")
+                        and not s.get("is_table")]
+
+        if entry_mode == "toc":
+            # One entry per ToC sub-section + chapter intro
+            if sub_sections:
+                # Chapter intro: content before first sub-section
+                first_sub_line = -1
+                for sub in sub_sections:
+                    pos = _find_heading(sub["title"], ch_start, ch_end)
+                    if pos > 0:
+                        first_sub_line = pos
+                        break
+                if first_sub_line > ch_start + 1:
+                    content = _extract_content(ch_start, first_sub_line)
+                    if len(content) > min_content:
+                        entries.append({
+                            "toc_entry": ch,
+                            "section_title": ch["title"].split(":", 1)[-1].strip(),
+                            "entry_title": ch["title"].split(":", 1)[-1].strip(),
+                            "content": content,
+                            "school": None, "sphere": None,
+                            "spell_class": None, "spell_level": None,
+                            "page_numbers": [ch.get("page_start", 0)],
+                        })
+
+                # Each sub-section
+                for idx, sub in enumerate(sub_sections):
+                    sub_start = _find_heading(sub["title"], ch_start, ch_end)
+                    if sub_start < 0:
+                        continue
+                    # End = next sub-section or chapter end
+                    sub_end = ch_end
+                    for nxt in sub_sections[idx + 1:]:
+                        nxt_pos = _find_heading(nxt["title"], sub_start + 1, ch_end)
+                        if nxt_pos > 0:
+                            sub_end = nxt_pos
+                            break
+                    content = _extract_content(sub_start, sub_end)
+                    if len(content) > min_content:
+                        entries.append({
+                            "toc_entry": ch,
+                            "section_title": sub["title"],
+                            "entry_title": sub["title"],
+                            "content": content,
+                            "school": None, "sphere": None,
+                            "spell_class": None, "spell_level": None,
+                            "page_numbers": [sub.get("page_start", 0)],
+                        })
+            else:
+                # No sub-sections — whole chapter is one entry
+                content = _extract_content(ch_start, ch_end)
+                if len(content) > min_content:
+                    entries.append({
+                        "toc_entry": ch,
+                        "section_title": ch["title"].split(":", 1)[-1].strip(),
+                        "entry_title": None,
+                        "content": content,
+                        "school": None, "sphere": None,
+                        "spell_class": None, "spell_level": None,
+                        "page_numbers": [ch.get("page_start", 0)],
+                    })
+
+        elif entry_mode == "per_list":
+            # One entry per item in reference list (spells, proficiencies)
+            list_source = matched_cfg.get("list_source", "") if matched_cfg else ""
+            list_filter = matched_cfg.get("list_filter_type", "") if matched_cfg else ""
+            spell_class = _toc_spell_class(ch)
+
+            if list_source == "spell_list_entries":
+                names = [s.get("spell_name", "") for s in (spell_list or [])
+                         if not spell_class or s.get("spell_class", "").lower() == spell_class]
+            elif list_source == "authority_table_entries":
+                names = [a.get("entry_name", "") for a in (authority_entries or [])
+                         if not list_filter or a.get("entry_type", "") == list_filter]
+            else:
+                names = []
+
+            # Find each entry name as a heading within the chapter
+            found = []
+            for name in names:
+                pos = _find_heading(name, ch_start, ch_end)
+                if pos >= 0:
+                    found.append((pos, name))
+            found.sort(key=lambda x: x[0])
+
+            # Extract content between consecutive entries
+            current_spell_level = None
+            sub_pat = matched_cfg.get("sub_section_pattern", "") if matched_cfg else ""
+            for idx, (pos, name) in enumerate(found):
+                # Check for sub-section heading (spell level) between entries
+                if sub_pat:
+                    for hp_line, hp_clean, hp_raw in heading_positions:
+                        if hp_line >= (found[idx - 1][0] if idx > 0 else ch_start) and hp_line < pos:
+                            if re.match(sub_pat, hp_clean, re.IGNORECASE):
+                                for word, level in level_mapping.items():
+                                    if word in hp_clean.lower():
+                                        current_spell_level = level
+                                        break
+
+                end_pos = found[idx + 1][0] if idx + 1 < len(found) else ch_end
+                content = _extract_content(pos, end_pos)
+                if len(content) <= min_content:
+                    continue
+
+                # Extract spell metadata
+                school = _extract_school_from_raw(content) if config else None
+                spell_info = spell_lookup.get(name.lower(), {})
+
+                entries.append({
+                    "toc_entry": ch,
+                    "section_title": name,
+                    "entry_title": name,
+                    "content": content,
+                    "school": school,
+                    "sphere": spell_info.get("sphere") or _extract_field_from_raw(content, "Sphere") if config else None,
+                    "spell_class": spell_class or spell_info.get("spell_class"),
+                    "spell_level": current_spell_level or spell_info.get("spell_level"),
+                    "page_numbers": [],
+                })
+
+        elif entry_mode == "per_anchor":
+            # One entry per config anchor
+            anchors = matched_cfg.get("entry_anchors", []) if matched_cfg else []
+            name_map = matched_cfg.get("anchor_name_map", {}) if matched_cfg else {}
+
+            found = []
+            for anchor in anchors:
+                for i, line in enumerate(lines[ch_start:ch_end], ch_start):
+                    if line.strip().startswith(anchor):
+                        display_name = name_map.get(anchor, anchor.replace("**", "").strip())
+                        found.append((i, display_name))
+                        break
+            found.sort(key=lambda x: x[0])
+
+            for idx, (pos, name) in enumerate(found):
+                end_pos = found[idx + 1][0] if idx + 1 < len(found) else ch_end
+                content = _extract_content(pos, end_pos)
+                if len(content) > min_content:
+                    entries.append({
+                        "toc_entry": ch,
+                        "section_title": name,
+                        "entry_title": name,
+                        "content": content,
+                        "school": None, "sphere": None,
+                        "spell_class": None, "spell_level": None,
+                        "page_numbers": [],
+                    })
+
+    return entries
+
+
+def _extract_school_from_raw(raw_content: str) -> str:
+    """Extract spell school from raw content."""
+    known_schools = {
+        "abjuration", "alteration", "conjuration", "conjuration/summoning",
+        "divination", "enchantment", "enchantment/charm", "evocation",
+        "illusion", "illusion/phantasm", "invocation", "invocation/evocation",
+        "necromancy", "universal", "all schools",
+    }
+    for line in raw_content.split("\n"):
+        stripped = line.strip()
+        if stripped.startswith("#"):
+            paren_start = stripped.rfind("(")
+            paren_end = stripped.rfind(")")
+            if paren_start > 0 and paren_end > paren_start:
+                school = stripped[paren_start + 1:paren_end].replace("*", "").strip()
+                parts = [p.strip().lower() for p in school.replace("/", ",").split(",")]
+                if any(p in known_schools for p in parts):
+                    return school
+            continue
+        clean = stripped.replace("*", "").strip()
+        if clean.startswith("("):
+            inner_end = clean.find(")")
+            if inner_end > 0:
+                inner = clean[1:inner_end].strip()
+                parts = [p.strip().lower() for p in inner.replace("/", ",").split(",")]
+                if any(p in known_schools for p in parts):
+                    return inner
+    for line in raw_content.split("\n"):
+        stripped = line.strip()
+        if stripped.lower().startswith("school:"):
+            return stripped[7:].strip() or None
+    return None
+
+
+def _extract_field_from_raw(raw_content: str, field_name: str) -> str:
+    """Extract a metadata field value from raw content."""
+    field_lower = field_name.lower() + ":"
+    for line in raw_content.split("\n"):
+        line_lower = line.strip().lower()
+        if field_lower in line_lower:
+            idx = line_lower.index(field_lower)
+            value = line.strip()[idx + len(field_name) + 1:].strip()
+            return value if value else None
+    return None
+
+
+def _build_entries_legacy(
+    markdown: str,
+    heading_chapter_map: dict[int, dict],
+    known_entries: set[str],
+    config: dict = None,
+    toc_sections: list[dict] = None,
+) -> list[dict]:
+    """LEGACY: Parse Marker markdown into entries using heading-chapter map for ToC assignment.
+
+    Kept for reference. Use build_entries() (ToC-driven) instead."""
     # Config lookups
     level_mapping = config.get("spell_level_mapping", {}) if config else {}
     type_mapping = config.get("entry_type_mapping", {}) if config else {}

@@ -100,13 +100,35 @@ def model(dbt, session):
             lines = [l for l in markdown.split("\n") if l.strip() not in watermarks]
             markdown = "\n".join(lines)
 
+        # Load spell list and authority entries for per_list entry mode
+        spell_list = []
+        try:
+            sl_df = session.execute(
+                f"SELECT spell_name, spell_class, spell_level, school, sphere "
+                f"FROM bronze_tabletop.spell_list_entries WHERE source_file = '{sf}'"
+            ).fetchdf()
+            spell_list = sl_df.to_dict("records") if not sl_df.empty else []
+        except Exception:
+            pass
+
+        authority_entries = []
+        try:
+            ae_df = session.execute(
+                f"SELECT entry_name, entry_type, source_table "
+                f"FROM bronze_tabletop.authority_table_entries WHERE source_file = '{sf}'"
+            ).fetchdf()
+            authority_entries = ae_df.to_dict("records") if not ae_df.empty else []
+        except Exception:
+            pass
+
         # Build heading-chapter map from page anchors
         heading_chapter_map = build_heading_chapter_map(
             markdown, toc_sections, page_texts, page_printed, total_pages, config
         )
 
-        # Build entries
-        entries = build_entries(markdown, heading_chapter_map, known_entries, config, toc_all)
+        # Build entries — ToC-driven with entry_mode config
+        entries = build_entries(markdown, heading_chapter_map, known_entries, config, toc_all,
+                               spell_list=spell_list, authority_entries=authority_entries)
 
         # Collect sub-headings
         collect_sub_headings(entries, toc_all, config)
