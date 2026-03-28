@@ -1570,6 +1570,8 @@ def extract_pdf(filepath: Path) -> None:
 
         # 6. Extract tables using ToC as driver, then strip from markdown
         all_tables = extract_all_tables(markdown, toc_sections, page_texts, page_printed, config)
+        table_titles = set(t["toc_title"] for t in all_tables)
+        _log(f"  Tables found: {len(table_titles)} unique, Weapons={'Weapons' in table_titles}, Armor={'Armor' in table_titles}")
         step(f"Tables: {len(all_tables)} parsed")
         markdown = strip_tables_from_markdown(markdown)
 

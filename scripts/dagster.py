@@ -36,10 +36,9 @@ def gql(query: str) -> dict:
 def cmd_launch(job: str, force: bool = False):
     run_config_str = ""
     if force:
-        rc = {"ops": {"bronze_tabletop": {"config": {"force": True}}}}
-        # GraphQL RunConfigData is a JSON string value
-        escaped = json.dumps(json.dumps(rc))  # double-encode: JSON string inside JSON
-        run_config_str = f", runConfigData: {escaped}"
+        rc = json.dumps({"ops": {"bronze_tabletop": {"config": {"force": True}}}})
+        # runConfigData expects a JSON string — single encode, gql() handles the outer encoding
+        run_config_str = ', runConfigData: "' + rc.replace('"', '\\"') + '"'
     q = f'''mutation {{
         launchRun(executionParams: {{
             selector: {{

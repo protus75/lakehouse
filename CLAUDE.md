@@ -17,10 +17,11 @@ NEVER run pipeline steps manually (`docker exec python -m dlt.*`, `dbt build`, `
 
 ### Cache reset before EVERY pipeline run — CRITICAL
 ALWAYS clear caches and restart Dagster before launching ANY pipeline. No exceptions, even if "only config changed." Steps:
-1. `find d:/source/lakehouse/lakehouse -name '__pycache__' -exec rm -rf {} +`
-2. `docker restart lakehouse-dagster-daemon lakehouse-dagster-webserver`
-3. Wait 15s for grpc servers
-4. THEN launch pipeline
+1. Clear host pycache: `find d:/source/lakehouse/lakehouse -name '__pycache__' -exec rm -rf {} +`
+2. Clear container pycache (volume mount doesn't always sync): `docker exec lakehouse-dagster-daemon bash -c 'find /workspace -name __pycache__ -type d -exec rm -rf {} + 2>/dev/null'`
+3. Restart BOTH Dagster containers: `docker restart lakehouse-dagster-daemon lakehouse-dagster-webserver`
+4. Wait 15s for grpc servers
+5. THEN launch pipeline
 Skip this = stale code = wasted pipeline run = wasted user time.
 
 ### Zero validation errors — CRITICAL
