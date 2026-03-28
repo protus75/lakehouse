@@ -1,11 +1,17 @@
 ---
-name: No cd prefix in Bash commands
-description: Never prefix Bash tool commands with cd — it breaks permission allow-list matching
+name: No cd prefix, and fix Git Bash path mangling
+description: Never cd prefix in Bash tool, and always set MSYS_NO_PATHCONV=1 for docker exec with Linux paths
 type: feedback
 ---
 
-Never use `cd d:/source/... &&` prefix in Bash tool commands. Run commands directly (e.g. `git status` not `cd /path && git status`).
+## No cd prefix
+Never use `cd d:/source/... &&` prefix in Bash tool commands. Run commands directly.
 
-**Why:** The permission allow-list uses prefix matching (e.g. `Bash(git log:*)`). Prepending `cd` makes the command start with `cd` instead of the actual tool, so it doesn't match and the user gets prompted unnecessarily.
+**Why:** The permission allow-list uses prefix matching. Prepending `cd` breaks matching.
 
-**How to apply:** Always run Bash commands directly without `cd` prefix. The working directory persists between calls. This is already in CLAUDE.md but was being ignored.
+## Git Bash path mangling — CRITICAL
+When running `docker exec` commands that contain Linux paths (e.g. `/workspace/...`), Git Bash on Windows converts them to Windows paths (e.g. `C:/Program Files/Git/workspace/...`). This breaks every `docker exec` command with absolute paths.
+
+**Fix:** Always set `MSYS_NO_PATHCONV=1` in the environment, or prefix the command with `MSYS_NO_PATHCONV=1`. In Python scripts, pass `env={"MSYS_NO_PATHCONV": "1", ...}` to subprocess calls. In the Bash tool, prefix with `MSYS_NO_PATHCONV=1`.
+
+**How to apply:** Any time you write a `docker exec` command with a Linux path — in scripts, in the Bash tool, or in instructions to the user — ensure path conversion is disabled.

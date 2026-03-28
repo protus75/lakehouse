@@ -64,35 +64,46 @@ def is_running(pid):
         return False
 
 
-def start_dash(dashapp_cfg, background=False):
-    """Start the Dash browser app."""
-    dash_pid = read_pid("dash")
-    if is_running(dash_pid):
-        print(f"Dash app already running (PID {dash_pid})")
-        return dash_pid
+CONTAINER = "lakehouse-workspace"
 
+
+def _docker_env():
+    """Return env dict that prevents Git Bash from mangling Linux paths."""
     env = os.environ.copy()
-    env["PYTHONPATH"] = PROJECT_ROOT
+    env["MSYS_NO_PATHCONV"] = "1"
+    return env
+
+
+def _is_dash_running():
+    """Check if Dash app is running inside the container."""
+    result = subprocess.run(
+        ["docker", "exec", CONTAINER, "python", "-c",
+         "import socket; s=socket.socket(); s.settimeout(1); s.connect(('localhost',8000)); s.close(); print('up')"],
+        capture_output=True, text=True, env=_docker_env(),
+    )
+    return result.returncode == 0
+
+
+def start_dash(dashapp_cfg, background=False):
+    """Start the Dash browser app inside the workspace container."""
+    if _is_dash_running():
+        print(f"Dash app already running in {CONTAINER}")
+        return None
 
     cmd = [
-        sys.executable, "-u",
-        os.path.join(PROJECT_ROOT, "dashapp", "tabletop_browser.py"),
+        "docker", "exec", "-d" if background else "", CONTAINER,
+        "python", "-u", "/workspace/dashapp/tabletop_browser.py",
     ]
+    cmd = [c for c in cmd if c]
+    env = _docker_env()
 
     if background:
-        proc = subprocess.Popen(
-            cmd, env=env,
-            stdout=open(os.path.join(PID_DIR, "dash.log"), "w"),
-            stderr=subprocess.STDOUT,
-            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
-        )
-        save_pid("dash", proc.pid)
-        print(f"Dash app started (PID {proc.pid}) — http://localhost:{dashapp_cfg['port']}")
-        return proc.pid
+        subprocess.run(cmd, check=True, env=env)
+        print(f"Dash app started in {CONTAINER} — http://localhost:{dashapp_cfg['port']}")
+        return None
     else:
         proc = subprocess.Popen(cmd, env=env)
-        save_pid("dash", proc.pid)
-        print(f"Dash app started (PID {proc.pid}) — http://localhost:{dashapp_cfg['port']}")
+        print(f"Dash app started in {CONTAINER} — http://localhost:{dashapp_cfg['port']}")
         return proc
 
 
@@ -151,47 +162,65 @@ def cmd_start(background=False):
 
 
 def cmd_stop():
-    for name in ["tunnel", "dash"]:
-        pid = read_pid(name)
-        if is_running(pid):
-            try:
-                if sys.platform == "win32":
-                    subprocess.run(["taskkill", "/F", "/PID", str(pid)],
-                                   capture_output=True)
-                else:
-                    os.kill(pid, signal.SIGTERM)
-                print(f"Stopped {name} (PID {pid})")
-            except Exception as e:
-                print(f"Failed to stop {name} (PID {pid}): {e}")
-        else:
-            print(f"{name.capitalize()} not running")
-        clear_pid(name)
+    # Stop tunnel (local process)
+    tunnel_pid = read_pid("tunnel")
+    if is_running(tunnel_pid):
+        try:
+            if sys.platform == "win32":
+                subprocess.run(["taskkill", "/F", "/PID", str(tunnel_pid)],
+                               capture_output=True)
+            else:
+                os.kill(tunnel_pid, signal.SIGTERM)
+            print(f"Stopped tunnel (PID {tunnel_pid})")
+        except Exception as e:
+            print(f"Failed to stop tunnel (PID {tunnel_pid}): {e}")
+    else:
+        print("Tunnel not running")
+    clear_pid("tunnel")
+
+    # Stop Dash app (inside Docker container) via /proc since pkill not installed
+    env = _docker_env()
+    result = subprocess.run(
+        ["docker", "exec", CONTAINER, "python", "-c",
+         "import os,signal\n"
+         "for p in os.listdir('/proc'):\n"
+         " if not p.isdigit(): continue\n"
+         " try:\n"
+         "  c=open(f'/proc/{p}/cmdline').read()\n"
+         "  if 'tabletop_browser' in c and str(os.getpid()) != p:\n"
+         "   os.kill(int(p),signal.SIGTERM); print(f'Killed {p}')\n"
+         " except: pass\n"],
+        capture_output=True, text=True, env=env,
+    )
+    if result.stdout.strip():
+        print(f"Stopped Dash app in {CONTAINER}")
+    else:
+        print("Dash app not running")
 
 
 def cmd_status():
     tunnel_cfg, dashapp_cfg = load_config()
-    for name, label, url in [
-        ("dash", "Dash app", f"http://localhost:{dashapp_cfg['port']}"),
-        ("tunnel", "Tunnel", f"https://{tunnel_cfg['domain']}"),
-    ]:
-        pid = read_pid(name)
-        if is_running(pid):
-            print(f"  {label}: RUNNING (PID {pid}) — {url}")
-        else:
-            print(f"  {label}: STOPPED")
-            clear_pid(name)
+
+    # Check Dash app inside Docker
+    if _is_dash_running():
+        print(f"  Dash app: RUNNING in {CONTAINER} — http://localhost:{dashapp_cfg['port']}")
+    else:
+        print("  Dash app: STOPPED")
+
+    # Check tunnel (local process)
+    tunnel_pid = read_pid("tunnel")
+    if is_running(tunnel_pid):
+        print(f"  Tunnel:   RUNNING (PID {tunnel_pid}) — https://{tunnel_cfg['domain']}")
+    else:
+        print("  Tunnel:   STOPPED")
+        clear_pid("tunnel")
 
 
 def cmd_dash():
     _, dashapp_cfg = load_config()
-    print(f"Starting Dash app — http://localhost:{dashapp_cfg['port']}")
-    print("Ctrl+C to stop.")
-    try:
-        proc = start_dash(dashapp_cfg, background=False)
-        proc.wait()
-    except KeyboardInterrupt:
-        print("\nStopped.")
-        cmd_stop()
+    print(f"Starting Dash app in {CONTAINER} — http://localhost:{dashapp_cfg['port']}")
+    start_dash(dashapp_cfg, background=True)
+    print("Use 'python scripts/tunnel.py stop' to stop it.")
 
 
 if __name__ == "__main__":

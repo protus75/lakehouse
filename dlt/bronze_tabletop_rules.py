@@ -1209,36 +1209,36 @@ def extract_all_tables(markdown: str, toc_entries: list[dict],
                 found_titles.add(toc_title)
                 break
 
-    # Use config table_hints for tables not yet found
+    # Use config table_hints to find tables by content marker — works for
+    # unlabeled tables (Weapons, Armor) that aren't in table_targets because
+    # is_table wasn't set during initial extraction.
     hints = (config or {}).get("table_hints", {})
-    for target in table_targets:
-        if target["toc_title"] in found_titles:
-            continue
-        hint = hints.get(target["table_title"])
-        if not hint:
+    synthetic = max((t["table_number"] for t in tables), default=999) + 1
+    for hint_title, hint in hints.items():
+        if hint_title in found_titles:
             continue
         marker = hint.get("content_marker", "")
-        if marker:
-            for li in range(len(lines)):
-                if marker in lines[li]:
-                    rows = _find_pipe_block(lines, li)
-                    if not rows:
-                        # Walk back to find start of pipe block
-                        start = li
-                        while start > 0 and lines[start - 1].strip().startswith("|"):
-                            start -= 1
-                        rows = _find_pipe_block(lines, start)
-                    if rows and len(rows) <= 200:
-                        tables.append({
-                            "table_number": target["table_number"],
-                            "table_title": target["table_title"],
-                            "toc_title": target["toc_title"],
-                            "format": "pipe",
-                            "rows": rows,
-                        })
-                        found_titles.add(target["toc_title"])
-                        _log(f"  Tables: {target['toc_title']} found via content_marker hint")
-                    break
+        if not marker:
+            continue
+        for li in range(len(lines)):
+            if marker in lines[li]:
+                # Walk back to find start of pipe block
+                start = li
+                while start > 0 and lines[start - 1].strip().startswith("|"):
+                    start -= 1
+                rows = _find_pipe_block(lines, start)
+                if rows and len(rows) <= 200:
+                    tables.append({
+                        "table_number": synthetic,
+                        "table_title": hint_title,
+                        "toc_title": hint_title,
+                        "format": "pipe",
+                        "rows": rows,
+                    })
+                    found_titles.add(hint_title)
+                    _log(f"  Tables: {hint_title} found via content_marker hint")
+                    synthetic += 1
+                break
 
     missed = [t for t in table_targets if t["toc_title"] not in found_titles]
     if missed:
@@ -1536,13 +1536,19 @@ def extract_pdf(filepath: Path) -> None:
             reviewed_flags = {}
             for i in range(len(prev_toc)):
                 title = prev_toc.column("title")[i].as_py()
-                reviewed_flags[title] = {
-                    "is_table": prev_toc.column("is_table")[i].as_py(),
-                }
+                page = prev_toc.column("page_start")[i].as_py()
+                is_table = prev_toc.column("is_table")[i].as_py()
+                reviewed_flags[(title, page)] = {"is_table": is_table}
+            merged_count = 0
             for entry in toc_sections:
-                prev = reviewed_flags.get(entry["title"])
+                key = (entry["title"], entry.get("page_start"))
+                prev = reviewed_flags.get(key)
                 if prev and prev["is_table"] and not entry.get("is_table"):
                     entry["is_table"] = True
+                    merged_count += 1
+                    _log(f"  ToC merge: {entry['title']} page={entry.get('page_start')} → is_table=True")
+            if merged_count:
+                _log(f"  ToC merge: {merged_count} entries updated from reviewed toc_raw")
         except Exception:
             pass  # No previous toc_raw — first run, initial guesses are all we have
         included = sum(1 for s in toc_sections if not s["is_excluded"])

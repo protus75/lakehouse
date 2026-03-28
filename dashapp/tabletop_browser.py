@@ -4,20 +4,51 @@ Dash app serving on port 8000. Renders the entire book as a single HTML
 document with proper anchor links from the sidebar ToC.
 """
 import sys
+import time
 sys.path.insert(0, "/workspace")
 
 from dash import Dash, html, dcc, callback, Input, Output
 from dlt.lib.duckdb_reader import get_reader
 
 
+# ── Cached DuckDB connection + query results ────────────────
+
+_conn = None
+_cache = {}  # key -> (timestamp, result)
+
+
+def _get_conn():
+    """Return a shared DuckDB connection, creating it once."""
+    global _conn
+    if _conn is None:
+        _conn = get_reader(namespaces=["silver_tabletop", "gold_tabletop"])
+    return _conn
+
+
+_rendered_cache = {}  # source_file -> (sidebar, content)
+
+
+def _invalidate():
+    """Drop cached connection and query results (call after pipeline runs)."""
+    global _conn, _cache, _rendered_cache
+    _conn = None
+    _cache = {}
+    _rendered_cache = {}
+
+
 def _query(sql, params=None):
-    """Execute SQL and return list of dicts."""
-    conn = get_reader(namespaces=["silver_tabletop", "gold_tabletop"])
+    """Execute SQL and return list of dicts. Results are cached by (sql, params)."""
+    key = (sql, tuple(params) if params else ())
+    if key in _cache:
+        return _cache[key]
+    conn = _get_conn()
     if params:
         df = conn.execute(sql, params).fetchdf()
     else:
         df = conn.execute(sql).fetchdf()
-    return df.to_dict("records")
+    result = df.to_dict("records")
+    _cache[key] = result
+    return result
 
 
 def _get_books():
@@ -342,6 +373,14 @@ app.layout = html.Div([
         ], style={"marginBottom": "0.5rem"}),
         html.Hr(),
         html.Div(id="toc-nav", style={"overflowY": "auto", "flex": "1"}),
+        html.Hr(),
+        html.Button("Refresh Data", id="refresh-btn",
+                     style={"width": "100%", "padding": "0.4rem", "cursor": "pointer",
+                            "background": "#21262d", "color": "#fafafa",
+                            "border": "1px solid #30363d", "borderRadius": "4px",
+                            "fontSize": "0.85rem"}),
+        html.Div(id="refresh-status", style={"fontSize": "0.8rem", "color": "#8b949e",
+                                              "marginTop": "0.3rem", "textAlign": "center"}),
     ], id="sidebar"),
 
     # Main content
@@ -363,19 +402,30 @@ def update_book(source_file):
     if not source_file:
         return [], [html.P("Select a book.")]
 
+    if source_file in _rendered_cache:
+        sidebar, content = _rendered_cache[source_file]
+        return sidebar, content
+
+    t0 = time.time()
     toc = _get_toc(source_file)
     book_data = _get_full_book(source_file)
     entry_index = _get_entry_index(source_file)
     summaries = _get_summaries()
     annotations = _get_annotations()
+    t1 = time.time()
 
     content, anchor_map = build_book_content(book_data, toc, entry_index, summaries, annotations)
     sidebar = build_toc_sidebar(toc, anchor_map)
+    t2 = time.time()
 
     book_name = source_file.replace(".pdf", "").replace("_", " ")
     header = [html.H1(book_name)]
+    result_content = header + content
 
-    return sidebar, header + content
+    print(f"[browser] {source_file}: queries={t1-t0:.1f}s, render={t2-t1:.1f}s")
+
+    _rendered_cache[source_file] = (sidebar, result_content)
+    return sidebar, result_content
 
 
 # Clientside callback — toggles visibility without re-rendering
@@ -418,6 +468,19 @@ app.clientside_callback(
     Output("optional-dummy", "children"),
     Input("optional-rules", "value"),
 )
+
+
+@callback(
+    Output("refresh-status", "children"),
+    Output("book-selector", "options"),
+    Input("refresh-btn", "n_clicks"),
+    prevent_initial_call=True,
+)
+def refresh_data(n_clicks):
+    _invalidate()
+    new_books = _get_books()
+    options = [{"label": b.replace(".pdf", ""), "value": b} for b in new_books]
+    return f"Refreshed ({time.strftime('%H:%M:%S')})", options
 
 
 # ── CSS ──────────────────────────────────────────────────────
