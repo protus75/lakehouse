@@ -1,0 +1,898 @@
+Total rows: 896
+{"toc_title": "Table 1: Strength", "table_number": "1"}
+{"toc_title": "Table 1: Strength", "table_number": "1"}
+{"toc_title": "Table 1: Strength", "table_number": "1"}
+{"toc_title": "Table 1: Strength", "table_number": "1"}
+{"toc_title": "Table 1: Strength", "table_number": "1"}
+{"toc_title": "Table 1: Strength", "table_number": "1"}
+{"toc_title": "Table 1: Strength", "table_number": "1"}
+{"toc_title": "Table 1: Strength", "table_number": "1"}
+{"toc_title": "Table 1: Strength", "table_number": "1"}
+{"toc_title": "Table 1: Strength", "table_number": "1"}
+{"toc_title": "Table 1: Strength", "table_number": "1"}
+{"toc_title": "Table 1: Strength", "table_number": "1"}
+{"toc_title": "Table 1: Strength", "table_number": "1"}
+{"toc_title": "Table 1: Strength", "table_number": "1"}
+{"toc_title": "Table 1: Strength", "table_number": "1"}
+{"toc_title": "Table 1: Strength", "table_number": "1"}
+{"toc_title": "Table 1: Strength", "table_number": "1"}
+{"toc_title": "Table 1: Strength", "table_number": "1"}
+{"toc_title": "Table 1: Strength", "table_number": "1"}
+{"toc_title": "Table 1: Strength", "table_number": "1"}
+{"toc_title": "Table 1: Strength", "table_number": "1"}
+{"toc_title": "Table 1: Strength", "table_number": "1"}
+{"toc_title": "Table 1: Strength", "table_number": "1"}
+{"toc_title": "Table 1: Strength", "table_number": "1"}
+{"toc_title": "Table 1: Strength", "table_number": "1"}
+{"toc_title": "Table 1: Strength", "table_number": "1"}
+{"toc_title": "Table 1: Strength", "table_number": "1"}
+{"toc_title": "Table 1: Strength", "table_number": "1"}
+{"toc_title": "Table 2: Dexterity", "table_number": "2"}
+{"toc_title": "Table 2: Dexterity", "table_number": "2"}
+{"toc_title": "Table 2: Dexterity", "table_number": "2"}
+{"toc_title": "Table 2: Dexterity", "table_number": "2"}
+{"toc_title": "Table 2: Dexterity", "table_number": "2"}
+{"toc_title": "Table 3: Constitution", "table_number": "3"}
+{"toc_title": "Table 3: Constitution", "table_number": "3"}
+{"toc_title": "Table 4: Intelligence", "table_number": "4"}
+{"toc_title": "Table 4: Intelligence", "table_number": "4"}
+{"toc_title": "Table 4: Intelligence", "table_number": "4"}
+{"toc_title": "Table 4: Intelligence", "table_number": "4"}
+{"toc_title": "Table 4: Intelligence", "table_number": "4"}
+{"toc_title": "Table 4: Intelligence", "table_number": "4"}
+{"toc_title": "Table 4: Intelligence", "table_number": "4"}
+{"toc_title": "Table 4: Intelligence", "table_number": "4"}
+{"toc_title": "Table 4: Intelligence", "table_number": "4"}
+{"toc_title": "Table 4: Intelligence", "table_number": "4"}
+{"toc_title": "Table 4: Intelligence", "table_number": "4"}
+{"toc_title": "Table 4: Intelligence", "table_number": "4"}
+{"toc_title": "Table 4: Intelligence", "table_number": "4"}
+{"toc_title": "Table 4: Intelligence", "table_number": "4"}
+{"toc_title": "Table 4: Intelligence", "table_number": "4"}
+{"toc_title": "Table 4: Intelligence", "table_number": "4"}
+{"toc_title": "Table 4: Intelligence", "table_number": "4"}
+{"toc_title": "Table 4: Intelligence", "table_number": "4"}
+{"toc_title": "Table 4: Intelligence", "table_number": "4"}
+{"toc_title": "Table 4: Intelligence", "table_number": "4"}
+{"toc_title": "Table 4: Intelligence", "table_number": "4"}
+{"toc_title": "Table 4: Intelligence", "table_number": "4"}
+{"toc_title": "Table 4: Intelligence", "table_number": "4"}
+{"toc_title": "Table 4: Intelligence", "table_number": "4"}
+{"toc_title": "Table 4: Intelligence", "table_number": "4"}
+{"toc_title": "Table 4: Intelligence", "table_number": "4"}
+{"toc_title": "Table 4: Intelligence", "table_number": "4"}
+{"toc_title": "Table 4: Intelligence", "table_number": "4"}
+{"toc_title": "Table 5: Wisdom", "table_number": "5"}
+{"toc_title": "Table 5: Wisdom", "table_number": "5"}
+{"toc_title": "Table 5: Wisdom", "table_number": "5"}
+{"toc_title": "Table 5: Wisdom", "table_number": "5"}
+{"toc_title": "Table 5: Wisdom", "table_number": "5"}
+{"toc_title": "Table 5: Wisdom", "table_number": "5"}
+{"toc_title": "Table 5: Wisdom", "table_number": "5"}
+{"toc_title": "Table 5: Wisdom", "table_number": "5"}
+{"toc_title": "Table 5: Wisdom", "table_number": "5"}
+{"toc_title": "Table 5: Wisdom", "table_number": "5"}
+{"toc_title": "Table 5: Wisdom", "table_number": "5"}
+{"toc_title": "Table 5: Wisdom", "table_number": "5"}
+{"toc_title": "Table 5: Wisdom", "table_number": "5"}
+{"toc_title": "Table 5: Wisdom", "table_number": "5"}
+{"toc_title": "Table 5: Wisdom", "table_number": "5"}
+{"toc_title": "Table 5: Wisdom", "table_number": "5"}
+{"toc_title": "Table 5: Wisdom", "table_number": "5"}
+{"toc_title": "Table 5: Wisdom", "table_number": "5"}
+{"toc_title": "Table 5: Wisdom", "table_number": "5"}
+{"toc_title": "Table 5: Wisdom", "table_number": "5"}
+{"toc_title": "Table 5: Wisdom", "table_number": "5"}
+{"toc_title": "Table 5: Wisdom", "table_number": "5"}
+{"toc_title": "Table 5: Wisdom", "table_number": "5"}
+{"toc_title": "Table 5: Wisdom", "table_number": "5"}
+{"toc_title": "Table 6: Charisma", "table_number": "6"}
+{"toc_title": "Table 6: Charisma", "table_number": "6"}
+{"toc_title": "Table 7: Racial Ability Requirements", "table_number": "7"}
+{"toc_title": "Table 7: Racial Ability Requirements", "table_number": "7"}
+{"toc_title": "Table 7: Racial Ability Requirements", "table_number": "7"}
+{"toc_title": "Table 7: Racial Ability Requirements", "table_number": "7"}
+{"toc_title": "Table 7: Racial Ability Requirements", "table_number": "7"}
+{"toc_title": "Table 7: Racial Ability Requirements", "table_number": "7"}
+{"toc_title": "Table 7: Racial Ability Requirements", "table_number": "7"}
+{"toc_title": "Table 8: Racial Ability Adjustments", "table_number": "8"}
+{"toc_title": "Table 8: Racial Ability Adjustments", "table_number": "8"}
+{"toc_title": "Table 9: Constitution Saving Throw Bonuses", "table_number": "9"}
+{"toc_title": "Table 9: Constitution Saving Throw Bonuses", "table_number": "9"}
+{"toc_title": "Table 9: Constitution Saving Throw Bonuses", "table_number": "9"}
+{"toc_title": "Table 9: Constitution Saving Throw Bonuses", "table_number": "9"}
+{"toc_title": "Table 9: Constitution Saving Throw Bonuses", "table_number": "9"}
+{"toc_title": "Table 9: Constitution Saving Throw Bonuses", "table_number": "9"}
+{"toc_title": "Table 9: Constitution Saving Throw Bonuses", "table_number": "9"}
+{"toc_title": "Table 9: Constitution Saving Throw Bonuses", "table_number": "9"}
+{"toc_title": "Table 9: Constitution Saving Throw Bonuses", "table_number": "9"}
+{"toc_title": "Table 9: Constitution Saving Throw Bonuses", "table_number": "9"}
+{"toc_title": "Table 9: Constitution Saving Throw Bonuses", "table_number": "9"}
+{"toc_title": "Table 10: Average Height and Weight", "table_number": "10"}
+{"toc_title": "Table 10: Average Height and Weight", "table_number": "10"}
+{"toc_title": "Table 10: Average Height and Weight", "table_number": "10"}
+{"toc_title": "Table 10: Average Height and Weight", "table_number": "10"}
+{"toc_title": "Table 10: Average Height and Weight", "table_number": "10"}
+{"toc_title": "Table 10: Average Height and Weight", "table_number": "10"}
+{"toc_title": "Table 10: Average Height and Weight", "table_number": "10"}
+{"toc_title": "Table 10: Average Height and Weight", "table_number": "10"}
+{"toc_title": "Table 11: Age", "table_number": "11"}
+{"toc_title": "Table 11: Age", "table_number": "11"}
+{"toc_title": "Table 11: Age", "table_number": "11"}
+{"toc_title": "Table 11: Age", "table_number": "11"}
+{"toc_title": "Table 11: Age", "table_number": "11"}
+{"toc_title": "Table 11: Age", "table_number": "11"}
+{"toc_title": "Table 11: Age", "table_number": "11"}
+{"toc_title": "Table 11: Age", "table_number": "11"}
+{"toc_title": "Table 12: Aging Effects", "table_number": "12"}
+{"toc_title": "Table 12: Aging Effects", "table_number": "12"}
+{"toc_title": "Table 12: Aging Effects", "table_number": "12"}
+{"toc_title": "Table 12: Aging Effects", "table_number": "12"}
+{"toc_title": "Table 12: Aging Effects", "table_number": "12"}
+{"toc_title": "Table 12: Aging Effects", "table_number": "12"}
+{"toc_title": "Table 12: Aging Effects", "table_number": "12"}
+{"toc_title": "Table 13: Class Ability Minimums", "table_number": "13"}
+{"toc_title": "Table 13: Class Ability Minimums", "table_number": "13"}
+{"toc_title": "Table 13: Class Ability Minimums", "table_number": "13"}
+{"toc_title": "Table 13: Class Ability Minimums", "table_number": "13"}
+{"toc_title": "Table 13: Class Ability Minimums", "table_number": "13"}
+{"toc_title": "Table 13: Class Ability Minimums", "table_number": "13"}
+{"toc_title": "Table 13: Class Ability Minimums", "table_number": "13"}
+{"toc_title": "Table 13: Class Ability Minimums", "table_number": "13"}
+{"toc_title": "Table 13: Class Ability Minimums", "table_number": "13"}
+{"toc_title": "Table 13: Class Ability Minimums", "table_number": "13"}
+{"toc_title": "Table 13: Class Ability Minimums", "table_number": "13"}
+{"toc_title": "Table 14: Warrior Experience Levels", "table_number": "14"}
+{"toc_title": "Table 14: Warrior Experience Levels", "table_number": "14"}
+{"toc_title": "Table 14: Warrior Experience Levels", "table_number": "14"}
+{"toc_title": "Table 14: Warrior Experience Levels", "table_number": "14"}
+{"toc_title": "Table 14: Warrior Experience Levels", "table_number": "14"}
+{"toc_title": "Table 14: Warrior Experience Levels", "table_number": "14"}
+{"toc_title": "Table 14: Warrior Experience Levels", "table_number": "14"}
+{"toc_title": "Table 14: Warrior Experience Levels", "table_number": "14"}
+{"toc_title": "Table 14: Warrior Experience Levels", "table_number": "14"}
+{"toc_title": "Table 14: Warrior Experience Levels", "table_number": "14"}
+{"toc_title": "Table 14: Warrior Experience Levels", "table_number": "14"}
+{"toc_title": "Table 14: Warrior Experience Levels", "table_number": "14"}
+{"toc_title": "Table 14: Warrior Experience Levels", "table_number": "14"}
+{"toc_title": "Table 14: Warrior Experience Levels", "table_number": "14"}
+{"toc_title": "Table 14: Warrior Experience Levels", "table_number": "14"}
+{"toc_title": "Table 14: Warrior Experience Levels", "table_number": "14"}
+{"toc_title": "Table 14: Warrior Experience Levels", "table_number": "14"}
+{"toc_title": "Table 14: Warrior Experience Levels", "table_number": "14"}
+{"toc_title": "Table 14: Warrior Experience Levels", "table_number": "14"}
+{"toc_title": "Table 14: Warrior Experience Levels", "table_number": "14"}
+{"toc_title": "Table 14: Warrior Experience Levels", "table_number": "14"}
+{"toc_title": "Table 14: Warrior Experience Levels", "table_number": "14"}
+{"toc_title": "Table 14: Warrior Experience Levels", "table_number": "14"}
+{"toc_title": "Table 14: Warrior Experience Levels", "table_number": "14"}
+{"toc_title": "Table 15: Warrior Melee Attacks per Round", "table_number": "15"}
+{"toc_title": "Table 15: Warrior Melee Attacks per Round", "table_number": "15"}
+{"toc_title": "Table 15: Warrior Melee Attacks per Round", "table_number": "15"}
+{"toc_title": "Table 15: Warrior Melee Attacks per Round", "table_number": "15"}
+{"toc_title": "Table 16: Fighter\u2019s Followers", "table_number": "16"}
+{"toc_title": "Table 16: Fighter\u2019s Followers", "table_number": "16"}
+{"toc_title": "Table 16: Fighter\u2019s Followers", "table_number": "16"}
+{"toc_title": "Table 16: Fighter\u2019s Followers", "table_number": "16"}
+{"toc_title": "Table 16: Fighter\u2019s Followers", "table_number": "16"}
+{"toc_title": "Table 16: Fighter\u2019s Followers", "table_number": "16"}
+{"toc_title": "Table 16: Fighter\u2019s Followers", "table_number": "16"}
+{"toc_title": "Table 16: Fighter\u2019s Followers", "table_number": "16"}
+{"toc_title": "Table 16: Fighter\u2019s Followers", "table_number": "16"}
+{"toc_title": "Table 16: Fighter\u2019s Followers", "table_number": "16"}
+{"toc_title": "Table 17: Paladin Spell Progression", "table_number": "17"}
+{"toc_title": "Table 17: Paladin Spell Progression", "table_number": "17"}
+{"toc_title": "Table 17: Paladin Spell Progression", "table_number": "17"}
+{"toc_title": "Table 17: Paladin Spell Progression", "table_number": "17"}
+{"toc_title": "Table 17: Paladin Spell Progression", "table_number": "17"}
+{"toc_title": "Table 17: Paladin Spell Progression", "table_number": "17"}
+{"toc_title": "Table 17: Paladin Spell Progression", "table_number": "17"}
+{"toc_title": "Table 17: Paladin Spell Progression", "table_number": "17"}
+{"toc_title": "Table 17: Paladin Spell Progression", "table_number": "17"}
+{"toc_title": "Table 17: Paladin Spell Progression", "table_number": "17"}
+{"toc_title": "Table 17: Paladin Spell Progression", "table_number": "17"}
+{"toc_title": "Table 17: Paladin Spell Progression", "table_number": "17"}
+{"toc_title": "Table 17: Paladin Spell Progression", "table_number": "17"}
+{"toc_title": "Table 17: Paladin Spell Progression", "table_number": "17"}
+{"toc_title": "Table 18: Ranger Abilities", "table_number": "18"}
+{"toc_title": "Table 18: Ranger Abilities", "table_number": "18"}
+{"toc_title": "Table 18: Ranger Abilities", "table_number": "18"}
+{"toc_title": "Table 18: Ranger Abilities", "table_number": "18"}
+{"toc_title": "Table 18: Ranger Abilities", "table_number": "18"}
+{"toc_title": "Table 18: Ranger Abilities", "table_number": "18"}
+{"toc_title": "Table 18: Ranger Abilities", "table_number": "18"}
+{"toc_title": "Table 18: Ranger Abilities", "table_number": "18"}
+{"toc_title": "Table 18: Ranger Abilities", "table_number": "18"}
+{"toc_title": "Table 18: Ranger Abilities", "table_number": "18"}
+{"toc_title": "Table 18: Ranger Abilities", "table_number": "18"}
+{"toc_title": "Table 18: Ranger Abilities", "table_number": "18"}
+{"toc_title": "Table 18: Ranger Abilities", "table_number": "18"}
+{"toc_title": "Table 18: Ranger Abilities", "table_number": "18"}
+{"toc_title": "Table 18: Ranger Abilities", "table_number": "18"}
+{"toc_title": "Table 18: Ranger Abilities", "table_number": "18"}
+{"toc_title": "Table 18: Ranger Abilities", "table_number": "18"}
+{"toc_title": "Table 19: Ranger\u2019s Followers", "table_number": "19"}
+{"toc_title": "Table 19: Ranger\u2019s Followers", "table_number": "19"}
+{"toc_title": "Table 19: Ranger\u2019s Followers", "table_number": "19"}
+{"toc_title": "Table 19: Ranger\u2019s Followers", "table_number": "19"}
+{"toc_title": "Table 19: Ranger\u2019s Followers", "table_number": "19"}
+{"toc_title": "Table 19: Ranger\u2019s Followers", "table_number": "19"}
+{"toc_title": "Table 19: Ranger\u2019s Followers", "table_number": "19"}
+{"toc_title": "Table 19: Ranger\u2019s Followers", "table_number": "19"}
+{"toc_title": "Table 19: Ranger\u2019s Followers", "table_number": "19"}
+{"toc_title": "Table 19: Ranger\u2019s Followers", "table_number": "19"}
+{"toc_title": "Table 19: Ranger\u2019s Followers", "table_number": "19"}
+{"toc_title": "Table 19: Ranger\u2019s Followers", "table_number": "19"}
+{"toc_title": "Table 19: Ranger\u2019s Followers", "table_number": "19"}
+{"toc_title": "Table 19: Ranger\u2019s Followers", "table_number": "19"}
+{"toc_title": "Table 19: Ranger\u2019s Followers", "table_number": "19"}
+{"toc_title": "Table 19: Ranger\u2019s Followers", "table_number": "19"}
+{"toc_title": "Table 19: Ranger\u2019s Followers", "table_number": "19"}
+{"toc_title": "Table 20: Wizard Experience Levels", "table_number": "20"}
+{"toc_title": "Table 20: Wizard Experience Levels", "table_number": "20"}
+{"toc_title": "Table 20: Wizard Experience Levels", "table_number": "20"}
+{"toc_title": "Table 20: Wizard Experience Levels", "table_number": "20"}
+{"toc_title": "Table 20: Wizard Experience Levels", "table_number": "20"}
+{"toc_title": "Table 20: Wizard Experience Levels", "table_number": "20"}
+{"toc_title": "Table 20: Wizard Experience Levels", "table_number": "20"}
+{"toc_title": "Table 20: Wizard Experience Levels", "table_number": "20"}
+{"toc_title": "Table 20: Wizard Experience Levels", "table_number": "20"}
+{"toc_title": "Table 20: Wizard Experience Levels", "table_number": "20"}
+{"toc_title": "Table 20: Wizard Experience Levels", "table_number": "20"}
+{"toc_title": "Table 20: Wizard Experience Levels", "table_number": "20"}
+{"toc_title": "Table 20: Wizard Experience Levels", "table_number": "20"}
+{"toc_title": "Table 20: Wizard Experience Levels", "table_number": "20"}
+{"toc_title": "Table 20: Wizard Experience Levels", "table_number": "20"}
+{"toc_title": "Table 20: Wizard Experience Levels", "table_number": "20"}
+{"toc_title": "Table 20: Wizard Experience Levels", "table_number": "20"}
+{"toc_title": "Table 20: Wizard Experience Levels", "table_number": "20"}
+{"toc_title": "Table 20: Wizard Experience Levels", "table_number": "20"}
+{"toc_title": "Table 20: Wizard Experience Levels", "table_number": "20"}
+{"toc_title": "Table 20: Wizard Experience Levels", "table_number": "20"}
+{"toc_title": "Table 21: Wizard Spell Progression", "table_number": "21"}
+{"toc_title": "Table 21: Wizard Spell Progression", "table_number": "21"}
+{"toc_title": "Table 21: Wizard Spell Progression", "table_number": "21"}
+{"toc_title": "Table 21: Wizard Spell Progression", "table_number": "21"}
+{"toc_title": "Table 21: Wizard Spell Progression", "table_number": "21"}
+{"toc_title": "Table 21: Wizard Spell Progression", "table_number": "21"}
+{"toc_title": "Table 21: Wizard Spell Progression", "table_number": "21"}
+{"toc_title": "Table 21: Wizard Spell Progression", "table_number": "21"}
+{"toc_title": "Table 21: Wizard Spell Progression", "table_number": "21"}
+{"toc_title": "Table 21: Wizard Spell Progression", "table_number": "21"}
+{"toc_title": "Table 21: Wizard Spell Progression", "table_number": "21"}
+{"toc_title": "Table 21: Wizard Spell Progression", "table_number": "21"}
+{"toc_title": "Table 21: Wizard Spell Progression", "table_number": "21"}
+{"toc_title": "Table 21: Wizard Spell Progression", "table_number": "21"}
+{"toc_title": "Table 21: Wizard Spell Progression", "table_number": "21"}
+{"toc_title": "Table 21: Wizard Spell Progression", "table_number": "21"}
+{"toc_title": "Table 21: Wizard Spell Progression", "table_number": "21"}
+{"toc_title": "Table 22: Wizard Specialist Requirements", "table_number": "22"}
+{"toc_title": "Table 22: Wizard Specialist Requirements", "table_number": "22"}
+{"toc_title": "Table 22: Wizard Specialist Requirements", "table_number": "22"}
+{"toc_title": "Table 23: Priest Experience Levels", "table_number": "23"}
+{"toc_title": "Table 23: Priest Experience Levels", "table_number": "23"}
+{"toc_title": "Table 23: Priest Experience Levels", "table_number": "23"}
+{"toc_title": "Table 23: Priest Experience Levels", "table_number": "23"}
+{"toc_title": "Table 23: Priest Experience Levels", "table_number": "23"}
+{"toc_title": "Table 23: Priest Experience Levels", "table_number": "23"}
+{"toc_title": "Table 23: Priest Experience Levels", "table_number": "23"}
+{"toc_title": "Table 23: Priest Experience Levels", "table_number": "23"}
+{"toc_title": "Table 23: Priest Experience Levels", "table_number": "23"}
+{"toc_title": "Table 23: Priest Experience Levels", "table_number": "23"}
+{"toc_title": "Table 23: Priest Experience Levels", "table_number": "23"}
+{"toc_title": "Table 23: Priest Experience Levels", "table_number": "23"}
+{"toc_title": "Table 23: Priest Experience Levels", "table_number": "23"}
+{"toc_title": "Table 23: Priest Experience Levels", "table_number": "23"}
+{"toc_title": "Table 23: Priest Experience Levels", "table_number": "23"}
+{"toc_title": "Table 23: Priest Experience Levels", "table_number": "23"}
+{"toc_title": "Table 23: Priest Experience Levels", "table_number": "23"}
+{"toc_title": "Table 23: Priest Experience Levels", "table_number": "23"}
+{"toc_title": "Table 23: Priest Experience Levels", "table_number": "23"}
+{"toc_title": "Table 23: Priest Experience Levels", "table_number": "23"}
+{"toc_title": "Table 23: Priest Experience Levels", "table_number": "23"}
+{"toc_title": "Table 24: Priest Spell Progression", "table_number": "24"}
+{"toc_title": "Table 24: Priest Spell Progression", "table_number": "24"}
+{"toc_title": "Table 24: Priest Spell Progression", "table_number": "24"}
+{"toc_title": "Table 24: Priest Spell Progression", "table_number": "24"}
+{"toc_title": "Table 24: Priest Spell Progression", "table_number": "24"}
+{"toc_title": "Table 24: Priest Spell Progression", "table_number": "24"}
+{"toc_title": "Table 24: Priest Spell Progression", "table_number": "24"}
+{"toc_title": "Table 24: Priest Spell Progression", "table_number": "24"}
+{"toc_title": "Table 24: Priest Spell Progression", "table_number": "24"}
+{"toc_title": "Table 24: Priest Spell Progression", "table_number": "24"}
+{"toc_title": "Table 24: Priest Spell Progression", "table_number": "24"}
+{"toc_title": "Table 24: Priest Spell Progression", "table_number": "24"}
+{"toc_title": "Table 24: Priest Spell Progression", "table_number": "24"}
+{"toc_title": "Table 24: Priest Spell Progression", "table_number": "24"}
+{"toc_title": "Table 24: Priest Spell Progression", "table_number": "24"}
+{"toc_title": "Table 24: Priest Spell Progression", "table_number": "24"}
+{"toc_title": "Table 24: Priest Spell Progression", "table_number": "24"}
+{"toc_title": "Table 24: Priest Spell Progression", "table_number": "24"}
+{"toc_title": "Table 24: Priest Spell Progression", "table_number": "24"}
+{"toc_title": "Table 24: Priest Spell Progression", "table_number": "24"}
+{"toc_title": "Table 24: Priest Spell Progression", "table_number": "24"}
+{"toc_title": "Table 24: Priest Spell Progression", "table_number": "24"}
+{"toc_title": "Table 24: Priest Spell Progression", "table_number": "24"}
+{"toc_title": "Table 24: Priest Spell Progression", "table_number": "24"}
+{"toc_title": "Table 25: Rogue Experience Levels", "table_number": "25"}
+{"toc_title": "Table 25: Rogue Experience Levels", "table_number": "25"}
+{"toc_title": "Table 25: Rogue Experience Levels", "table_number": "25"}
+{"toc_title": "Table 25: Rogue Experience Levels", "table_number": "25"}
+{"toc_title": "Table 25: Rogue Experience Levels", "table_number": "25"}
+{"toc_title": "Table 25: Rogue Experience Levels", "table_number": "25"}
+{"toc_title": "Table 25: Rogue Experience Levels", "table_number": "25"}
+{"toc_title": "Table 25: Rogue Experience Levels", "table_number": "25"}
+{"toc_title": "Table 25: Rogue Experience Levels", "table_number": "25"}
+{"toc_title": "Table 25: Rogue Experience Levels", "table_number": "25"}
+{"toc_title": "Table 25: Rogue Experience Levels", "table_number": "25"}
+{"toc_title": "Table 25: Rogue Experience Levels", "table_number": "25"}
+{"toc_title": "Table 25: Rogue Experience Levels", "table_number": "25"}
+{"toc_title": "Table 25: Rogue Experience Levels", "table_number": "25"}
+{"toc_title": "Table 25: Rogue Experience Levels", "table_number": "25"}
+{"toc_title": "Table 25: Rogue Experience Levels", "table_number": "25"}
+{"toc_title": "Table 25: Rogue Experience Levels", "table_number": "25"}
+{"toc_title": "Table 25: Rogue Experience Levels", "table_number": "25"}
+{"toc_title": "Table 25: Rogue Experience Levels", "table_number": "25"}
+{"toc_title": "Table 25: Rogue Experience Levels", "table_number": "25"}
+{"toc_title": "Table 25: Rogue Experience Levels", "table_number": "25"}
+{"toc_title": "Table 26: Thieving Skill Base Scores", "table_number": "26"}
+{"toc_title": "Table 26: Thieving Skill Base Scores", "table_number": "26"}
+{"toc_title": "Table 26: Thieving Skill Base Scores", "table_number": "26"}
+{"toc_title": "Table 26: Thieving Skill Base Scores", "table_number": "26"}
+{"toc_title": "Table 26: Thieving Skill Base Scores", "table_number": "26"}
+{"toc_title": "Table 26: Thieving Skill Base Scores", "table_number": "26"}
+{"toc_title": "Table 26: Thieving Skill Base Scores", "table_number": "26"}
+{"toc_title": "Table 26: Thieving Skill Base Scores", "table_number": "26"}
+{"toc_title": "Table 26: Thieving Skill Base Scores", "table_number": "26"}
+{"toc_title": "Table 27: Thieving Skill Racial Adjustments", "table_number": "27"}
+{"toc_title": "Table 27: Thieving Skill Racial Adjustments", "table_number": "27"}
+{"toc_title": "Table 28: Thieving Skill Dexterity Adjustments", "table_number": "28"}
+{"toc_title": "Table 28: Thieving Skill Dexterity Adjustments", "table_number": "28"}
+{"toc_title": "Table 28: Thieving Skill Dexterity Adjustments", "table_number": "28"}
+{"toc_title": "Table 28: Thieving Skill Dexterity Adjustments", "table_number": "28"}
+{"toc_title": "Table 28: Thieving Skill Dexterity Adjustments", "table_number": "28"}
+{"toc_title": "Table 28: Thieving Skill Dexterity Adjustments", "table_number": "28"}
+{"toc_title": "Table 28: Thieving Skill Dexterity Adjustments", "table_number": "28"}
+{"toc_title": "Table 28: Thieving Skill Dexterity Adjustments", "table_number": "28"}
+{"toc_title": "Table 28: Thieving Skill Dexterity Adjustments", "table_number": "28"}
+{"toc_title": "Table 28: Thieving Skill Dexterity Adjustments", "table_number": "28"}
+{"toc_title": "Table 29: Thieving Skill Armor Adjustments", "table_number": "29"}
+{"toc_title": "Table 29: Thieving Skill Armor Adjustments", "table_number": "29"}
+{"toc_title": "Table 29: Thieving Skill Armor Adjustments", "table_number": "29"}
+{"toc_title": "Table 29: Thieving Skill Armor Adjustments", "table_number": "29"}
+{"toc_title": "Table 29: Thieving Skill Armor Adjustments", "table_number": "29"}
+{"toc_title": "Table 29: Thieving Skill Armor Adjustments", "table_number": "29"}
+{"toc_title": "Table 29: Thieving Skill Armor Adjustments", "table_number": "29"}
+{"toc_title": "Table 29: Thieving Skill Armor Adjustments", "table_number": "29"}
+{"toc_title": "Table 29: Thieving Skill Armor Adjustments", "table_number": "29"}
+{"toc_title": "Table 29: Thieving Skill Armor Adjustments", "table_number": "29"}
+{"toc_title": "Table 30: Backstab Damage Multipliers", "table_number": "30"}
+{"toc_title": "Table 30: Backstab Damage Multipliers", "table_number": "30"}
+{"toc_title": "Table 30: Backstab Damage Multipliers", "table_number": "30"}
+{"toc_title": "Table 30: Backstab Damage Multipliers", "table_number": "30"}
+{"toc_title": "Table 30: Backstab Damage Multipliers", "table_number": "30"}
+{"toc_title": "Table 31: Thief\u2019s Followers", "table_number": "31"}
+{"toc_title": "Table 31: Thief\u2019s Followers", "table_number": "31"}
+{"toc_title": "Table 32: Bard Spell Progression", "table_number": "32"}
+{"toc_title": "Table 32: Bard Spell Progression", "table_number": "32"}
+{"toc_title": "Table 32: Bard Spell Progression", "table_number": "32"}
+{"toc_title": "Table 32: Bard Spell Progression", "table_number": "32"}
+{"toc_title": "Table 32: Bard Spell Progression", "table_number": "32"}
+{"toc_title": "Table 33: Bard Abilities", "table_number": "33"}
+{"toc_title": "Table 33: Bard Abilities", "table_number": "33"}
+{"toc_title": "Table 33: Bard Abilities", "table_number": "33"}
+{"toc_title": "Table 33: Bard Abilities", "table_number": "33"}
+{"toc_title": "Table 33: Bard Abilities", "table_number": "33"}
+{"toc_title": "Table 34: Proficiency Slots", "table_number": "34"}
+{"toc_title": "Table 34: Proficiency Slots", "table_number": "34"}
+{"toc_title": "Table 34: Proficiency Slots", "table_number": "34"}
+{"toc_title": "Table 34: Proficiency Slots", "table_number": "34"}
+{"toc_title": "Table 34: Proficiency Slots", "table_number": "34"}
+{"toc_title": "Table 34: Proficiency Slots", "table_number": "34"}
+{"toc_title": "Table 35: Specialist Attacks per Round", "table_number": "35"}
+{"toc_title": "Table 35: Specialist Attacks per Round", "table_number": "35"}
+{"toc_title": "Table 35: Specialist Attacks per Round", "table_number": "35"}
+{"toc_title": "Table 35: Specialist Attacks per Round", "table_number": "35"}
+{"toc_title": "Table 36: Secondary Skills", "table_number": "36"}
+{"toc_title": "Table 36: Secondary Skills", "table_number": "36"}
+{"toc_title": "Table 36: Secondary Skills", "table_number": "36"}
+{"toc_title": "Table 36: Secondary Skills", "table_number": "36"}
+{"toc_title": "Table 36: Secondary Skills", "table_number": "36"}
+{"toc_title": "Table 36: Secondary Skills", "table_number": "36"}
+{"toc_title": "Table 37: Nonweapon Proficiency Groups", "table_number": "37"}
+{"toc_title": "Table 37: Nonweapon Proficiency Groups", "table_number": "37"}
+{"toc_title": "Table 37: Nonweapon Proficiency Groups", "table_number": "37"}
+{"toc_title": "Table 37: Nonweapon Proficiency Groups", "table_number": "37"}
+{"toc_title": "Table 37: Nonweapon Proficiency Groups", "table_number": "37"}
+{"toc_title": "Table 37: Nonweapon Proficiency Groups", "table_number": "37"}
+{"toc_title": "Table 37: Nonweapon Proficiency Groups", "table_number": "37"}
+{"toc_title": "Table 37: Nonweapon Proficiency Groups", "table_number": "37"}
+{"toc_title": "Table 37: Nonweapon Proficiency Groups", "table_number": "37"}
+{"toc_title": "Table 37: Nonweapon Proficiency Groups", "table_number": "37"}
+{"toc_title": "Table 37: Nonweapon Proficiency Groups", "table_number": "37"}
+{"toc_title": "Table 37: Nonweapon Proficiency Groups", "table_number": "37"}
+{"toc_title": "Table 37: Nonweapon Proficiency Groups", "table_number": "37"}
+{"toc_title": "Table 37: Nonweapon Proficiency Groups", "table_number": "37"}
+{"toc_title": "Table 37: Nonweapon Proficiency Groups", "table_number": "37"}
+{"toc_title": "Table 37: Nonweapon Proficiency Groups", "table_number": "37"}
+{"toc_title": "Table 37: Nonweapon Proficiency Groups", "table_number": "37"}
+{"toc_title": "Table 37: Nonweapon Proficiency Groups", "table_number": "37"}
+{"toc_title": "Table 37: Nonweapon Proficiency Groups", "table_number": "37"}
+{"toc_title": "Table 37: Nonweapon Proficiency Groups", "table_number": "37"}
+{"toc_title": "Table 37: Nonweapon Proficiency Groups", "table_number": "37"}
+{"toc_title": "Table 37: Nonweapon Proficiency Groups", "table_number": "37"}
+{"toc_title": "Table 37: Nonweapon Proficiency Groups", "table_number": "37"}
+{"toc_title": "Table 37: Nonweapon Proficiency Groups", "table_number": "37"}
+{"toc_title": "Table 37: Nonweapon Proficiency Groups", "table_number": "37"}
+{"toc_title": "Table 37: Nonweapon Proficiency Groups", "table_number": "37"}
+{"toc_title": "Table 37: Nonweapon Proficiency Groups", "table_number": "37"}
+{"toc_title": "Table 37: Nonweapon Proficiency Groups", "table_number": "37"}
+{"toc_title": "Table 37: Nonweapon Proficiency Groups", "table_number": "37"}
+{"toc_title": "Table 37: Nonweapon Proficiency Groups", "table_number": "37"}
+{"toc_title": "Table 37: Nonweapon Proficiency Groups", "table_number": "37"}
+{"toc_title": "Table 37: Nonweapon Proficiency Groups", "table_number": "37"}
+{"toc_title": "Table 37: Nonweapon Proficiency Groups", "table_number": "37"}
+{"toc_title": "Table 37: Nonweapon Proficiency Groups", "table_number": "37"}
+{"toc_title": "Table 37: Nonweapon Proficiency Groups", "table_number": "37"}
+{"toc_title": "Table 37: Nonweapon Proficiency Groups", "table_number": "37"}
+{"toc_title": "Table 37: Nonweapon Proficiency Groups", "table_number": "37"}
+{"toc_title": "Table 37: Nonweapon Proficiency Groups", "table_number": "37"}
+{"toc_title": "Table 37: Nonweapon Proficiency Groups", "table_number": "37"}
+{"toc_title": "Table 37: Nonweapon Proficiency Groups", "table_number": "37"}
+{"toc_title": "Table 37: Nonweapon Proficiency Groups", "table_number": "37"}
+{"toc_title": "Table 37: Nonweapon Proficiency Groups", "table_number": "37"}
+{"toc_title": "Table 37: Nonweapon Proficiency Groups", "table_number": "37"}
+{"toc_title": "Table 37: Nonweapon Proficiency Groups", "table_number": "37"}
+{"toc_title": "Table 37: Nonweapon Proficiency Groups", "table_number": "37"}
+{"toc_title": "Table 37: Nonweapon Proficiency Groups", "table_number": "37"}
+{"toc_title": "Table 37: Nonweapon Proficiency Groups", "table_number": "37"}
+{"toc_title": "Table 37: Nonweapon Proficiency Groups", "table_number": "37"}
+{"toc_title": "Table 37: Nonweapon Proficiency Groups", "table_number": "37"}
+{"toc_title": "Table 37: Nonweapon Proficiency Groups", "table_number": "37"}
+{"toc_title": "Table 37: Nonweapon Proficiency Groups", "table_number": "37"}
+{"toc_title": "Table 37: Nonweapon Proficiency Groups", "table_number": "37"}
+{"toc_title": "Table 37: Nonweapon Proficiency Groups", "table_number": "37"}
+{"toc_title": "Table 37: Nonweapon Proficiency Groups", "table_number": "37"}
+{"toc_title": "Table 38:  Nonweapon Proficiency Group Crossovers", "table_number": "38"}
+{"toc_title": "Table 38:  Nonweapon Proficiency Group Crossovers", "table_number": "38"}
+{"toc_title": "Table 38:  Nonweapon Proficiency Group Crossovers", "table_number": "38"}
+{"toc_title": "Table 38:  Nonweapon Proficiency Group Crossovers", "table_number": "38"}
+{"toc_title": "Table 38:  Nonweapon Proficiency Group Crossovers", "table_number": "38"}
+{"toc_title": "Table 38:  Nonweapon Proficiency Group Crossovers", "table_number": "38"}
+{"toc_title": "Table 38:  Nonweapon Proficiency Group Crossovers", "table_number": "38"}
+{"toc_title": "Table 38:  Nonweapon Proficiency Group Crossovers", "table_number": "38"}
+{"toc_title": "Table 38:  Nonweapon Proficiency Group Crossovers", "table_number": "38"}
+{"toc_title": "Table 38:  Nonweapon Proficiency Group Crossovers", "table_number": "38"}
+{"toc_title": "Table 38:  Nonweapon Proficiency Group Crossovers", "table_number": "38"}
+{"toc_title": "Table 39: Tracking Modifiers", "table_number": "39"}
+{"toc_title": "Table 39: Tracking Modifiers", "table_number": "39"}
+{"toc_title": "Table 39: Tracking Modifiers", "table_number": "39"}
+{"toc_title": "Table 39: Tracking Modifiers", "table_number": "39"}
+{"toc_title": "Table 39: Tracking Modifiers", "table_number": "39"}
+{"toc_title": "Table 39: Tracking Modifiers", "table_number": "39"}
+{"toc_title": "Table 39: Tracking Modifiers", "table_number": "39"}
+{"toc_title": "Table 39: Tracking Modifiers", "table_number": "39"}
+{"toc_title": "Table 39: Tracking Modifiers", "table_number": "39"}
+{"toc_title": "Table 39: Tracking Modifiers", "table_number": "39"}
+{"toc_title": "Table 39: Tracking Modifiers", "table_number": "39"}
+{"toc_title": "Table 40: Movement While Tracking", "table_number": "40"}
+{"toc_title": "Table 40: Movement While Tracking", "table_number": "40"}
+{"toc_title": "Table 40: Movement While Tracking", "table_number": "40"}
+{"toc_title": "Table 40: Movement While Tracking", "table_number": "40"}
+{"toc_title": "Table 40: Movement While Tracking", "table_number": "40"}
+{"toc_title": "Table 40: Movement While Tracking", "table_number": "40"}
+{"toc_title": "Table 40: Movement While Tracking", "table_number": "40"}
+{"toc_title": "Table 40: Movement While Tracking", "table_number": "40"}
+{"toc_title": "Table 41: Weapon Construction", "table_number": "41"}
+{"toc_title": "Table 41: Weapon Construction", "table_number": "41"}
+{"toc_title": "Table 41: Weapon Construction", "table_number": "41"}
+{"toc_title": "Table 41: Weapon Construction", "table_number": "41"}
+{"toc_title": "Table 41: Weapon Construction", "table_number": "41"}
+{"toc_title": "Table 41: Weapon Construction", "table_number": "41"}
+{"toc_title": "Table 41: Weapon Construction", "table_number": "41"}
+{"toc_title": "Table 41: Weapon Construction", "table_number": "41"}
+{"toc_title": "Table 41: Weapon Construction", "table_number": "41"}
+{"toc_title": "Table 41: Weapon Construction", "table_number": "41"}
+{"toc_title": "Table 41: Weapon Construction", "table_number": "41"}
+{"toc_title": "Table 41: Weapon Construction", "table_number": "41"}
+{"toc_title": "Table 41: Weapon Construction", "table_number": "41"}
+{"toc_title": "Table 42: Standard Exchange Rates", "table_number": "42"}
+{"toc_title": "Table 42: Standard Exchange Rates", "table_number": "42"}
+{"toc_title": "Table 42: Standard Exchange Rates", "table_number": "42"}
+{"toc_title": "Table 42: Standard Exchange Rates", "table_number": "42"}
+{"toc_title": "Table 42: Standard Exchange Rates", "table_number": "42"}
+{"toc_title": "Table 42: Standard Exchange Rates", "table_number": "42"}
+{"toc_title": "Table 42: Standard Exchange Rates", "table_number": "42"}
+{"toc_title": "Table 43: Initial Character Funds", "table_number": "43"}
+{"toc_title": "Table 43: Initial Character Funds", "table_number": "43"}
+{"toc_title": "Table 43: Initial Character Funds", "table_number": "43"}
+{"toc_title": "Table 43: Initial Character Funds", "table_number": "43"}
+{"toc_title": "Table 43: Initial Character Funds", "table_number": "43"}
+{"toc_title": "Table 43: Initial Character Funds", "table_number": "43"}
+{"toc_title": "Table 43: Initial Character Funds", "table_number": "43"}
+{"toc_title": "Table 43: Initial Character Funds", "table_number": "43"}
+{"toc_title": "Table 43: Initial Character Funds", "table_number": "43"}
+{"toc_title": "Table 43: Initial Character Funds", "table_number": "43"}
+{"toc_title": "Table 43: Initial Character Funds", "table_number": "43"}
+{"toc_title": "Table 43: Initial Character Funds", "table_number": "43"}
+{"toc_title": "Table 43: Initial Character Funds", "table_number": "43"}
+{"toc_title": "Table 43: Initial Character Funds", "table_number": "43"}
+{"toc_title": "Table 43: Initial Character Funds", "table_number": "43"}
+{"toc_title": "Table 43: Initial Character Funds", "table_number": "43"}
+{"toc_title": "Table 43: Initial Character Funds", "table_number": "43"}
+{"toc_title": "Table 43: Initial Character Funds", "table_number": "43"}
+{"toc_title": "Table 43: Initial Character Funds", "table_number": "43"}
+{"toc_title": "Table 43: Initial Character Funds", "table_number": "43"}
+{"toc_title": "Table 43: Initial Character Funds", "table_number": "43"}
+{"toc_title": "Table 43: Initial Character Funds", "table_number": "43"}
+{"toc_title": "Table 43: Initial Character Funds", "table_number": "43"}
+{"toc_title": "Table 43: Initial Character Funds", "table_number": "43"}
+{"toc_title": "Table 43: Initial Character Funds", "table_number": "43"}
+{"toc_title": "Table 43: Initial Character Funds", "table_number": "43"}
+{"toc_title": "Table 43: Initial Character Funds", "table_number": "43"}
+{"toc_title": "Table 43: Initial Character Funds", "table_number": "43"}
+{"toc_title": "Table 43: Initial Character Funds", "table_number": "43"}
+{"toc_title": "Table 43: Initial Character Funds", "table_number": "43"}
+{"toc_title": "Table 43: Initial Character Funds", "table_number": "43"}
+{"toc_title": "Table 43: Initial Character Funds", "table_number": "43"}
+{"toc_title": "Table 43: Initial Character Funds", "table_number": "43"}
+{"toc_title": "Table 43: Initial Character Funds", "table_number": "43"}
+{"toc_title": "Table 43: Initial Character Funds", "table_number": "43"}
+{"toc_title": "Table 43: Initial Character Funds", "table_number": "43"}
+{"toc_title": "Table 43: Initial Character Funds", "table_number": "43"}
+{"toc_title": "Table 43: Initial Character Funds", "table_number": "43"}
+{"toc_title": "Table 43: Initial Character Funds", "table_number": "43"}
+{"toc_title": "Table 43: Initial Character Funds", "table_number": "43"}
+{"toc_title": "Table 43: Initial Character Funds", "table_number": "43"}
+{"toc_title": "Table 43: Initial Character Funds", "table_number": "43"}
+{"toc_title": "Table 43: Initial Character Funds", "table_number": "43"}
+{"toc_title": "Table 43: Initial Character Funds", "table_number": "43"}
+{"toc_title": "Table 43: Initial Character Funds", "table_number": "43"}
+{"toc_title": "Table 43: Initial Character Funds", "table_number": "43"}
+{"toc_title": "Table 43: Initial Character Funds", "table_number": "43"}
+{"toc_title": "Table 43: Initial Character Funds", "table_number": "43"}
+{"toc_title": "Table 43: Initial Character Funds", "table_number": "43"}
+{"toc_title": "Table 43: Initial Character Funds", "table_number": "43"}
+{"toc_title": "Table 43: Initial Character Funds", "table_number": "43"}
+{"toc_title": "Table 43: Initial Character Funds", "table_number": "43"}
+{"toc_title": "Table 44: Equipment", "table_number": "44"}
+{"toc_title": "Table 44: Equipment", "table_number": "44"}
+{"toc_title": "Table 44: Equipment", "table_number": "44"}
+{"toc_title": "Table 44: Equipment", "table_number": "44"}
+{"toc_title": "Table 44: Equipment", "table_number": "44"}
+{"toc_title": "Table 44: Equipment", "table_number": "44"}
+{"toc_title": "Table 44: Equipment", "table_number": "44"}
+{"toc_title": "Table 45: Missile Weapon Ranges", "table_number": "45"}
+{"toc_title": "Table 45: Missile Weapon Ranges", "table_number": "45"}
+{"toc_title": "Table 45: Missile Weapon Ranges", "table_number": "45"}
+{"toc_title": "Table 45: Missile Weapon Ranges", "table_number": "45"}
+{"toc_title": "Table 45: Missile Weapon Ranges", "table_number": "45"}
+{"toc_title": "Table 45: Missile Weapon Ranges", "table_number": "45"}
+{"toc_title": "Table 45: Missile Weapon Ranges", "table_number": "45"}
+{"toc_title": "Table 45: Missile Weapon Ranges", "table_number": "45"}
+{"toc_title": "Table 45: Missile Weapon Ranges", "table_number": "45"}
+{"toc_title": "Table 45: Missile Weapon Ranges", "table_number": "45"}
+{"toc_title": "Table 45: Missile Weapon Ranges", "table_number": "45"}
+{"toc_title": "Table 45: Missile Weapon Ranges", "table_number": "45"}
+{"toc_title": "Table 45: Missile Weapon Ranges", "table_number": "45"}
+{"toc_title": "Table 45: Missile Weapon Ranges", "table_number": "45"}
+{"toc_title": "Table 45: Missile Weapon Ranges", "table_number": "45"}
+{"toc_title": "Table 45: Missile Weapon Ranges", "table_number": "45"}
+{"toc_title": "Table 45: Missile Weapon Ranges", "table_number": "45"}
+{"toc_title": "Table 45: Missile Weapon Ranges", "table_number": "45"}
+{"toc_title": "Table 45: Missile Weapon Ranges", "table_number": "45"}
+{"toc_title": "Table 45: Missile Weapon Ranges", "table_number": "45"}
+{"toc_title": "Weapons", "table_number": "1000"}
+{"toc_title": "Weapons", "table_number": "1000"}
+{"toc_title": "Weapons", "table_number": "1000"}
+{"toc_title": "Weapons", "table_number": "1000"}
+{"toc_title": "Weapons", "table_number": "1000"}
+{"toc_title": "Weapons", "table_number": "1000"}
+{"toc_title": "Weapons", "table_number": "1000"}
+{"toc_title": "Weapons", "table_number": "1000"}
+{"toc_title": "Weapons", "table_number": "1000"}
+{"toc_title": "Weapons", "table_number": "1000"}
+{"toc_title": "Weapons", "table_number": "1000"}
+{"toc_title": "Weapons", "table_number": "1000"}
+{"toc_title": "Weapons", "table_number": "1000"}
+{"toc_title": "Weapons", "table_number": "1000"}
+{"toc_title": "Weapons", "table_number": "1000"}
+{"toc_title": "Armor", "table_number": "1001"}
+{"toc_title": "Armor", "table_number": "1001"}
+{"toc_title": "Armor", "table_number": "1001"}
+{"toc_title": "Armor", "table_number": "1001"}
+{"toc_title": "Armor", "table_number": "1001"}
+{"toc_title": "Armor", "table_number": "1001"}
+{"toc_title": "Armor", "table_number": "1001"}
+{"toc_title": "Armor", "table_number": "1001"}
+{"toc_title": "Armor", "table_number": "1001"}
+{"toc_title": "Armor", "table_number": "1001"}
+{"toc_title": "Armor", "table_number": "1001"}
+{"toc_title": "Armor", "table_number": "1001"}
+{"toc_title": "Armor", "table_number": "1001"}
+{"toc_title": "Armor", "table_number": "1001"}
+{"toc_title": "Armor", "table_number": "1001"}
+{"toc_title": "Armor", "table_number": "1001"}
+{"toc_title": "Armor", "table_number": "1001"}
+{"toc_title": "Armor", "table_number": "1001"}
+{"toc_title": "Armor", "table_number": "1001"}
+{"toc_title": "Armor", "table_number": "1001"}
+{"toc_title": "Armor", "table_number": "1001"}
+{"toc_title": "Armor", "table_number": "1001"}
+{"toc_title": "Armor", "table_number": "1001"}
+{"toc_title": "Armor", "table_number": "1001"}
+{"toc_title": "Armor", "table_number": "1001"}
+{"toc_title": "Armor", "table_number": "1001"}
+{"toc_title": "Armor", "table_number": "1001"}
+{"toc_title": "Armor", "table_number": "1001"}
+{"toc_title": "Armor", "table_number": "1001"}
+{"toc_title": "Armor", "table_number": "1001"}
+{"toc_title": "Armor", "table_number": "1001"}
+{"toc_title": "Armor", "table_number": "1001"}
+{"toc_title": "Armor", "table_number": "1001"}
+{"toc_title": "Armor", "table_number": "1001"}
+{"toc_title": "Armor", "table_number": "1001"}
+{"toc_title": "Armor", "table_number": "1001"}
+{"toc_title": "Armor", "table_number": "1001"}
+{"toc_title": "Armor", "table_number": "1001"}
+{"toc_title": "Armor", "table_number": "1001"}
+{"toc_title": "Armor", "table_number": "1001"}
+{"toc_title": "Armor", "table_number": "1001"}
+{"toc_title": "Armor", "table_number": "1001"}
+{"toc_title": "Armor", "table_number": "1001"}
+{"toc_title": "Armor", "table_number": "1001"}
+{"toc_title": "Armor", "table_number": "1001"}
+{"toc_title": "Armor", "table_number": "1001"}
+{"toc_title": "Armor", "table_number": "1001"}
+{"toc_title": "Armor", "table_number": "1001"}
+{"toc_title": "Armor", "table_number": "1001"}
+{"toc_title": "Armor", "table_number": "1001"}
+{"toc_title": "Armor", "table_number": "1001"}
+{"toc_title": "Table 46: Armor Class Ratings", "table_number": "46"}
+{"toc_title": "Table 46: Armor Class Ratings", "table_number": "46"}
+{"toc_title": "Table 46: Armor Class Ratings", "table_number": "46"}
+{"toc_title": "Table 46: Armor Class Ratings", "table_number": "46"}
+{"toc_title": "Table 46: Armor Class Ratings", "table_number": "46"}
+{"toc_title": "Table 46: Armor Class Ratings", "table_number": "46"}
+{"toc_title": "Table 46: Armor Class Ratings", "table_number": "46"}
+{"toc_title": "Table 46: Armor Class Ratings", "table_number": "46"}
+{"toc_title": "Table 46: Armor Class Ratings", "table_number": "46"}
+{"toc_title": "Table 46: Armor Class Ratings", "table_number": "46"}
+{"toc_title": "Table 46: Armor Class Ratings", "table_number": "46"}
+{"toc_title": "Table 46: Armor Class Ratings", "table_number": "46"}
+{"toc_title": "Table 46: Armor Class Ratings", "table_number": "46"}
+{"toc_title": "Table 46: Armor Class Ratings", "table_number": "46"}
+{"toc_title": "Table 46: Armor Class Ratings", "table_number": "46"}
+{"toc_title": "Table 46: Armor Class Ratings", "table_number": "46"}
+{"toc_title": "Table 47: Character Encumbrance", "table_number": "47"}
+{"toc_title": "Table 47: Character Encumbrance", "table_number": "47"}
+{"toc_title": "Table 47: Character Encumbrance", "table_number": "47"}
+{"toc_title": "Table 47: Character Encumbrance", "table_number": "47"}
+{"toc_title": "Table 47: Character Encumbrance", "table_number": "47"}
+{"toc_title": "Table 47: Character Encumbrance", "table_number": "47"}
+{"toc_title": "Table 47: Character Encumbrance", "table_number": "47"}
+{"toc_title": "Table 47: Character Encumbrance", "table_number": "47"}
+{"toc_title": "Table 47: Character Encumbrance", "table_number": "47"}
+{"toc_title": "Table 47: Character Encumbrance", "table_number": "47"}
+{"toc_title": "Table 47: Character Encumbrance", "table_number": "47"}
+{"toc_title": "Table 47: Character Encumbrance", "table_number": "47"}
+{"toc_title": "Table 47: Character Encumbrance", "table_number": "47"}
+{"toc_title": "Table 47: Character Encumbrance", "table_number": "47"}
+{"toc_title": "Table 47: Character Encumbrance", "table_number": "47"}
+{"toc_title": "Table 47: Character Encumbrance", "table_number": "47"}
+{"toc_title": "Table 47: Character Encumbrance", "table_number": "47"}
+{"toc_title": "Table 47: Character Encumbrance", "table_number": "47"}
+{"toc_title": "Table 48: Modified Movement Rates", "table_number": "48"}
+{"toc_title": "Table 48: Modified Movement Rates", "table_number": "48"}
+{"toc_title": "Table 48: Modified Movement Rates", "table_number": "48"}
+{"toc_title": "Table 48: Modified Movement Rates", "table_number": "48"}
+{"toc_title": "Table 48: Modified Movement Rates", "table_number": "48"}
+{"toc_title": "Table 48: Modified Movement Rates", "table_number": "48"}
+{"toc_title": "Table 48: Modified Movement Rates", "table_number": "48"}
+{"toc_title": "Table 48: Modified Movement Rates", "table_number": "48"}
+{"toc_title": "Table 48: Modified Movement Rates", "table_number": "48"}
+{"toc_title": "Table 48: Modified Movement Rates", "table_number": "48"}
+{"toc_title": "Table 48: Modified Movement Rates", "table_number": "48"}
+{"toc_title": "Table 48: Modified Movement Rates", "table_number": "48"}
+{"toc_title": "Table 48: Modified Movement Rates", "table_number": "48"}
+{"toc_title": "Table 48: Modified Movement Rates", "table_number": "48"}
+{"toc_title": "Table 48: Modified Movement Rates", "table_number": "48"}
+{"toc_title": "Table 48: Modified Movement Rates", "table_number": "48"}
+{"toc_title": "Table 48: Modified Movement Rates", "table_number": "48"}
+{"toc_title": "Table 48: Modified Movement Rates", "table_number": "48"}
+{"toc_title": "Table 48: Modified Movement Rates", "table_number": "48"}
+{"toc_title": "Table 49: Carrying Capacities of Animals", "table_number": "49"}
+{"toc_title": "Table 49: Carrying Capacities of Animals", "table_number": "49"}
+{"toc_title": "Table 49: Carrying Capacities of Animals", "table_number": "49"}
+{"toc_title": "Table 49: Carrying Capacities of Animals", "table_number": "49"}
+{"toc_title": "Table 49: Carrying Capacities of Animals", "table_number": "49"}
+{"toc_title": "Table 49: Carrying Capacities of Animals", "table_number": "49"}
+{"toc_title": "Table 49: Carrying Capacities of Animals", "table_number": "49"}
+{"toc_title": "Table 49: Carrying Capacities of Animals", "table_number": "49"}
+{"toc_title": "Table 49: Carrying Capacities of Animals", "table_number": "49"}
+{"toc_title": "Table 49: Carrying Capacities of Animals", "table_number": "49"}
+{"toc_title": "Table 49: Carrying Capacities of Animals", "table_number": "49"}
+{"toc_title": "Table 49: Carrying Capacities of Animals", "table_number": "49"}
+{"toc_title": "Table 50: Stowage Capacity", "table_number": "50"}
+{"toc_title": "Table 50: Stowage Capacity", "table_number": "50"}
+{"toc_title": "Table 50: Stowage Capacity", "table_number": "50"}
+{"toc_title": "Table 50: Stowage Capacity", "table_number": "50"}
+{"toc_title": "Table 50: Stowage Capacity", "table_number": "50"}
+{"toc_title": "Table 50: Stowage Capacity", "table_number": "50"}
+{"toc_title": "Table 50: Stowage Capacity", "table_number": "50"}
+{"toc_title": "Table 50: Stowage Capacity", "table_number": "50"}
+{"toc_title": "Table 50: Stowage Capacity", "table_number": "50"}
+{"toc_title": "Table 50: Stowage Capacity", "table_number": "50"}
+{"toc_title": "Table 50: Stowage Capacity", "table_number": "50"}
+{"toc_title": "Table 50: Stowage Capacity", "table_number": "50"}
+{"toc_title": "Table 51: Combat Modifiers", "table_number": "51"}
+{"toc_title": "Table 51: Combat Modifiers", "table_number": "51"}
+{"toc_title": "Table 51: Combat Modifiers", "table_number": "51"}
+{"toc_title": "Table 51: Combat Modifiers", "table_number": "51"}
+{"toc_title": "Table 51: Combat Modifiers", "table_number": "51"}
+{"toc_title": "Table 51: Combat Modifiers", "table_number": "51"}
+{"toc_title": "Table 51: Combat Modifiers", "table_number": "51"}
+{"toc_title": "Table 51: Combat Modifiers", "table_number": "51"}
+{"toc_title": "Table 51: Combat Modifiers", "table_number": "51"}
+{"toc_title": "Table 51: Combat Modifiers", "table_number": "51"}
+{"toc_title": "Table 52: Weapon Type vs. Armor Modifiers", "table_number": "52"}
+{"toc_title": "Table 52: Weapon Type vs. Armor Modifiers", "table_number": "52"}
+{"toc_title": "Table 52: Weapon Type vs. Armor Modifiers", "table_number": "52"}
+{"toc_title": "Table 52: Weapon Type vs. Armor Modifiers", "table_number": "52"}
+{"toc_title": "Table 52: Weapon Type vs. Armor Modifiers", "table_number": "52"}
+{"toc_title": "Table 52: Weapon Type vs. Armor Modifiers", "table_number": "52"}
+{"toc_title": "Table 52: Weapon Type vs. Armor Modifiers", "table_number": "52"}
+{"toc_title": "Table 52: Weapon Type vs. Armor Modifiers", "table_number": "52"}
+{"toc_title": "Table 52: Weapon Type vs. Armor Modifiers", "table_number": "52"}
+{"toc_title": "Table 52: Weapon Type vs. Armor Modifiers", "table_number": "52"}
+{"toc_title": "Table 52: Weapon Type vs. Armor Modifiers", "table_number": "52"}
+{"toc_title": "Table 52: Weapon Type vs. Armor Modifiers", "table_number": "52"}
+{"toc_title": "Table 52: Weapon Type vs. Armor Modifiers", "table_number": "52"}
+{"toc_title": "Table 53: Calculated THAC0s", "table_number": "53"}
+{"toc_title": "Table 53: Calculated THAC0s", "table_number": "53"}
+{"toc_title": "Table 53: Calculated THAC0s", "table_number": "53"}
+{"toc_title": "Table 53: Calculated THAC0s", "table_number": "53"}
+{"toc_title": "Table 53: Calculated THAC0s", "table_number": "53"}
+{"toc_title": "Table 53: Calculated THAC0s", "table_number": "53"}
+{"toc_title": "Table 54: THAC0 Advancement", "table_number": "54"}
+{"toc_title": "Table 54: THAC0 Advancement", "table_number": "54"}
+{"toc_title": "Table 54: THAC0 Advancement", "table_number": "54"}
+{"toc_title": "Table 54: THAC0 Advancement", "table_number": "54"}
+{"toc_title": "Table 54: THAC0 Advancement", "table_number": "54"}
+{"toc_title": "Table 54: THAC0 Advancement", "table_number": "54"}
+{"toc_title": "Table 55: Standard Modifiers to Initiative", "table_number": "55"}
+{"toc_title": "Table 55: Standard Modifiers to Initiative", "table_number": "55"}
+{"toc_title": "Table 55: Standard Modifiers to Initiative", "table_number": "55"}
+{"toc_title": "Table 55: Standard Modifiers to Initiative", "table_number": "55"}
+{"toc_title": "Table 55: Standard Modifiers to Initiative", "table_number": "55"}
+{"toc_title": "Table 55: Standard Modifiers to Initiative", "table_number": "55"}
+{"toc_title": "Table 55: Standard Modifiers to Initiative", "table_number": "55"}
+{"toc_title": "Table 55: Standard Modifiers to Initiative", "table_number": "55"}
+{"toc_title": "Table 55: Standard Modifiers to Initiative", "table_number": "55"}
+{"toc_title": "Table 55: Standard Modifiers to Initiative", "table_number": "55"}
+{"toc_title": "Table 56: Optional Modifiers to Initiative", "table_number": "56"}
+{"toc_title": "Table 56: Optional Modifiers to Initiative", "table_number": "56"}
+{"toc_title": "Table 56: Optional Modifiers to Initiative", "table_number": "56"}
+{"toc_title": "Table 56: Optional Modifiers to Initiative", "table_number": "56"}
+{"toc_title": "Table 56: Optional Modifiers to Initiative", "table_number": "56"}
+{"toc_title": "Table 56: Optional Modifiers to Initiative", "table_number": "56"}
+{"toc_title": "Table 56: Optional Modifiers to Initiative", "table_number": "56"}
+{"toc_title": "Table 56: Optional Modifiers to Initiative", "table_number": "56"}
+{"toc_title": "Table 56: Optional Modifiers to Initiative", "table_number": "56"}
+{"toc_title": "Table 56: Optional Modifiers to Initiative", "table_number": "56"}
+{"toc_title": "Table 56: Optional Modifiers to Initiative", "table_number": "56"}
+{"toc_title": "Table 56: Optional Modifiers to Initiative", "table_number": "56"}
+{"toc_title": "Table 56: Optional Modifiers to Initiative", "table_number": "56"}
+{"toc_title": "Table 56: Optional Modifiers to Initiative", "table_number": "56"}
+{"toc_title": "Table 56: Optional Modifiers to Initiative", "table_number": "56"}
+{"toc_title": "Table 56: Optional Modifiers to Initiative", "table_number": "56"}
+{"toc_title": "Table 56: Optional Modifiers to Initiative", "table_number": "56"}
+{"toc_title": "Table 56: Optional Modifiers to Initiative", "table_number": "56"}
+{"toc_title": "Table 56: Optional Modifiers to Initiative", "table_number": "56"}
+{"toc_title": "Table 56: Optional Modifiers to Initiative", "table_number": "56"}
+{"toc_title": "Table 57: Armor Modifiers for Wrestling", "table_number": "57"}
+{"toc_title": "Table 57: Armor Modifiers for Wrestling", "table_number": "57"}
+{"toc_title": "Table 57: Armor Modifiers for Wrestling", "table_number": "57"}
+{"toc_title": "Table 57: Armor Modifiers for Wrestling", "table_number": "57"}
+{"toc_title": "Table 57: Armor Modifiers for Wrestling", "table_number": "57"}
+{"toc_title": "Table 57: Armor Modifiers for Wrestling", "table_number": "57"}
+{"toc_title": "Table 58: Punching and Wrestling Results", "table_number": "58"}
+{"toc_title": "Table 58: Punching and Wrestling Results", "table_number": "58"}
+{"toc_title": "Table 58: Punching and Wrestling Results", "table_number": "58"}
+{"toc_title": "Table 58: Punching and Wrestling Results", "table_number": "58"}
+{"toc_title": "Table 58: Punching and Wrestling Results", "table_number": "58"}
+{"toc_title": "Table 58: Punching and Wrestling Results", "table_number": "58"}
+{"toc_title": "Table 58: Punching and Wrestling Results", "table_number": "58"}
+{"toc_title": "Table 58: Punching and Wrestling Results", "table_number": "58"}
+{"toc_title": "Table 58: Punching and Wrestling Results", "table_number": "58"}
+{"toc_title": "Table 58: Punching and Wrestling Results", "table_number": "58"}
+{"toc_title": "Table 58: Punching and Wrestling Results", "table_number": "58"}
+{"toc_title": "Table 58: Punching and Wrestling Results", "table_number": "58"}
+{"toc_title": "Table 58: Punching and Wrestling Results", "table_number": "58"}
+{"toc_title": "Table 58: Punching and Wrestling Results", "table_number": "58"}
+{"toc_title": "Table 58: Punching and Wrestling Results", "table_number": "58"}
+{"toc_title": "Table 58: Punching and Wrestling Results", "table_number": "58"}
+{"toc_title": "Table 58: Punching and Wrestling Results", "table_number": "58"}
+{"toc_title": "Table 58: Punching and Wrestling Results", "table_number": "58"}
+{"toc_title": "Table 58: Punching and Wrestling Results", "table_number": "58"}
+{"toc_title": "Table 58: Punching and Wrestling Results", "table_number": "58"}
+{"toc_title": "Table 58: Punching and Wrestling Results", "table_number": "58"}
+{"toc_title": "Table 58: Punching and Wrestling Results", "table_number": "58"}
+{"toc_title": "Table 59: Cover and Concealment Modifiers", "table_number": "59"}
+{"toc_title": "Table 59: Cover and Concealment Modifiers", "table_number": "59"}
+{"toc_title": "Table 59: Cover and Concealment Modifiers", "table_number": "59"}
+{"toc_title": "Table 59: Cover and Concealment Modifiers", "table_number": "59"}
+{"toc_title": "Table 59: Cover and Concealment Modifiers", "table_number": "59"}
+{"toc_title": "Table 60: Character Saving Throws", "table_number": "60"}
+{"toc_title": "Table 60: Character Saving Throws", "table_number": "60"}
+{"toc_title": "Table 60: Character Saving Throws", "table_number": "60"}
+{"toc_title": "Table 60: Character Saving Throws", "table_number": "60"}
+{"toc_title": "Table 60: Character Saving Throws", "table_number": "60"}
+{"toc_title": "Table 60: Character Saving Throws", "table_number": "60"}
+{"toc_title": "Table 60: Character Saving Throws", "table_number": "60"}
+{"toc_title": "Table 60: Character Saving Throws", "table_number": "60"}
+{"toc_title": "Table 60: Character Saving Throws", "table_number": "60"}
+{"toc_title": "Table 60: Character Saving Throws", "table_number": "60"}
+{"toc_title": "Table 60: Character Saving Throws", "table_number": "60"}
+{"toc_title": "Table 60: Character Saving Throws", "table_number": "60"}
+{"toc_title": "Table 60: Character Saving Throws", "table_number": "60"}
+{"toc_title": "Table 60: Character Saving Throws", "table_number": "60"}
+{"toc_title": "Table 60: Character Saving Throws", "table_number": "60"}
+{"toc_title": "Table 60: Character Saving Throws", "table_number": "60"}
+{"toc_title": "Table 60: Character Saving Throws", "table_number": "60"}
+{"toc_title": "Table 60: Character Saving Throws", "table_number": "60"}
+{"toc_title": "Table 60: Character Saving Throws", "table_number": "60"}
+{"toc_title": "Table 60: Character Saving Throws", "table_number": "60"}
+{"toc_title": "Table 60: Character Saving Throws", "table_number": "60"}
+{"toc_title": "Table 60: Character Saving Throws", "table_number": "60"}
+{"toc_title": "Table 60: Character Saving Throws", "table_number": "60"}
+{"toc_title": "Table 60: Character Saving Throws", "table_number": "60"}
+{"toc_title": "Table 60: Character Saving Throws", "table_number": "60"}
+{"toc_title": "Table 61: Turning Undead", "table_number": "61"}
+{"toc_title": "Table 61: Turning Undead", "table_number": "61"}
+{"toc_title": "Table 61: Turning Undead", "table_number": "61"}
+{"toc_title": "Table 61: Turning Undead", "table_number": "61"}
+{"toc_title": "Table 61: Turning Undead", "table_number": "61"}
+{"toc_title": "Table 61: Turning Undead", "table_number": "61"}
+{"toc_title": "Table 61: Turning Undead", "table_number": "61"}
+{"toc_title": "Table 62: Visibility Ranges", "table_number": "62"}
+{"toc_title": "Table 62: Visibility Ranges", "table_number": "62"}
+{"toc_title": "Table 62: Visibility Ranges", "table_number": "62"}
+{"toc_title": "Table 62: Visibility Ranges", "table_number": "62"}
+{"toc_title": "Table 62: Visibility Ranges", "table_number": "62"}
+{"toc_title": "Table 62: Visibility Ranges", "table_number": "62"}
+{"toc_title": "Table 62: Visibility Ranges", "table_number": "62"}
+{"toc_title": "Table 62: Visibility Ranges", "table_number": "62"}
+{"toc_title": "Table 62: Visibility Ranges", "table_number": "62"}
+{"toc_title": "Table 62: Visibility Ranges", "table_number": "62"}
+{"toc_title": "Table 63: Light Sources", "table_number": "63"}
+{"toc_title": "Table 63: Light Sources", "table_number": "63"}
+{"toc_title": "Table 64: Base Movement Rates", "table_number": "64"}
+{"toc_title": "Table 64: Base Movement Rates", "table_number": "64"}
+{"toc_title": "Table 64: Base Movement Rates", "table_number": "64"}
+{"toc_title": "Table 64: Base Movement Rates", "table_number": "64"}
+{"toc_title": "Table 64: Base Movement Rates", "table_number": "64"}
+{"toc_title": "Table 64: Base Movement Rates", "table_number": "64"}
+{"toc_title": "Table 64: Base Movement Rates", "table_number": "64"}
+{"toc_title": "Table 65: Base Climbing Success Rates", "table_number": "65"}
+{"toc_title": "Table 65: Base Climbing Success Rates", "table_number": "65"}
+{"toc_title": "Table 66: Climbing Modifiers", "table_number": "66"}
+{"toc_title": "Table 66: Climbing Modifiers", "table_number": "66"}
+{"toc_title": "Table 66: Climbing Modifiers", "table_number": "66"}
+{"toc_title": "Table 66: Climbing Modifiers", "table_number": "66"}
+{"toc_title": "Table 66: Climbing Modifiers", "table_number": "66"}
+{"toc_title": "Table 66: Climbing Modifiers", "table_number": "66"}
+{"toc_title": "Table 66: Climbing Modifiers", "table_number": "66"}
+{"toc_title": "Table 66: Climbing Modifiers", "table_number": "66"}
+{"toc_title": "Table 66: Climbing Modifiers", "table_number": "66"}
+{"toc_title": "Table 67: Rates of Climbing", "table_number": "67"}
+{"toc_title": "Table 67: Rates of Climbing", "table_number": "67"}
+{"toc_title": "Table 67: Rates of Climbing", "table_number": "67"}
+{"toc_title": "Table 67: Rates of Climbing", "table_number": "67"}
+{"toc_title": "Table 67: Rates of Climbing", "table_number": "67"}
+{"toc_title": "Table 67: Rates of Climbing", "table_number": "67"}
+{"toc_title": "Table 67: Rates of Climbing", "table_number": "67"}
+{"toc_title": "Table 67: Rates of Climbing", "table_number": "67"}
+{"toc_title": "Table 67: Rates of Climbing", "table_number": "67"}
+{"toc_title": "Table 67: Rates of Climbing", "table_number": "67"}
+

@@ -9,7 +9,7 @@ book:
 # Pipeline lineage and catalog settings
 lineage:
   # Pipeline version — bump when extraction logic changes materially
-  pipeline_version: "0.2.0"
+  pipeline_version: "0.3.0"
   # Which bronze tables to track in the catalog
   catalog_tables:
     - files

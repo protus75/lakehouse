@@ -1526,34 +1526,48 @@ def extract_pdf(filepath: Path) -> None:
         page_texts, page_printed, total_pages = extract_page_texts(filepath, config)
         step(f"PDF: {total_pages} pages")
 
-        # 2. ToC (sections + tables)
-        toc_sections, toc_tables = extract_toc(page_texts, config, filepath)
-        # Merge is_table flags from previously reviewed toc_raw (if available)
-        # This is needed because extract_toc only guesses is_table from "Table N:" pattern,
-        # but the user may have manually marked entries like "Weapons" and "Armor" as tables.
-        try:
-            prev_toc = read_iceberg_filtered(NAMESPACE, "toc_raw", "source_file", filepath.name)
-            reviewed_flags = {}
-            for i in range(len(prev_toc)):
-                title = prev_toc.column("title")[i].as_py()
-                page = prev_toc.column("page_start")[i].as_py()
-                is_table = prev_toc.column("is_table")[i].as_py()
-                reviewed_flags[(title, page)] = {"is_table": is_table}
-            merged_count = 0
-            for entry in toc_sections:
-                key = (entry["title"], entry.get("page_start"))
-                prev = reviewed_flags.get(key)
-                if prev and prev["is_table"] and not entry.get("is_table"):
-                    entry["is_table"] = True
-                    merged_count += 1
-                    _log(f"  ToC merge: {entry['title']} page={entry.get('page_start')} → is_table=True")
-            if merged_count:
-                _log(f"  ToC merge: {merged_count} entries updated from reviewed toc_raw")
-        except Exception:
-            pass  # No previous toc_raw — first run, initial guesses are all we have
-        included = sum(1 for s in toc_sections if not s["is_excluded"])
-        excluded = sum(1 for s in toc_sections if s["is_excluded"])
-        step(f"ToC: {included} sections, {excluded} excluded, {len(toc_tables)} tables")
+        # 2. ToC — use reviewed truth from Iceberg if available, else extract fresh
+        toc_reviewed = config.get("toc_reviewed", False)
+        toc_sections = None
+        toc_tables = []
+        if toc_reviewed:
+            try:
+                toc_arrow = read_iceberg_filtered(NAMESPACE, "toc_raw", "source_file", filepath.name)
+                if len(toc_arrow) > 0:
+                    toc_sections = []
+                    for i in range(len(toc_arrow)):
+                        entry = {
+                            "title": toc_arrow.column("title")[i].as_py(),
+                            "page_start": toc_arrow.column("page_start")[i].as_py(),
+                            "page_end": toc_arrow.column("page_end")[i].as_py(),
+                            "depth": toc_arrow.column("depth")[i].as_py(),
+                            "is_chapter": toc_arrow.column("is_chapter")[i].as_py(),
+                            "is_table": toc_arrow.column("is_table")[i].as_py(),
+                            "is_excluded": toc_arrow.column("is_excluded")[i].as_py(),
+                            "parent_title": toc_arrow.column("parent_title")[i].as_py(),
+                        }
+                        toc_sections.append(entry)
+                        # Build toc_tables for backward compat
+                        if entry["is_table"]:
+                            num_match = re.search(r'Table\s+(\d+)', entry["title"])
+                            if num_match:
+                                toc_tables.append({
+                                    "table_number": int(num_match.group(1)),
+                                    "title": entry["title"].split(":", 1)[-1].strip() if ":" in entry["title"] else entry["title"],
+                                    "page": entry["page_start"],
+                                })
+                    _log(f"  ToC: using reviewed truth from Iceberg ({len(toc_sections)} entries)")
+            except Exception:
+                pass  # No toc_raw yet — fall through to extraction
+
+        if toc_sections is None:
+            toc_sections, toc_tables = extract_toc(page_texts, config, filepath)
+            _log(f"  ToC: extracted fresh (not yet reviewed)")
+
+        included = sum(1 for s in toc_sections if not s.get("is_excluded"))
+        excluded = sum(1 for s in toc_sections if s.get("is_excluded"))
+        table_count = sum(1 for s in toc_sections if s.get("is_table"))
+        step(f"ToC: {included} sections, {excluded} excluded, {table_count} tables")
 
         # 3. Marker full document (uses disk cache if available)
         _log("  Marker: extracting full document...")
