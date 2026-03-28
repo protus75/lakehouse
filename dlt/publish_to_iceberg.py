@@ -24,6 +24,7 @@ PUBLISH_MAP = {
         "silver_page_anchors",
         "silver_known_entries",
         "silver_toc_sections",
+        "silver_tables",
         "silver_files",
         "silver_spell_crosscheck",
     ],
@@ -31,6 +32,7 @@ PUBLISH_MAP = {
         "gold_chunks",
         "gold_entry_index",
         "gold_toc",
+        "gold_tables",
         "gold_files",
     ],
 }

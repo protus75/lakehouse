@@ -98,6 +98,32 @@ def _get_entry_index(source_file):
     return {r["entry_id"]: r for r in rows}
 
 
+def _get_tables(source_file):
+    """Get all parsed tables with their rows, keyed by toc_title."""
+    rows = _query(
+        "SELECT toc_title, toc_id, table_number, table_title, sort_order, row_index, cells "
+        "FROM gold_tabletop.gold_tables "
+        "WHERE source_file = ? "
+        "ORDER BY sort_order, table_number, row_index",
+        [source_file],
+    )
+    import json as _json
+    tables = {}
+    for r in rows:
+        key = r["toc_title"]
+        if key not in tables:
+            tables[key] = {"toc_title": key, "toc_id": r["toc_id"],
+                           "table_number": r["table_number"],
+                           "table_title": r["table_title"],
+                           "sort_order": r["sort_order"], "rows": []}
+        try:
+            cells = _json.loads(r["cells"]) if isinstance(r["cells"], str) else r["cells"]
+        except Exception:
+            cells = [r["cells"]]
+        tables[key]["rows"].append(cells)
+    return tables
+
+
 def _get_summaries():
     """Return {entry_id: summary}. Empty dict if table doesn't exist yet."""
     try:
@@ -198,8 +224,27 @@ def _linkify_table_refs(text, toc_table_num_to_id):
     return re.sub(r"\bTable\s+(\d+)\b", _replace, text)
 
 
+def _render_table(table_data):
+    """Render a parsed table as an HTML table element."""
+    if not table_data or not table_data.get("rows"):
+        return html.Div("(table data not available)", className="table-missing")
+    rows = table_data["rows"]
+    # First row is header
+    header = rows[0] if rows else []
+    data_rows = rows[1:] if len(rows) > 1 else []
+    return html.Div([
+        html.Table([
+            html.Thead(html.Tr([html.Th(c, className="table-header-cell") for c in header])),
+            html.Tbody([
+                html.Tr([html.Td(c, className="table-cell") for c in row])
+                for row in data_rows
+            ]),
+        ], className="data-table"),
+    ], className="table-container")
+
+
 def build_book_content(book_data, toc_rows, entry_index, summaries, annotations,
-                       show_summary=True, show_meta=True):
+                       tables=None, show_summary=True, show_meta=True):
     """Returns (elements, anchor_map) where anchor_map = {toc_id: anchor_id}."""
     import re
     elements = []
@@ -233,7 +278,39 @@ def build_book_content(book_data, toc_rows, entry_index, summaries, annotations,
             classes.append("cat-encumbrance")
         return " ".join(classes)
 
+    tables = tables or {}
+    # Track which tables have been rendered (by toc_title)
+    rendered_tables = set()
+    # Build sort_order index for table insertion
+    toc_by_sort = {r["sort_order"]: r for r in toc_rows}
+    # Insert tables at their ToC sort position
+    # We'll check between entries if a table should appear
     current_toc_id = None
+    last_sort_order = -1
+
+    def _insert_tables_up_to(sort_order):
+        """Render any table ToC entries between last_sort_order and sort_order."""
+        for r in toc_rows:
+            if r["sort_order"] <= last_sort_order:
+                continue
+            if r["sort_order"] >= sort_order:
+                break
+            if not r["is_table"]:
+                continue
+            title = r["title"]
+            if title in rendered_tables:
+                continue
+            rendered_tables.add(title)
+            tbl = tables.get(title)
+            anchor_id = f"toc-{r['toc_id']}"
+            anchor_map[r["toc_id"]] = anchor_id
+            elements.append(html.Div(id=anchor_id, className="table-anchor"))
+            elements.append(html.H4(title, className="table-heading"))
+            if tbl:
+                elements.append(_render_table(tbl))
+            else:
+                elements.append(html.Div(f"(table data not available for {title})",
+                                         className="table-missing"))
 
     for row in book_data:
         toc_id = row["toc_id"]
@@ -241,8 +318,13 @@ def build_book_content(book_data, toc_rows, entry_index, summaries, annotations,
         entry_title = row["entry_title"]
         is_chapter = row["is_chapter"]
         depth = row["depth"]
+        sort_order = row.get("chapter_sort", 0)
 
         cat = _content_category(toc_title, entry_title, row.get("content", ""))
+
+        # Insert any tables that belong between last position and this entry
+        _insert_tables_up_to(sort_order)
+        last_sort_order = sort_order
 
         # New ToC section — render chapter heading
         if toc_id != current_toc_id:
@@ -324,6 +406,12 @@ def build_book_content(book_data, toc_rows, entry_index, summaries, annotations,
                     dcc.Markdown(linked_comp, dangerously_allow_html=True),
                     className=f"entry-content cat-spell-components {cat}",
                 ))
+
+    # All tables should have been placed by their ToC sort_order.
+    # If any remain, the data has a problem.
+    unplaced = [t for t in tables if t not in rendered_tables]
+    if unplaced:
+        print(f"[browser] WARNING: {len(unplaced)} tables not placed: {unplaced}")
 
     return elements, anchor_map
 
@@ -410,11 +498,12 @@ def update_book(source_file):
     toc = _get_toc(source_file)
     book_data = _get_full_book(source_file)
     entry_index = _get_entry_index(source_file)
+    tables = _get_tables(source_file)
     summaries = _get_summaries()
     annotations = _get_annotations()
     t1 = time.time()
 
-    content, anchor_map = build_book_content(book_data, toc, entry_index, summaries, annotations)
+    content, anchor_map = build_book_content(book_data, toc, entry_index, summaries, annotations, tables=tables)
     sidebar = build_toc_sidebar(toc, anchor_map)
     t2 = time.time()
 
