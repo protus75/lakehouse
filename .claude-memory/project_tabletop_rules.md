@@ -53,29 +53,43 @@ PDF → Bronze (dlt, ~12s) → Silver+Gold (dbt, ~6s) → Publish (Iceberg) → 
 - gold_ai_summaries: 751 entries (stale)
 - gold_ai_annotations: 495 combat/popular flags (stale)
 
-## 41/41 dbt tests passing
+## 42 pass, 8 fail (50 total tests including gold)
 
 ## What's Done
+- Pipeline split: dbt_build → publish_to_iceberg → dbt_test (data on S3 even when tests fail)
+- Test results on S3 at meta.dbt_test_results
+- 69/69 ToC tables extracted (including unlabeled Weapons/Armor via config hints)
+- Tables stripped from entry content — standalone data in silver_tables/gold_tables
+- ToC truth used for extraction when toc_reviewed=true (reads from Iceberg, not re-extracting)
+- OCR: 16→8 issues (garble stripped, hyphen rejoining, gibberish detection)
+- Duplicate heading dedup (Marker page header repeats discarded)
+- All uniqueness tests pass (toc_id, entry_id with page_start + content_prefix in hash)
+- write_iceberg overwrite_all properly handles stale catalog
 - Spell data validated across 4 appendix sources, zero gaps
 - Spell crosscheck with rapidfuzz
-- State machine for spell_class/level from ToC + sub-section headings
-- Inline entry detection (config-driven)
-- AI summaries + annotations populated (but stale)
 
-## What Needs Work
-1. Tables in silver/gold: tables_raw needs silver/gold models
-2. 7 missed tables (T19, T21, T33, T40, T43, T53, T65) — Marker OCR edge cases
-3. Proficiency validation: authority table whitelist for inline entries
-4. Equipment validation: same pattern
-5. Class validation: mixed with rules content
-6. Re-run AI enrichment after silver/key changes
+## What Needs Work — CRITICAL: Entry builder rewrite
+build_entries() must produce one silver record per ToC entry:
+- **toc mode** (default): one entry per ToC sub-section
+- **per_list mode**: one entry per spell (from spell_list_entries) or proficiency (from authority_table_entries)
+- **per_anchor mode**: one entry per config anchor (races, etc.)
 
-## Gold Enrichment Plans
-- **AI Summaries:** concise LLM-generated summaries for spells, proficiencies, classes, rules
-- **Cross-Reference Indices:** structured tags for DB queries ("all 3rd level wizard evocation spells")
-- **AI Annotations:** combat (yes/no) + popular (yes/no) flags, LLM-classified
+Current WIP has 151 entries (need 700+). Per_list spell matching not finding headings within chapter ranges. **Next approach: page-first splitting**
+1. Split by page texts (pymupdf per-page, already in bronze)
+2. Assign pages to chapters using ToC page ranges
+3. Within each chapter, split into sub-sections/spells by heading match
+4. Assemble multi-page entries by linking across page boundaries within chapter
+
+entry_mode config added to DnD2e_Handbook_Player.yaml (per_list for spell sections, per_anchor for races).
+
+## Other remaining work
+1. Table cell quality (36 few_columns, 39 smushed) — Marker rendering issues
+2. Browser app needs gold_tables rendering + ToC-driven content assembly
+3. Re-run AI enrichment after entry builder rewrite
+4. Dash app hosted at gamerules.ai via Cloudflare tunnel
 
 ## Validation requirements
-- 41/41 dbt tests must pass
+- Zero errors before new features
+- Rules data must be 100% accurate
 - Rules data must be 100% accurate — this is a rules reference, not "best effort"
 - Run ALL validators after every change, fix everything before committing
