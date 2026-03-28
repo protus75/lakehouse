@@ -85,7 +85,7 @@ Complete the current task fully — run full validation, review results, fix iss
 - Runs on Windows host, NOT in Docker
 - Models stored at: `D:\ollama\models` (env var `OLLAMA_MODELS`)
 - API: `http://localhost:11434` (host) / `http://host.docker.internal:11434` (container)
-- Models: `llama3:70b` (enrichment), `minicpm-v:latest` (vision)
+- Models: `qwen3:30b-a3b` (summaries), `llama3:70b` (annotations), `minicpm-v:latest` (vision)
 
 ### Marker (PDF OCR)
 - Installed in workspace container, uses GPU
