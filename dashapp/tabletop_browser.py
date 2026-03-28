@@ -21,7 +21,7 @@ def _get_conn():
     """Return a shared DuckDB connection, creating it once."""
     global _conn
     if _conn is None:
-        _conn = get_reader(namespaces=["silver_tabletop", "gold_tabletop"])
+        _conn = get_reader(namespaces=["gold_tabletop"])
     return _conn
 
 
@@ -61,26 +61,23 @@ def _get_toc(source_file):
     return _query(
         "SELECT toc_id, title, sort_order, depth, is_chapter, is_table, parent_title "
         "FROM gold_tabletop.gold_toc "
-        "WHERE source_file = ? AND is_excluded = false "
+        "WHERE source_file = ? AND is_excluded = false AND is_table = false "
         "ORDER BY sort_order",
         [source_file],
     )
 
 
-def _get_entries(source_file):
-    """Get all entries keyed by (chapter_title, entry_title) for ToC-driven assembly."""
-    rows = _query(
-        "SELECT entry_id, toc_title, entry_title, content "
-        "FROM silver_tabletop.silver_entries "
-        "WHERE source_file = ? "
-        "ORDER BY entry_id",
+def _get_full_book(source_file):
+    """Get all gold entries in ToC reading order for the full book view."""
+    return _query(
+        "SELECT entry_id, toc_id, toc_title, section_title, entry_title, "
+        "content, char_count, spell_class, spell_level, sort_order, "
+        "depth, is_chapter, is_table "
+        "FROM gold_tabletop.gold_entries "
+        "WHERE source_file = ? AND is_table = false "
+        "ORDER BY sort_order, entry_title",
         [source_file],
     )
-    # Index: chapter_title -> [entries in order]
-    by_chapter = {}
-    for r in rows:
-        by_chapter.setdefault(r["toc_title"], []).append(r)
-    return by_chapter
 
 
 def _get_entry_index(source_file):
@@ -239,8 +236,7 @@ def _render_table(table_data):
     ], className="table-container")
 
 
-def build_book_content(book_data, toc_rows, entry_index, summaries, annotations,
-                       tables=None, show_summary=True, show_meta=True):
+def build_book_content(book_data, toc_rows, entry_index, summaries, annotations):
     """Returns (elements, anchor_map) where anchor_map = {toc_id: anchor_id}."""
     import re
     elements = []
@@ -274,39 +270,7 @@ def build_book_content(book_data, toc_rows, entry_index, summaries, annotations,
             classes.append("cat-encumbrance")
         return " ".join(classes)
 
-    tables = tables or {}
-    # Track which tables have been rendered (by toc_title)
-    rendered_tables = set()
-    # Build sort_order index for table insertion
-    toc_by_sort = {r["sort_order"]: r for r in toc_rows}
-    # Insert tables at their ToC sort position
-    # We'll check between entries if a table should appear
     current_toc_id = None
-    last_sort_order = -1
-
-    def _insert_tables_up_to(sort_order):
-        """Render any table ToC entries between last_sort_order and sort_order."""
-        for r in toc_rows:
-            if r["sort_order"] <= last_sort_order:
-                continue
-            if r["sort_order"] >= sort_order:
-                break
-            if not r["is_table"]:
-                continue
-            title = r["title"]
-            if title in rendered_tables:
-                continue
-            rendered_tables.add(title)
-            tbl = tables.get(title)
-            anchor_id = f"toc-{r['toc_id']}"
-            anchor_map[r["toc_id"]] = anchor_id
-            elements.append(html.Div(id=anchor_id, className="table-anchor"))
-            elements.append(html.H4(title, className="table-heading"))
-            if tbl:
-                elements.append(_render_table(tbl))
-            else:
-                elements.append(html.Div(f"(table data not available for {title})",
-                                         className="table-missing"))
 
     for row in book_data:
         toc_id = row["toc_id"]
@@ -314,24 +278,20 @@ def build_book_content(book_data, toc_rows, entry_index, summaries, annotations,
         entry_title = row["entry_title"]
         is_chapter = row["is_chapter"]
         depth = row["depth"]
-        sort_order = row.get("chapter_sort", 0)
+        sort_order = row.get("sort_order", 0)
 
         cat = _content_category(toc_title, entry_title, row.get("content", ""))
 
-        # Insert any tables that belong between last position and this entry
-        _insert_tables_up_to(sort_order)
-        last_sort_order = sort_order
-
-        # New ToC section — render chapter heading with anchor
+        # New ToC section — render heading with anchor
         if toc_id != current_toc_id:
             current_toc_id = toc_id
             anchor_id = f"toc-{toc_id}"
             anchor_map[toc_id] = anchor_id
-            if is_chapter:
-                level = min(depth + 1, 4)
-                tag = [html.H1, html.H2, html.H3, html.H4][level - 1]
-                elements.append(html.Div(id=anchor_id, className=f"chapter-anchor {cat}"))
-                elements.append(tag(toc_title, className=f"chapter-heading {cat}"))
+            level = min(depth + 1, 4)
+            tag = [html.H1, html.H2, html.H3, html.H4][level - 1]
+            cls = "chapter" if is_chapter else "section"
+            elements.append(html.Div(id=anchor_id, className=f"{cls}-anchor {cat}"))
+            elements.append(tag(toc_title, className=f"{cls}-heading {cat}"))
 
         # Entry heading + metadata
         entry_els = []
@@ -344,17 +304,17 @@ def build_book_content(book_data, toc_rows, entry_index, summaries, annotations,
                 entry_els.append(html.Div(id=anchor_id))
                 anchor_map[matched_toc] = anchor_id
 
-        # Entry title
+        # Entry title — skip if same as section heading (already rendered)
         entry_id = row.get("entry_id")
         idx = entry_index.get(entry_id) if entry_id else None
         entry_anchor = f"entry-{entry_id}" if entry_id else ""
 
-        if entry_title:
+        if entry_title and entry_title != toc_title:
             entry_els.append(html.Div(entry_title, className="entry-title", id=entry_anchor))
 
-        # Badges
+        # Badges — only show meaningful spell/annotation info
         if idx:
-            badges = [idx["entry_type"]]
+            badges = []
             sl = idx.get("spell_level")
             if sl is not None and not (isinstance(sl, float) and math.isnan(sl)):
                 badges.append(f"Level {int(sl)}")
@@ -369,7 +329,8 @@ def build_book_content(book_data, toc_rows, entry_index, summaries, annotations,
                         badges.append("Combat")
                     if ann.get("is_popular"):
                         badges.append("Popular")
-            entry_els.append(html.Div(" · ".join(badges), className="entry-badges"))
+            if badges:
+                entry_els.append(html.Div(" · ".join(badges), className="entry-badges"))
 
         # Summary
         if entry_id:
@@ -395,12 +356,6 @@ def build_book_content(book_data, toc_rows, entry_index, summaries, annotations,
                     dcc.Markdown(linked_comp, dangerously_allow_html=True),
                     className=f"entry-content cat-spell-components {cat}",
                 ))
-
-    # All tables should have been placed by their ToC sort_order.
-    # If any remain, the data has a problem.
-    unplaced = [t for t in tables if t not in rendered_tables]
-    if unplaced:
-        print(f"[browser] WARNING: {len(unplaced)} tables not placed: {unplaced}")
 
     return elements, anchor_map
 
@@ -487,12 +442,11 @@ def update_book(source_file):
     toc = _get_toc(source_file)
     book_data = _get_full_book(source_file)
     entry_index = _get_entry_index(source_file)
-    tables = _get_tables(source_file)
     summaries = _get_summaries()
     annotations = _get_annotations()
     t1 = time.time()
 
-    content, anchor_map = build_book_content(book_data, toc, entry_index, summaries, annotations, tables=tables)
+    content, anchor_map = build_book_content(book_data, toc, entry_index, summaries, annotations)
     sidebar = build_toc_sidebar(toc, anchor_map)
     t2 = time.time()
 
@@ -589,6 +543,8 @@ app.index_string = '''
         /* Book content */
         .chapter-anchor { padding-top: 1rem; }
         .chapter-heading { margin-top: 0.5rem; border-top: 2px solid #30363d; padding-top: 1rem; }
+        .section-anchor { padding-top: 0.8rem; }
+        .section-heading { margin-top: 0.3rem; border-top: 1px solid #21262d; padding-top: 0.5rem; }
         .entry-block { margin-top: 1.2rem; }
         .entry-title { font-weight: 600; font-size: 1.1rem; color: #4a9eff;
                        padding-top: 0.5rem; }
@@ -623,15 +579,10 @@ app.index_string = '''
             if (!link) return;
             var id = link.getAttribute('href').substring(1);
             var target = document.getElementById(id);
+            console.log('[scroll]', id, 'found:', !!target);
             if (!target) return;
             e.preventDefault();
-            var container = document.getElementById('main-content');
-            if (container) {
-                container.scrollTo({
-                    top: target.offsetTop - container.offsetTop,
-                    behavior: 'instant'
-                });
-            }
+            target.scrollIntoView({ behavior: 'instant', block: 'start' });
         });
     </script>
 </body>

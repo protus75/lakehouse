@@ -4,11 +4,13 @@
 Usage:
     python scripts/tabletop_rules/browser.py start
     python scripts/tabletop_rules/browser.py stop
+    python scripts/tabletop_rules/browser.py reset
     python scripts/tabletop_rules/browser.py log [N]
 """
 import subprocess
 import sys
 import time
+from pathlib import Path
 
 CONTAINER = "lakehouse-workspace"
 SCRIPT = "/workspace/dashapp/tabletop_browser.py"
@@ -28,13 +30,16 @@ PID_FILE = "/tmp/tabletop_browser.pid"
 
 
 def _kill():
-    # Kill by saved PID, then also by port
-    for cmd in [
-        f"cat {PID_FILE} 2>/dev/null | xargs -r kill -9",
-        f"fuser -k {PORT}/tcp 2>/dev/null",
-    ]:
-        _docker("bash", "-c", cmd)
+    # Kill by saved PID, then find all via /proc (container has no ps/pgrep)
+    _docker("bash", "-c", f"cat {PID_FILE} 2>/dev/null | xargs -r kill -9")
+    kill_cmd = (
+        "for p in /proc/[0-9]*/cmdline; do "
+        "if strings \"$p\" 2>/dev/null | grep -q tabletop_browser; then "
+        "pid=\"$(echo $p | cut -d/ -f3)\"; kill -9 \"$pid\" 2>/dev/null; fi; done"
+    )
+    _docker("bash", "-c", kill_cmd)
     time.sleep(1)
+    _docker("bash", "-c", kill_cmd)
 
 
 def cmd_start():
@@ -61,6 +66,24 @@ def cmd_log(n=20):
     print(result.stdout)
 
 
+def cmd_reset():
+    """Kill browser, clear pycache (host + container), restart."""
+    _kill()
+    # Clear host pycache
+    import shutil
+    project_root = Path(__file__).resolve().parent.parent.parent
+    count = 0
+    for p in project_root.rglob("__pycache__"):
+        if p.is_dir():
+            shutil.rmtree(p, ignore_errors=True)
+            count += 1
+    print(f"Cleared {count} host __pycache__ dirs")
+    # Clear container pycache
+    _docker("bash", "-c", "find /workspace -name __pycache__ -type d -exec rm -rf {} + 2>/dev/null")
+    print("Cleared container __pycache__")
+    cmd_start()
+
+
 if __name__ == "__main__":
     args = sys.argv[1:]
     if not args or args[0] == "help":
@@ -69,6 +92,8 @@ if __name__ == "__main__":
         cmd_start()
     elif args[0] == "stop":
         cmd_stop()
+    elif args[0] == "reset":
+        cmd_reset()
     elif args[0] == "log":
         cmd_log(int(args[1]) if len(args) > 1 else 20)
     else:
