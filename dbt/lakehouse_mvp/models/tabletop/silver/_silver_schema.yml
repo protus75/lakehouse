@@ -64,6 +64,41 @@ models:
         tests:
           - not_null
 
+  - name: silver_spell_meta
+    description: "Structured spell metadata parsed from entry content header"
+    columns:
+      - name: entry_id
+        tests:
+          - not_null
+          - unique
+          - relationships:
+              to: ref('silver_entries')
+              field: entry_id
+      - name: source_file
+        tests:
+          - not_null
+
+  - name: silver_entry_descriptions
+    description: "Clean entry descriptions with metadata/material stripped"
+    columns:
+      - name: entry_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('silver_entries')
+              field: entry_id
+      - name: source_file
+        tests:
+          - not_null
+      - name: description_type
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['original', 'summary']
+      - name: content
+        tests:
+          - not_null
+
   - name: silver_files
     description: "File-level aggregated metadata"
     columns:
