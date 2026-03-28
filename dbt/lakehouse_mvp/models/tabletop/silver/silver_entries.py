@@ -1,10 +1,10 @@
-"""Silver: cleaned, chapter-assigned entries from Marker markdown.
+"""Silver: cleaned, chapter-assigned entries from pymupdf page texts.
 
-Stream-based approach:
-1. Build extended ToC (real ToC + spell/authority entries injected in order)
-2. Walk markdown stream, match headings to extended ToC in document order
-3. Split content between consecutive matched headings
-4. Clean entry content (smashed metadata, dedup, orphan merge)
+Page-based approach:
+1. ToC gives exact page ranges for every chapter and sub-section
+2. pymupdf page_texts gives clean text for every page
+3. Slice page texts by ToC ranges, split within pages by section titles
+4. Clean entry content (smashed metadata, dedup)
 """
 import sys
 sys.path.insert(0, "/workspace")
@@ -14,7 +14,7 @@ def model(dbt, session):
     dbt.config(materialized="table")
 
     from dlt.lib.tabletop_cleanup import (
-        load_config, build_extended_toc, build_entries_from_stream,
+        load_config, build_entries_from_pages,
         collect_sub_headings, _detect_watermarks,
     )
     from dlt.lib.stable_keys import make_id
@@ -31,21 +31,19 @@ def model(dbt, session):
         sf = file_row["source_file"]
         config = load_config(Path(sf), configs_dir)
 
-        # Load bronze data
-        marker_df = session.execute(
-            f"SELECT markdown_text FROM bronze_tabletop.marker_extractions WHERE source_file = '{sf}'"
-        ).fetchdf()
-        if marker_df.empty:
-            continue
-        markdown = marker_df.iloc[0]["markdown_text"]
-
+        # Load page texts (pymupdf) — primary content source
         pages_df = session.execute(
             f"SELECT page_index, page_text, printed_page_num FROM bronze_tabletop.page_texts WHERE source_file = '{sf}' ORDER BY page_index"
         ).fetchdf()
-        page_texts = pages_df["page_text"].tolist()
-        total_pages = len(page_texts)
+        if pages_df.empty:
+            continue
+        page_texts = dict(zip(
+            pages_df["printed_page_num"].astype(int).tolist(),
+            pages_df["page_text"].tolist(),
+        ))
+        total_pages = len(pages_df)
 
-        # Load full ToC (all entries: chapters + sub-sections)
+        # Load full ToC
         toc_df = session.execute(
             f"SELECT title, page_start, page_end, is_excluded, is_chapter, is_table, parent_title "
             f"FROM bronze_tabletop.toc_raw WHERE source_file = '{sf}' ORDER BY page_start"
@@ -53,7 +51,7 @@ def model(dbt, session):
 
         toc_all = []
         for _, row in toc_df.iterrows():
-            entry = {
+            toc_all.append({
                 "title": row["title"],
                 "page_start": int(row["page_start"]),
                 "page_end": int(row["page_end"]) if row["page_end"] else 9999,
@@ -63,11 +61,11 @@ def model(dbt, session):
                 "parent_title": row.get("parent_title"),
                 "sub_headings": [],
                 "tables": [],
-            }
-            toc_all.append(entry)
+            })
 
         # Detect watermarks
-        watermarks = _detect_watermarks(page_texts, total_pages)
+        page_text_list = pages_df["page_text"].tolist()
+        watermarks = _detect_watermarks(page_text_list, total_pages)
 
         # Load spell list entries
         spell_list = []
@@ -92,32 +90,29 @@ def model(dbt, session):
             pass
 
         # Load cross-referenced spell metadata (school, sphere)
-        spell_meta = {}
         try:
             meta_df = session.execute(
                 f"SELECT entry_name, school, sphere FROM bronze_tabletop.known_entries_raw "
                 f"WHERE source_file = '{sf}' AND entry_class IS NOT NULL AND school IS NOT NULL"
             ).fetchdf()
             if not meta_df.empty:
+                spell_meta = {}
                 for _, r in meta_df.iterrows():
                     name = r["entry_name"].lower()
                     if name not in spell_meta:
                         spell_meta[name] = {"school": r["school"], "sphere": r.get("sphere")}
+                for s in spell_list:
+                    name = (s.get("entry_name") or "").lower()
+                    if name in spell_meta:
+                        s["school"] = spell_meta[name].get("school")
+                        s["sphere"] = spell_meta[name].get("sphere")
         except Exception:
             pass
 
-        # Enrich spell_list with school/sphere from cross-reference
-        for s in spell_list:
-            name = (s.get("entry_name") or "").lower()
-            if name in spell_meta:
-                s["school"] = spell_meta[name].get("school")
-                s["sphere"] = spell_meta[name].get("sphere")
-
-        # Build extended ToC
-        extended_toc = build_extended_toc(toc_all, spell_list, authority_entries, config)
-
-        # Build entries from stream
-        entries = build_entries_from_stream(markdown, extended_toc, config, watermarks)
+        # Build entries from page texts
+        entries = build_entries_from_pages(
+            toc_all, page_texts, spell_list, authority_entries, config, watermarks
+        )
 
         # Collect sub-headings
         collect_sub_headings(entries, toc_all, config)
@@ -152,7 +147,6 @@ def model(dbt, session):
                 "section_title": entry.get("section_title"),
                 "entry_title": entry.get("entry_title"),
             }
-            # Include content prefix in hash to disambiguate entries with same/NULL titles
             id_data = {**row_data, "content_prefix": content[:80]}
             all_entries.append({
                 "entry_id": make_id("entry_id", id_data),

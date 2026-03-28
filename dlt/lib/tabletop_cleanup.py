@@ -476,7 +476,473 @@ def _is_valid_section_heading(heading: str, toc_sections: list[dict], config: di
     return False
 
 
-# ── Stream-based entry building ──────────────────────────────────
+# ── Page-based entry building ────────────────────────────────────
+
+
+def build_entries_from_pages(
+    toc_all: list[dict],
+    page_texts: dict[int, str],
+    spell_list: list[dict],
+    authority_entries: list[dict],
+    config: dict,
+    watermarks: set[str] = None,
+) -> list[dict]:
+    """Build entries by slicing pymupdf page_texts using ToC page ranges.
+
+    No Marker markdown, no fuzzy heading matching. The ToC gives us exact page
+    ranges for every chapter and sub-section. pymupdf gives us the text for
+    every page. We just slice and assemble.
+
+    For sub-sections sharing the same page, we split by finding the section
+    title text within the concatenated page content, in ToC order.
+
+    Spells and authority entries are matched within their parent section's
+    page range using the extended ToC (spell names sorted by level).
+    """
+    from rapidfuzz import fuzz
+
+    section_cfg = config.get("section_parsing", {}) if config else {}
+    level_mapping = config.get("spell_level_mapping", {}) if config else {}
+    min_content = config.get("ingestion", {}).get("min_entry_content", 10) if config else 10
+
+    def _rejoin_page_text(text: str) -> str:
+        """Clean pymupdf page text: rejoin hyphenated words and soft line breaks."""
+        if not text:
+            return text
+        lines = text.split("\n")
+        result = []
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            # Rejoin hyphenated word continuations: "Constitu-" + "tion," -> "Constitution,"
+            while line.rstrip().endswith("-") and i + 1 < len(lines):
+                next_line = lines[i + 1]
+                next_stripped = next_line.lstrip()
+                if next_stripped and next_stripped[0].islower():
+                    line = line.rstrip()[:-1] + next_stripped
+                    i += 1
+                else:
+                    break
+            result.append(line)
+            i += 1
+        return "\n".join(result)
+
+    # Strip watermarks and rejoin hyphenated lines
+    clean_pages = {}
+    for pnum, text in page_texts.items():
+        if watermarks:
+            lines = text.split("\n")
+            lines = [l for l in lines if l.strip() not in watermarks]
+            text = "\n".join(lines)
+        clean_pages[pnum] = _rejoin_page_text(text)
+
+    def _get_page_range_text(page_start: int, page_end: int) -> tuple:
+        """Concatenate page texts for a range of printed page numbers.
+        Returns (text, page_offsets) where page_offsets maps page_num -> char offset."""
+        parts = []
+        page_offsets = {}
+        offset = 0
+        for p in range(page_start, page_end + 1):
+            if p in clean_pages:
+                page_offsets[p] = offset
+                parts.append(clean_pages[p])
+                offset += len(clean_pages[p]) + 2  # +2 for \n\n separator
+        return "\n\n".join(parts), page_offsets
+
+    def _normalize(s: str) -> str:
+        """Collapse all whitespace to single spaces for matching."""
+        return " ".join(s.split())
+
+    def _build_norm_map(text: str):
+        """Build normalized text with char mapping back to original positions."""
+        text_chars = []  # (original_idx, char)
+        i = 0
+        in_space = False
+        while i < len(text):
+            if text[i] in " \t\n\r":
+                if not in_space and text_chars:
+                    text_chars.append((i, " "))
+                    in_space = True
+            else:
+                text_chars.append((i, text[i]))
+                in_space = False
+            i += 1
+        norm_text = "".join(c for _, c in text_chars).lower()
+        return norm_text, text_chars
+
+    def _is_para_start(text: str, pos: int) -> bool:
+        """Check if position is at the start of a paragraph (after blank line or start of text)."""
+        if pos == 0:
+            return True
+        # Look backwards for double newline or start of text
+        before = text[max(0, pos - 3):pos]
+        return "\n\n" in before or "\n \n" in text[max(0, pos - 5):pos]
+
+    def _find_title_in_text(title: str, text: str, search_from: int = 0,
+                            prefer_para_start: bool = True) -> int:
+        """Find a section title in text using normalized matching.
+
+        Handles line breaks mid-title and OCR variations.
+        When prefer_para_start is True and multiple matches exist,
+        prefers matches at paragraph boundaries (after blank lines).
+        Returns char position in original text, or -1.
+        """
+        title_norm = _normalize(title).lower()
+        if not title_norm:
+            return -1
+
+        norm_text, text_chars = _build_norm_map(text)
+        norm_from = 0
+
+        if search_from > 0:
+            for ni, (oi, _) in enumerate(text_chars):
+                if oi >= search_from:
+                    norm_from = ni
+                    break
+
+        # Find all normalized matches
+        matches = []
+        pos = norm_from
+        while True:
+            pos = norm_text.find(title_norm, pos)
+            if pos < 0:
+                break
+            orig_pos = text_chars[pos][0]
+            matches.append(orig_pos)
+            pos += 1
+
+        if not matches:
+            # Fuzzy fallback for shorter titles
+            if len(title_norm) > 60:
+                return -1
+            window = len(title_norm) + 5
+            best_score = 0
+            best_pos = -1
+            for wi in range(norm_from, len(norm_text) - len(title_norm) + 5):
+                chunk = norm_text[wi:wi + window]
+                score = fuzz.ratio(chunk, title_norm)
+                if score > best_score and score >= 80:
+                    best_score = score
+                    best_pos = wi
+            if best_pos >= 0:
+                return text_chars[best_pos][0]
+            return -1
+
+        if len(matches) == 1 or not prefer_para_start:
+            return matches[0]
+
+        # Multiple matches — prefer one at paragraph start
+        for m in matches:
+            if _is_para_start(text, m):
+                return m
+
+        # No paragraph-start match, return first
+        return matches[0]
+
+    def _count_occurrences(title: str, text: str) -> int:
+        """Count how many times title appears in text (normalized)."""
+        t = _normalize(title).lower()
+        txt = _normalize(text).lower()
+        if not t:
+            return 9999
+        count = 0
+        pos = 0
+        while True:
+            pos = txt.find(t, pos)
+            if pos < 0:
+                break
+            count += 1
+            pos += len(t)
+        return count
+
+    def _split_sections_in_text(text: str, sections: list[dict],
+                               page_offsets: dict = None) -> tuple:
+        """Split text into sections by finding each title in order.
+
+        page_offsets: {printed_page_num: char_offset_in_text} — when provided,
+        uses each section's page_start to narrow the search to the right page
+        area, avoiding false matches on earlier pages.
+
+        Returns (intro_str, [(section_dict, content_str), ...]).
+        intro_str is text before the first matched section (may be empty)."""
+
+        if not sections:
+            return text.strip(), []
+
+        matched = {}  # idx -> char_pos
+
+        # Match each section, using page_start to guide the search area
+        for idx, sec in enumerate(sections):
+            title = sec["title"]
+            page_start = sec.get("page_start", 0)
+
+            # Start after previous matched section
+            search_from = 0
+            for prev_idx in range(idx - 1, -1, -1):
+                if prev_idx in matched:
+                    prev_end = matched[prev_idx] + len(sections[prev_idx]["title"])
+                    search_from = prev_end
+                    break
+
+            # If still on an earlier page than this section's page_start,
+            # jump forward to the section's page (avoids false matches)
+            if page_offsets and page_start in page_offsets:
+                page_offset = page_offsets[page_start]
+                if search_from < page_offset:
+                    search_from = page_offset
+
+            pos = _find_title_in_text(title, text, search_from,
+                                       prefer_para_start=True)
+            if pos >= 0:
+                matched[idx] = pos
+
+        # Sort matched by position
+        ordered = sorted(matched.items(), key=lambda x: x[1])
+
+        # Intro: text before first match
+        intro = ""
+        if ordered:
+            intro = text[:ordered[0][1]].strip()
+        elif text.strip():
+            intro = text.strip()
+
+        # Extract content between consecutive matches
+        results = []
+        for i, (idx, pos) in enumerate(ordered):
+            if i + 1 < len(ordered):
+                end = ordered[i + 1][1]
+            else:
+                end = len(text)
+            content = text[pos:end].strip()
+            if len(content) >= min_content:
+                results.append((sections[idx], content))
+
+        return intro, results
+
+    # Get chapters (non-excluded, in page order)
+    chapters = sorted(
+        [t for t in toc_all if t.get("is_chapter") and not t.get("is_excluded")],
+        key=lambda t: t.get("page_start", 0),
+    )
+
+    entries = []
+
+    for ch in chapters:
+        ch_title = ch["title"]
+        ch_start = ch.get("page_start", 0)
+        ch_end = ch.get("page_end", 9999)
+
+        # Determine entry_mode from config
+        entry_mode = "toc"
+        matched_cfg = None
+        for sec_key, sec_cfg in section_cfg.items():
+            if sec_key.lower() in ch_title.lower():
+                entry_mode = sec_cfg.get("entry_mode", "toc")
+                matched_cfg = sec_cfg
+                break
+
+        # Get non-excluded sub-sections, in page order
+        subs = sorted(
+            [t for t in toc_all
+             if t.get("parent_title") == ch_title
+             and not t.get("is_excluded")
+             and not t.get("is_table")],
+            key=lambda t: t.get("page_start", 0),
+        )
+
+        # Also check if any sub has its own section_parsing config
+        sub_cfgs = {}
+        for sub in subs:
+            for sec_key, sec_cfg in section_cfg.items():
+                if sec_key.lower() in sub.get("title", "").lower():
+                    sub_cfgs[sub["title"]] = sec_cfg
+                    break
+
+        # Get chapter text with page offsets
+        ch_text, ch_page_offsets = _get_page_range_text(ch_start, ch_end)
+        if not ch_text.strip():
+            continue
+
+        if entry_mode == "per_list" and matched_cfg:
+            list_source = matched_cfg.get("list_source", "")
+            list_filter = matched_cfg.get("list_filter_type", "")
+            sub_pat = matched_cfg.get("sub_section_pattern", "")
+
+            # Determine spell class
+            spell_class = None
+            if "wizard" in ch_title.lower():
+                spell_class = "wizard"
+            elif "priest" in ch_title.lower():
+                spell_class = "priest"
+
+            if list_source == "spell_list_entries":
+                # Group spells by level
+                spells_by_level = {}
+                for s in spell_list:
+                    sc = (s.get("entry_class") or "").lower()
+                    if spell_class and sc != spell_class:
+                        continue
+                    lvl = int(s.get("entry_level") or 0)
+                    spells_by_level.setdefault(lvl, []).append(s)
+                for lvl in spells_by_level:
+                    spells_by_level[lvl].sort(
+                        key=lambda s: (s.get("entry_name") or "").lower()
+                    )
+
+                # Find level sub-sections first, then spells within each
+                level_subs = []
+                for sub in subs:
+                    if sub_pat and re.match(sub_pat, sub["title"], re.IGNORECASE):
+                        matched_level = None
+                        for word, lvl in level_mapping.items():
+                            if word.lower() in sub["title"].lower():
+                                matched_level = lvl
+                                break
+                        if matched_level is not None:
+                            level_subs.append((sub, matched_level))
+
+                for level_sub, lvl in level_subs:
+                    ls_start = level_sub.get("page_start", ch_start)
+                    ls_end = level_sub.get("page_end", ch_end)
+                    level_text, level_offsets = _get_page_range_text(ls_start, ls_end)
+
+                    spells = spells_by_level.get(lvl, [])
+                    # Build section list from spell names, with page_start for offset guidance
+                    spell_sections = [
+                        {"title": s.get("entry_name", ""), "spell": s,
+                         "page_start": ls_start}
+                        for s in spells
+                    ]
+                    _intro, found = _split_sections_in_text(level_text, spell_sections, level_offsets)
+                    for sec, content in found:
+                        spell = sec.get("spell", {})
+                        content = _clean_entry_content(content, config)
+                        if len(content) < min_content:
+                            continue
+                        entries.append({
+                            "toc_entry": ch,
+                            "section_title": sec["title"],
+                            "entry_title": sec["title"],
+                            "content": content,
+                            "school": spell.get("school"),
+                            "sphere": spell.get("sphere"),
+                            "spell_class": spell_class,
+                            "spell_level": lvl,
+                            "page_numbers": [ls_start],
+                        })
+
+            elif list_source == "authority_table_entries":
+                # Authority entries (proficiencies etc) within the section's page range
+                items = sorted(
+                    [a for a in authority_entries
+                     if not list_filter or a.get("entry_type", "") == list_filter],
+                    key=lambda a: a.get("entry_name", "").lower(),
+                )
+                item_sections = [{"title": a.get("entry_name", ""), "authority": a} for a in items]
+                _intro, found = _split_sections_in_text(ch_text, item_sections, ch_page_offsets)
+                for sec, content in found:
+                    content = _clean_entry_content(content, config)
+                    if len(content) < min_content:
+                        continue
+                    entries.append({
+                        "toc_entry": ch,
+                        "section_title": sec["title"],
+                        "entry_title": sec["title"],
+                        "content": content,
+                        "school": None, "sphere": None,
+                        "spell_class": None, "spell_level": None,
+                        "page_numbers": [ch_start],
+                    })
+
+        else:
+            # toc mode: split by sub-sections
+            if subs:
+                # Check if any sub has its own per_list config
+                has_per_list_sub = False
+                regular_subs = []
+                for sub in subs:
+                    sub_cfg = sub_cfgs.get(sub["title"])
+                    if sub_cfg and sub_cfg.get("entry_mode") == "per_list":
+                        has_per_list_sub = True
+                        # Handle this sub's per_list entries
+                        sub_start = sub.get("page_start", ch_start)
+                        sub_end = sub.get("page_end", ch_end)
+                        sub_text, sub_offsets = _get_page_range_text(sub_start, sub_end)
+                        list_source = sub_cfg.get("list_source", "")
+                        list_filter = sub_cfg.get("list_filter_type", "")
+                        if list_source == "authority_table_entries":
+                            items = sorted(
+                                [a for a in authority_entries
+                                 if not list_filter or a.get("entry_type", "") == list_filter],
+                                key=lambda a: a.get("entry_name", "").lower(),
+                            )
+                            item_sections = [{"title": a.get("entry_name", ""), "page_start": sub_start} for a in items]
+                            _intro, found = _split_sections_in_text(sub_text, item_sections, sub_offsets)
+                            for sec, content in found:
+                                content = _clean_entry_content(content, config)
+                                if len(content) < min_content:
+                                    continue
+                                entries.append({
+                                    "toc_entry": ch,
+                                    "section_title": sec["title"],
+                                    "entry_title": sec["title"],
+                                    "content": content,
+                                    "school": None, "sphere": None,
+                                    "spell_class": None, "spell_level": None,
+                                    "page_numbers": [sub_start],
+                                })
+                    else:
+                        regular_subs.append(sub)
+
+                # Split remaining subs from chapter text
+                intro, found = _split_sections_in_text(ch_text, regular_subs, ch_page_offsets)
+
+                # Chapter intro: content before the first sub-section
+                if intro:
+                    intro = _clean_entry_content(intro, config)
+                    if len(intro) >= min_content:
+                        entries.append({
+                            "toc_entry": ch,
+                            "section_title": ch_title,
+                            "entry_title": ch_title,
+                            "content": intro,
+                            "school": None, "sphere": None,
+                            "spell_class": None, "spell_level": None,
+                            "page_numbers": [ch_start],
+                        })
+
+                for sec, content in found:
+                    content = _clean_entry_content(content, config)
+                    if len(content) < min_content:
+                        continue
+                    entries.append({
+                        "toc_entry": ch,
+                        "section_title": sec["title"],
+                        "entry_title": sec["title"],
+                        "content": content,
+                        "school": None, "sphere": None,
+                        "spell_class": None, "spell_level": None,
+                        "page_numbers": [sec.get("page_start", ch_start)],
+                    })
+            else:
+                # No sub-sections — whole chapter is one entry
+                content = _clean_entry_content(ch_text, config)
+                if len(content) >= min_content:
+                    entries.append({
+                        "toc_entry": ch,
+                        "section_title": ch_title,
+                        "entry_title": None,
+                        "content": content,
+                        "school": None, "sphere": None,
+                        "spell_class": None, "spell_level": None,
+                        "page_numbers": [ch_start],
+                    })
+
+    _log(f"  Entries from pages: {len(entries)}")
+    return entries
+
+
+# ── Stream-based entry building (legacy, kept for reference) ─────
 
 
 def build_extended_toc(
@@ -898,22 +1364,28 @@ def build_entries_from_stream(
         # Try descriptive part FIRST — it appears before "Chapter N" page headers
         # in the stream because the actual content heading comes first.
         # "Chapter N" page headers are Marker artifacts that appear mid-chapter.
-        candidates = []
+        # Build candidates most-specific to least, with paren-stripped variants
+        # interleaved so "Proficiencies" is tried before "Chapter 5"
+        raw_candidates = []
         if ":" in ch_title:
             desc = ch_title.split(":", 1)[-1].strip()
-            candidates.append(desc)
-            # Also try shortened form
+            raw_candidates.append(desc)
             for prefix in ("Player Character ", "PC "):
                 if desc.lower().startswith(prefix.lower()):
-                    candidates.append(desc[len(prefix):].strip())
-            candidates.append(ch_title)
-            candidates.append(ch_title.split(":", 1)[0].strip())
+                    raw_candidates.append(desc[len(prefix):].strip())
+            raw_candidates.append(ch_title)
+            raw_candidates.append(ch_title.split(":", 1)[0].strip())
         else:
-            candidates.append(ch_title)
-        for c in list(candidates):
+            raw_candidates.append(ch_title)
+        # Expand: for each candidate, also try without trailing parens
+        candidates = []
+        for c in raw_candidates:
+            candidates.append(c)
             paren = c.rfind("(")
             if paren > 0:
-                candidates.append(c[:paren].strip())
+                stripped = c[:paren].strip()
+                if stripped and stripped not in candidates:
+                    candidates.append(stripped)
 
         pos = -1
         matched_cand = ""
@@ -1036,10 +1508,56 @@ def build_entries_from_stream(
             if pos >= 0:
                 matched[toc_idx] = pos
 
+    # Pass 3: Validate ToC ordering — matched positions must be monotonically
+    # increasing by toc_index within each chapter. Re-match violations.
+    toc_idx_to_ch = {toc_idx: (ch_s, ch_e) for toc_idx, _, ch_s, ch_e in leaf_items}
+    toc_idx_to_node_map = {toc_idx: node for toc_idx, node, _, _ in leaf_items}
+    toc_indices = sorted(matched.keys())
+
+    rematched = 0
+    for attempt in range(3):  # iterate a few times to settle
+        violations = []
+        for i in range(len(toc_indices) - 1):
+            idx_a, idx_b = toc_indices[i], toc_indices[i + 1]
+            # Only check within same chapter
+            if toc_idx_to_ch[idx_a][0] != toc_idx_to_ch[idx_b][0]:
+                continue
+            if matched[idx_a] >= matched[idx_b]:
+                # Out of order — re-match the one with more occurrences
+                ch_s, ch_e = toc_idx_to_ch[idx_a]
+                count_a = _occurrence_count(toc_idx_to_node_map[idx_a]["title"], ch_s, ch_e)
+                count_b = _occurrence_count(toc_idx_to_node_map[idx_b]["title"], ch_s, ch_e)
+                violations.append(idx_a if count_a >= count_b else idx_b)
+
+        if not violations:
+            break
+
+        for bad_idx in set(violations):
+            del matched[bad_idx]
+            toc_indices = sorted(matched.keys())
+
+        # Re-match removed entries between neighbors
+        for bad_idx in set(violations):
+            ch_s, ch_e = toc_idx_to_ch[bad_idx]
+            search_start = ch_s
+            for prev in toc_indices:
+                if prev < bad_idx and prev in matched:
+                    search_start = matched[prev] + 1
+            search_end = ch_e
+            for nxt in toc_indices:
+                if nxt > bad_idx and nxt in matched:
+                    search_end = matched[nxt]
+                    break
+            if search_start < search_end:
+                pos = _match_leaf(toc_idx_to_node_map[bad_idx], search_start, search_end)
+                if pos >= 0:
+                    matched[bad_idx] = pos
+                    rematched += 1
+            toc_indices = sorted(matched.keys())
+
     # Build matched_leaves in document order (sorted by line position)
-    toc_idx_to_node = {toc_idx: node for toc_idx, node, _, _ in leaf_items}
     matched_leaves = sorted(
-        [(line_idx, toc_idx_to_node[toc_idx]) for toc_idx, line_idx in matched.items()],
+        [(line_idx, toc_idx_to_node_map[toc_idx]) for toc_idx, line_idx in matched.items()],
         key=lambda x: x[0],
     )
 
