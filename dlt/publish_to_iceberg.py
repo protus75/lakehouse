@@ -30,6 +30,7 @@ PUBLISH_MAP = {
     ],
     "gold_tabletop": [
         "gold_chunks",
+        "gold_entries",
         "gold_entry_index",
         "gold_toc",
         "gold_tables",

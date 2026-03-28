@@ -227,6 +227,39 @@ def _deduplicate_marker_blocks(content: str, field_names: list[str], config: dic
 
 # ── Content cleanup ──────────────────────────────────────────────
 
+def strip_leading_title(content: str, title: str) -> str:
+    """Strip the entry title from the start of content if present.
+
+    Handles OCR whitespace/linebreak variations by normalizing both
+    before comparing. Also strips a trailing colon after the title.
+    """
+    if not title or not content:
+        return content
+    norm_title = " ".join(title.split()).lower()
+    norm_start = " ".join(content[:len(title) * 3].split()).lower()
+    if norm_start.startswith(norm_title):
+        # Walk the original content consuming characters that match
+        # the normalized title (skipping whitespace differences)
+        ti = 0
+        ci = 0
+        while ti < len(norm_title) and ci < len(content):
+            if content[ci] in " \t\n\r":
+                ci += 1
+            elif norm_title[ti] == " ":
+                ti += 1
+            elif content[ci].lower() == norm_title[ti]:
+                ti += 1
+                ci += 1
+            else:
+                break
+        if ti == len(norm_title):
+            rest = content[ci:].lstrip()
+            if rest.startswith(":"):
+                rest = rest[1:].lstrip()
+            return rest
+    return content
+
+
 def _clean_entry_content(content: str, config: dict) -> str:
     """Clean entry content at ingestion time.
 
@@ -455,14 +488,14 @@ def _is_valid_section_heading(heading: str, toc_sections: list[dict], config: di
             if clean_lower == title_desc:
                 return True
 
-    # 2. Check section_parsing keys from config (exact match)
-    for sec_key in (config.get("section_parsing", {}) or {}):
-        if clean_lower == sec_key.lower():
+    # 2. Check toc_overrides keys from config (exact match)
+    for key in (config.get("toc_overrides", {}) or {}):
+        if clean_lower == key.lower():
             return True
 
     # 3. Check sub-section patterns (e.g. "First-Level Spells")
-    for sec_key, sec_cfg in (config.get("section_parsing", {}) or {}).items():
-        sub_pat = sec_cfg.get("sub_section_pattern", "")
+    for key, cfg in (config.get("toc_overrides", {}) or {}).items():
+        sub_pat = cfg.get("sub_section_pattern", "")
         if sub_pat and re.match(sub_pat, clean, re.IGNORECASE):
             return True
 
@@ -501,9 +534,10 @@ def build_entries_from_pages(
     """
     from rapidfuzz import fuzz
 
-    section_cfg = config.get("section_parsing", {}) if config else {}
+    toc_overrides = config.get("toc_overrides", {}) if config else {}
     level_mapping = config.get("spell_level_mapping", {}) if config else {}
-    spell_heading_overrides = config.get("spell_heading_overrides", {}) if config else {}
+    spell_heading_overrides_raw = config.get("spell_heading_overrides", {}) if config else {}
+    spell_heading_overrides = {k.lower(): v for k, v in spell_heading_overrides_raw.items()}
     min_content = config.get("ingestion", {}).get("min_entry_content", 10) if config else 10
 
     # Unicode → ASCII replacements for pymupdf text
@@ -840,14 +874,9 @@ def build_entries_from_pages(
         ch_start = ch.get("page_start", 0)
         ch_end = ch.get("page_end", 9999)
 
-        # Determine entry_mode from config
-        entry_mode = "toc"
-        matched_cfg = None
-        for sec_key, sec_cfg in section_cfg.items():
-            if sec_key.lower() in ch_title.lower():
-                entry_mode = sec_cfg.get("entry_mode", "toc")
-                matched_cfg = sec_cfg
-                break
+        # Determine entry_mode from config — exact dict lookup, no string matching
+        matched_cfg = toc_overrides.get(ch_title)
+        entry_mode = matched_cfg.get("entry_mode", "toc") if matched_cfg else "toc"
 
         # Get non-excluded sub-sections, in ToC order (sort_order preserves book order)
         subs = sorted(
@@ -864,13 +893,13 @@ def build_entries_from_pages(
             if t.get("parent_title") == ch_title and t.get("is_table")
         ]
 
-        # Also check if any sub has its own section_parsing config
+        # Also check if any sub has its own toc_overrides config
         sub_cfgs = {}
         for sub in subs:
-            for sec_key, sec_cfg in section_cfg.items():
-                if sec_key.lower() in sub.get("title", "").lower():
-                    sub_cfgs[sub["title"]] = sec_cfg
-                    break
+            sub_title = sub.get("title", "")
+            sub_cfg = toc_overrides.get(sub_title)
+            if sub_cfg:
+                sub_cfgs[sub_title] = sub_cfg
 
         # Get chapter text with page offsets
         ch_text, ch_page_offsets = _get_page_range_text(ch_start, ch_end)
@@ -925,7 +954,7 @@ def build_entries_from_pages(
                     spell_sections = []
                     for s in spells:
                         name = s.get("entry_name", "")
-                        title = spell_heading_overrides.get(name, name)
+                        title = spell_heading_overrides.get(name.lower(), name)
                         spell_sections.append({"title": title, "spell": s,
                                                "page_start": s.get("ref_page", ls_start)})
                     _intro, found = _split_sections_in_text(level_text, spell_sections, level_offsets, bound_to_page=False)
@@ -936,7 +965,7 @@ def build_entries_from_pages(
                         if len(content) < min_content:
                             continue
                         entries.append({
-                            "toc_entry": ch,
+                            "toc_entry": level_sub,
                             "section_title": original_name,
                             "entry_title": original_name,
                             "content": content,
@@ -999,7 +1028,7 @@ def build_entries_from_pages(
                                 if len(content) < min_content:
                                     continue
                                 entries.append({
-                                    "toc_entry": ch,
+                                    "toc_entry": sub,
                                     "section_title": sec["title"],
                                     "entry_title": sec["title"],
                                     "content": content,
@@ -1009,6 +1038,14 @@ def build_entries_from_pages(
                                 })
                     else:
                         regular_subs.append(sub)
+
+                # Apply heading overrides from toc_overrides for matching
+                for sub in regular_subs:
+                    sub_override = toc_overrides.get(sub["title"], {})
+                    heading = sub_override.get("heading_override")
+                    if heading:
+                        sub["_original_title"] = sub["title"]
+                        sub["title"] = heading
 
                 # Split remaining subs from chapter text
                 intro, found = _split_sections_in_text(ch_text, regular_subs, ch_page_offsets, ch_table_titles)
@@ -1031,10 +1068,17 @@ def build_entries_from_pages(
                     content = _clean_entry_content(content, config)
                     if len(content) < min_content:
                         continue
+                    # Use original ToC title for entry_title display
+                    # Use override text (sec["title"]) for strip_leading_title
+                    override_title = sec["title"]
+                    original_title = sec.pop("_original_title", override_title)
+                    sec["title"] = original_title  # restore for toc_id hash
+                    # Strip the page heading from content (may differ from ToC title)
+                    content = strip_leading_title(content, override_title)
                     entries.append({
-                        "toc_entry": ch,
-                        "section_title": sec["title"],
-                        "entry_title": sec["title"],
+                        "toc_entry": sec,
+                        "section_title": original_title,
+                        "entry_title": original_title,
                         "content": content,
                         "school": None, "sphere": None,
                         "spell_class": None, "spell_level": None,
@@ -2639,11 +2683,13 @@ def chunk_entries(entries: list[dict], config: dict) -> list[dict]:
     for entry in entries:
         content = entry["content"]
         toc = entry["toc_entry"]
+        entry_id = entry.get("entry_id")
         page_str = ",".join(str(p) for p in entry["page_numbers"])
 
         if len(content) <= max_chars:
             chunks.append({
-                "toc_entry": toc, "section_title": entry["section_title"],
+                "toc_entry": toc, "entry_id": entry_id,
+                "section_title": entry["section_title"],
                 "entry_title": entry["entry_title"], "content": content,
                 "page_numbers": page_str, "chunk_type": "content",
             })
@@ -2653,7 +2699,8 @@ def chunk_entries(entries: list[dict], config: dict) -> list[dict]:
             for para in paragraphs:
                 if len(current) + len(para) + 2 > max_chars and current:
                     chunks.append({
-                        "toc_entry": toc, "section_title": entry["section_title"],
+                        "toc_entry": toc, "entry_id": entry_id,
+                        "section_title": entry["section_title"],
                         "entry_title": entry["entry_title"],
                         "content": current.strip(), "page_numbers": page_str,
                         "chunk_type": "content",
@@ -2669,7 +2716,8 @@ def chunk_entries(entries: list[dict], config: dict) -> list[dict]:
                     current = current + "\n\n" + para if current else para
             if current.strip():
                 chunks.append({
-                    "toc_entry": toc, "section_title": entry["section_title"],
+                    "toc_entry": toc, "entry_id": entry_id,
+                    "section_title": entry["section_title"],
                     "entry_title": entry["entry_title"],
                     "content": current.strip(), "page_numbers": page_str,
                     "chunk_type": "content",

@@ -138,11 +138,17 @@ def dbt_test(context: AssetExecutionContext):
             status = node_info.get("node_status")
             if not status:
                 continue
+            # dbt puts failure details in different fields depending on version
+            message = (
+                data.get("message")
+                or log_entry.get("info", {}).get("msg")
+                or data.get("node_info", {}).get("node_finished_at", "")
+            )
             test_rows.append({
                 "test_name": node_info.get("unique_id", ""),
                 "status": status,
                 "failures": int(data.get("failures", 0) or 0),
-                "message": str(data.get("message", node_info.get("node_finished_at", "")))[:500],
+                "message": str(message)[:500],
                 "tested_at": now,
             })
         except _json.JSONDecodeError:
@@ -159,11 +165,43 @@ def dbt_test(context: AssetExecutionContext):
     skipped = sum(1 for r in test_rows if r["status"] == "skip")
     context.log.info(f"Tests: {passed} passed, {failed} failed, {skipped} skipped")
 
+    # Re-run each failing test query and store actual failing rows to S3
+    if failed > 0:
+        import duckdb
+        conn = duckdb.connect(str(DBT_PROJECT_DIR / "../../db/lakehouse.duckdb"), read_only=True)
+        compiled_dir = DBT_PROJECT_DIR / "target" / "compiled" / "lakehouse_mvp" / "tests" / "tabletop"
+        failure_rows = []
+        for tr in test_rows:
+            if tr["status"] != "fail":
+                continue
+            # Extract short test name from unique_id
+            test_name = tr["test_name"].replace("test.lakehouse_mvp.", "")
+            sql_file = compiled_dir / f"{test_name}.sql"
+            if not sql_file.exists():
+                continue
+            sql = sql_file.read_text()
+            try:
+                df = conn.execute(sql).fetchdf()
+                for _, row in df.iterrows():
+                    failure_rows.append({
+                        "test_name": test_name,
+                        "failing_row": _json.dumps({k: str(v)[:200] for k, v in row.items()}),
+                        "tested_at": now,
+                    })
+            except Exception as e:
+                context.log.warning(f"Could not re-run {test_name}: {e}")
+        conn.close()
+
+        if failure_rows:
+            write_iceberg("meta", "dbt_test_failures", pa.table({
+                k: [r[k] for r in failure_rows] for k in failure_rows[0]
+            }), overwrite_all=True)
+            context.log.info(f"Wrote {len(failure_rows)} failing rows to meta.dbt_test_failures")
+
     if result.returncode != 0:
-        # Log stderr for readable error context
         if result.stderr:
             context.log.error(result.stderr)
-        raise Exception(f"dbt test failed: {failed} failures (results on S3 at meta.dbt_test_results)")
+        raise Exception(f"dbt test failed: {failed} failures (results on S3 at meta.dbt_test_results, rows at meta.dbt_test_failures)")
 
 
 @asset(group_name="enrichment", compute_kind="ollama", deps=[dbt_test])

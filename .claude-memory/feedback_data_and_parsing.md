@@ -1,8 +1,14 @@
 ---
 name: Data handling, parsing, and content matching rules
-description: Fix at ingestion, fuzzy matching, preserve casing, page-guided search, rejoin hyphens, chapter intros, ToC table ordering
+description: Fix at ingestion, fuzzy matching, preserve casing, page-guided search, rejoin hyphens, chapter intros, ToC table ordering, browser gold-only
 type: feedback
 ---
+
+## Browser must NEVER access silver — gold only
+The Dash browser app must only read from gold_tabletop namespace. Never include silver_tabletop in the reader or queries.
+
+**Why:** Browser is a consumer — it reads the final gold layer only. Silver is an internal transform layer.
+**How to apply:** Any browser code change must use `get_reader(namespaces=["gold_tabletop"])`. Never add silver tables or namespaces to the browser.
 
 ## Fix at ingestion, not export
 Data quality issues belong in ingestion/parsing code, not export layer. Use config-driven patterns so fixes apply to all downstream consumers.

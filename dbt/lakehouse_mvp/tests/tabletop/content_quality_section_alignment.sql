@@ -1,12 +1,12 @@
--- Fail if entries have section_title that doesn't match their toc_title chapter
--- e.g. Chapter 11 entries should not have section_title "Chapter 10"
+-- Fail if an entry's toc_title doesn't match the title of its toc_id section.
+-- Catches entries where toc_id and toc_title are out of sync.
 select
-    entry_id,
-    toc_title,
-    section_title,
-    entry_title
-from {{ ref('silver_entries') }}
-where section_title like 'Chapter %'
-  and toc_title like 'Chapter %'
-  and section_title != split_part(toc_title, ':', 1)
-  and split_part(toc_title, ':', 1) not like '%' || section_title || '%'
+    e.entry_id,
+    e.toc_id,
+    e.toc_title as entry_toc_title,
+    t.title as actual_toc_title,
+    e.entry_title
+from {{ ref('silver_entries') }} e
+join {{ ref('silver_toc_sections') }} t
+    on e.toc_id = t.toc_id
+where e.toc_title != t.title

@@ -51,3 +51,4 @@ documents/tabletop_rules/processed/marker/
 
 # Tunnel runtime (PID files, logs)
 .tunnel/
+output/

@@ -730,7 +730,7 @@ def extract_known_entries(page_texts: list[str], page_printed: dict[int, int],
                         continue
 
                     entry = {
-                        "entry_name": name.translate(_UNICODE_TO_ASCII).lower(),
+                        "entry_name": name.translate(_UNICODE_TO_ASCII),
                         "entry_class": grouped_class_map.get("by_school", "wizard") if is_school_index else grouped_class_map.get("by_sphere", "priest"),
                         "entry_level": level,
                         "ref_page": None,
@@ -739,7 +739,7 @@ def extract_known_entries(page_texts: list[str], page_printed: dict[int, int],
                         "sphere": current_group if is_sphere_index else None,
                     }
 
-                    key = (entry["entry_name"], entry["entry_class"],
+                    key = (entry["entry_name"].lower(), entry["entry_class"],
                            entry.get("school"), entry.get("sphere"))
                     if key not in seen:
                         seen.add(key)
@@ -778,7 +778,7 @@ def extract_known_entries(page_texts: list[str], page_printed: dict[int, int],
                         continue
 
                     entry = {
-                        "entry_name": name.translate(_UNICODE_TO_ASCII).lower(),
+                        "entry_name": name.translate(_UNICODE_TO_ASCII),
                         "entry_class": entry_class,
                         "entry_level": entry_level,
                         "ref_page": ref_page,
@@ -787,7 +787,7 @@ def extract_known_entries(page_texts: list[str], page_printed: dict[int, int],
                         "sphere": None,
                     }
 
-                    key = (entry["entry_name"], entry["entry_class"])
+                    key = (entry["entry_name"].lower(), entry["entry_class"])
                     if key not in seen:
                         seen.add(key)
                         entries.append(entry)
@@ -942,25 +942,25 @@ def extract_spell_list_entries(filepath: Path, page_printed: dict[int, int],
             else:
                 # Flush previous
                 if pending_name:
-                    name_lower = pending_name.translate(_UNICODE_TO_ASCII).lower().strip()
+                    name_clean = pending_name.translate(_UNICODE_TO_ASCII).strip()
                     # Alphabetical sanity check
-                    if last_name and name_lower < last_name:
-                        _log(f"    Warning: '{name_lower}' before '{last_name}' in {spell_class} L{level_num}")
+                    if last_name and name_clean.lower() < last_name:
+                        _log(f"    Warning: '{name_clean}' before '{last_name}' in {spell_class} L{level_num}")
                     entries.append({
-                        "entry_name": name_lower,
+                        "entry_name": name_clean,
                         "entry_class": spell_class,
                         "entry_level": level_num,
                         "is_reversible": pending_italic,
                         "source_section": section_title,
                     })
-                    last_name = name_lower
+                    last_name = name_clean.lower()
                 pending_name = text
                 pending_italic = italic
 
         # Flush last
         if pending_name:
             entries.append({
-                "entry_name": pending_name.translate(_UNICODE_TO_ASCII).lower().strip(),
+                "entry_name": pending_name.translate(_UNICODE_TO_ASCII).strip(),
                 "entry_class": spell_class,
                 "entry_level": level_num,
                 "is_reversible": pending_italic,
@@ -1270,7 +1270,7 @@ def extract_authority_entries(all_tables: list[dict], config: dict) -> list[dict
     for entry_type, names in config.get("authority_names", {}).items():
         for name in names:
             entries.append({
-                "entry_name": name.lower().strip(),
+                "entry_name": name.strip(),
                 "entry_type": entry_type,
                 "source_table": "config",
             })
@@ -1329,18 +1329,18 @@ def extract_authority_entries(all_tables: list[dict], config: dict) -> list[dict
                         continue
 
                     entries.append({
-                        "entry_name": part.translate(_UNICODE_TO_ASCII).lower(),
+                        "entry_name": part.translate(_UNICODE_TO_ASCII),
                         "entry_type": entry_type,
                         "source_table": table_name,
                     })
 
         _log(f"  Authority: {table_name} ({entry_type}) → {sum(1 for e in entries if e['source_table'] == table_name)} raw entries")
 
-    # Deduplicate
+    # Deduplicate (case-insensitive)
     seen = set()
     unique = []
     for e in entries:
-        key = (e["entry_name"], e["entry_type"])
+        key = (e["entry_name"].lower(), e["entry_type"])
         if key not in seen:
             seen.add(key)
             unique.append(e)
@@ -1500,7 +1500,7 @@ def store_bronze(filepath: Path, config: dict, run_id: str,
 
 # ── Pipeline ─────────────────────────────────────────────────────
 
-def extract_pdf(filepath: Path) -> None:
+def extract_pdf(filepath: Path, force: bool = False) -> None:
     """Extract raw data from a single PDF into bronze Iceberg tables."""
     import time
     start = time.time()
@@ -1522,7 +1522,7 @@ def extract_pdf(filepath: Path) -> None:
         existing = read_iceberg_filtered(NAMESPACE, "files", "source_file", filepath.name)
         if len(existing) > 0:
             prev_hash = existing.column("config_hash")[0].as_py()
-            if prev_hash == current_hash:
+            if prev_hash == current_hash and not force:
                 _log(f"  Bronze: already extracted (config unchanged), skipping")
                 return
     except Exception:
@@ -2484,7 +2484,7 @@ def run(directory: Path | None = None, force: bool = False) -> None:
         return
 
     for f in to_extract:
-        extract_pdf(f)
+        extract_pdf(f, force=force)
     _log(f"\nBronze done: {len(to_extract)} files extracted")
 
 

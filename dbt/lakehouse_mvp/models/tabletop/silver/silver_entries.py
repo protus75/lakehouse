@@ -16,6 +16,7 @@ def model(dbt, session):
     from dlt.lib.tabletop_cleanup import (
         load_config, build_entries_from_pages,
         collect_sub_headings, _detect_watermarks,
+        strip_leading_title,
     )
     from dlt.lib.stable_keys import make_id
     from pathlib import Path
@@ -127,6 +128,9 @@ def model(dbt, session):
         for entry in entries:
             toc_entry = entry["toc_entry"]
             content = entry["content"]
+            entry_title = entry.get("entry_title")
+            if entry_title:
+                content = strip_leading_title(content, entry_title)
 
             # Detect metadata presence
             field_names = config.get("metadata_field_names", [])
@@ -151,7 +155,7 @@ def model(dbt, session):
                 "source_file": sf,
                 "toc_title": toc_entry["title"],
                 "section_title": entry.get("section_title"),
-                "entry_title": entry.get("entry_title"),
+                "entry_title": entry_title,
             }
             id_data = {**row_data, "content_prefix": content[:80]}
             all_entries.append({

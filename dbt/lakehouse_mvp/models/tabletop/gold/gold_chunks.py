@@ -51,6 +51,7 @@ def model(dbt, session):
 
             entry_list.append({
                 "toc_entry": toc_entry,
+                "entry_id": int(row["entry_id"]),
                 "section_title": row["section_title"],
                 "entry_title": row["entry_title"],
                 "content": row["content"],
@@ -69,11 +70,7 @@ def model(dbt, session):
             idx = chunk_index_by_entry.get(entry_key, 0)
             chunk_index_by_entry[entry_key] = idx + 1
 
-            entry_id = make_id("entry_id", {
-                "source_file": sf, "toc_title": toc_title,
-                "entry_title": entry_title,
-                "section_title": chunk.get("section_title"),
-            })
+            entry_id = chunk["entry_id"]
             chunk_id = make_id("chunk_id", {
                 "source_file": sf, "toc_title": toc_title,
                 "entry_title": entry_title, "chunk_index": idx,

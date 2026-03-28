@@ -40,12 +40,18 @@ strip_content_patterns:
 spell_heading_overrides:
   "fool's gold": "fools' gold"
 
+
 content_substitutions:
   - ['D- M', 'DM']
   - ['| Tal | bl | e | 4 |', 'Table 45: Missile Weapon Ranges']
   - ['Tumans', 'Humans']
   - ['Cnomes', 'Gnomes']
   - ['Although humans are treated as a single race **Humans**', 'Humans are treated as a single race']
+  # Letterspaced display text (pymupdf wide-tracking, page 19)
+  - ['T h e  s i x', 'The six']
+  - ['c h a r a c t e r', 'character']
+  - ['d e   s c r i b e d', 'described']
+  - ['be low.', 'below.']
   # Line-break fragments
   - ['re newed', 'renewed']
   - ['group cessful', "group's successful"]
@@ -95,19 +101,13 @@ parsing_defaults:
     no_colon: true
     min_alpha_ratio: 0.7
 
-# Per-section parsing overrides — matched by substring in the ToC title
-# Each section can define its own heading rules, metadata fields to extract,
-# sub-section delimiters, and entry structure
-# entry_mode per section — how silver_entries are split:
-#   toc        — one entry per ToC sub-section (default for most chapters)
-#   per_list   — one entry per item in a reference list (spell_list_entries, authority_table_entries)
-#   per_anchor — one entry per config anchor (for sections where Marker doesn't make headings)
-section_parsing:
-  "Wizard Spells":
+# Per-ToC-entry overrides — keyed by exact ToC title, no string matching
+# entry_mode: toc (default), per_list, per_anchor
+toc_overrides:
+  "Appendix 3: Wizard Spells":
     entry_mode: per_list
     list_source: spell_list_entries
     sub_section_pattern: '(?:First|Second|Third|Fourth|Fifth|Sixth|Seventh|Eighth|Ninth)-Level Spells'
-    # A spell entry heading: name only, no colon, short
     heading_rules:
       min_length: 3
       max_length: 40
@@ -116,7 +116,6 @@ section_parsing:
       no_trailing_comma: true
       no_colon: true
       min_alpha_ratio: 0.7
-    # Lines matching these patterns are metadata, NOT headings — keep with parent entry
     metadata_fields:
       - 'Range\s*:'
       - 'Components\s*:'
@@ -127,7 +126,6 @@ section_parsing:
       - 'School\s*:'
       - 'Sphere\s*:'
       - 'Level\s*:'
-    # Also keep these short standalone lines as part of the entry (not headings)
     keep_with_entry:
       - 'Reversible'
       - '(Conjuration.*)'
@@ -140,7 +138,7 @@ section_parsing:
       - '(Necromancy.*)'
       - '(Invocation.*)'
 
-  "Priest Spells":
+  "Appendix 4: Priest Spells":
     entry_mode: per_list
     list_source: spell_list_entries
     sub_section_pattern: '(?:First|Second|Third|Fourth|Fifth|Sixth|Seventh)-Level Spells'
@@ -206,9 +204,18 @@ section_parsing:
       "Humans": "Human"
 
   "Proficiencies":
-    # Proficiency descriptions are "Name: description" in running text
-    # not headings — detect by "CapitalWord(s): " at start of line
     inline_entry_pattern: '^([A-Z][\w\s,/''()-]+):\s+'
+
+  # Heading overrides — ToC title differs from actual page heading
+  "Spells Allowed (Spheres of Influence)":
+    heading_override: "Spells Allowed"
+  "Related Weapon Bonus":
+    heading_override: "Related Weapons Bonus"
+  "The Various Types of Weapons":
+    heading_override: "Slashing weapons include"
+    page_start_override: 119
+  "Herbalism and Healing Proficiencies":
+    heading_override: "Herbalism & Healing Proficiencies"
 
 # Authority tables — parsed from bronze markdown as ground truth for entry names
 # Each entry: {table: name, page: printed page number, type: entry_type}

@@ -23,4 +23,4 @@ left join {{ ref('silver_entries') }} e
     on e.source_file = t.source_file
     and e.toc_id = t.toc_id
 where t.is_excluded = false
-order by t.source_file, t.sort_order, e.entry_id
+order by t.source_file, t.sort_order, e.entry_title
