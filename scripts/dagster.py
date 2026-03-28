@@ -2,7 +2,7 @@
 """Convenience wrapper for Dagster operations via GraphQL API.
 
 Usage:
-    python scripts/dagster.py launch <job_name>
+    python scripts/dagster.py launch <job_name> [--force]
     python scripts/dagster.py status <run_id>
     python scripts/dagster.py logs <run_id> [N]
     python scripts/dagster.py cancel <run_id>
@@ -33,7 +33,11 @@ def gql(query: str) -> dict:
     return json.loads(result.stdout)
 
 
-def cmd_launch(job: str):
+def cmd_launch(job: str, force: bool = False):
+    run_config = ""
+    if force:
+        config_json = json.dumps({"ops": {"bronze_tabletop": {"config": {"force": True}}}})
+        run_config = f', runConfigData: "{config_json.replace(chr(34), chr(92)+chr(34))}"'
     q = f'''mutation {{
         launchRun(executionParams: {{
             selector: {{
@@ -42,6 +46,7 @@ def cmd_launch(job: str):
                 jobName: "{job}"
             }},
             mode: "default"
+            {run_config}
         }}) {{
             __typename
             ... on LaunchRunSuccess {{ run {{ runId status }} }}
@@ -126,7 +131,9 @@ if __name__ == "__main__":
     cmd = args[0]
     try:
         if cmd == "launch":
-            cmd_launch(args[1])
+            force = "--force" in args
+            job_args = [a for a in args[1:] if not a.startswith("--")]
+            cmd_launch(job_args[0], force=force)
         elif cmd == "status":
             cmd_status(args[1])
         elif cmd == "logs":

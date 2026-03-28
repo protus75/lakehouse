@@ -1,0 +1,894 @@
+Total rows: 892
+{"table_number": "1", "table_title": "Strength", "row_index": "0", "cells": "[\"Table 1:\", \"Strength 19\", \"Table 35:\", \"Specialist Attacks per Round 71\", \"\", \"\"]"}
+{"table_number": "1", "table_title": "Strength", "row_index": "1", "cells": "[\"Table 2:\", \"Dexterity 20\", \"Table 36:\", \"Secondary Skills 75\", \"\", \"\"]"}
+{"table_number": "1", "table_title": "Strength", "row_index": "2", "cells": "[\"Table 3:\", \"Constitution 21\", \"Table 37:\", \"Nonweapon Proficiency Groups 76\", \"\", \"\"]"}
+{"table_number": "1", "table_title": "Strength", "row_index": "3", "cells": "[\"Table 4:\", \"Intelligence 22\", \"Table 38:\", \"Nonweapon Proficiency\", \"\", \"\"]"}
+{"table_number": "1", "table_title": "Strength", "row_index": "4", "cells": "[\"Table 5:\", \"Wisdom 23\", \"\", \"Group Crossovers 77\", \"\", \"\"]"}
+{"table_number": "1", "table_title": "Strength", "row_index": "5", "cells": "[\"Table 6:\", \"Charisma 25\", \"Table 39:\", \"Tracking Modifiers 86\", \"\", \"\"]"}
+{"table_number": "1", "table_title": "Strength", "row_index": "6", "cells": "[\"Table 7:\", \"Racial Ability Requirements 27\", \"Table 40:\", \"Movement While Tracking 87\", \"\", \"\"]"}
+{"table_number": "1", "table_title": "Strength", "row_index": "7", "cells": "[\"Table 8:\", \"Racial Ability Adjustments 27\", \"Table 41:\", \"Weapon Construction 87\", \"\", \"\"]"}
+{"table_number": "1", "table_title": "Strength", "row_index": "8", "cells": "[\"Table 9:\", \"Constitution Saving Throw Bonuses 28\", \"Table 42:\", \"Standard Exchange Rates 89\", \"\", \"\"]"}
+{"table_number": "1", "table_title": "Strength", "row_index": "9", "cells": "[\"Table 10:\", \"Average Height and Weight 33\", \"Table 43:\", \"Initial Character Funds 89\", \"\", \"\"]"}
+{"table_number": "1", "table_title": "Strength", "row_index": "10", "cells": "[\"Table 11:\", \"Age 33\", \"Table 44:\", \"Equipment 90, 94\", \"\", \"\"]"}
+{"table_number": "1", "table_title": "Strength", "row_index": "11", "cells": "[\"Table 12:\", \"Aging Effects 33\", \"Table 45:\", \"Missile Weapon Ranges 95\", \"\", \"\"]"}
+{"table_number": "1", "table_title": "Strength", "row_index": "12", "cells": "[\"Table 13:\", \"Class Ability Minimums 35\", \"Table 46:\", \"Armor Class Ratings 99\", \"\", \"\"]"}
+{"table_number": "1", "table_title": "Strength", "row_index": "13", "cells": "[\"Table 14:\", \"Warrior Experience Levels 36\", \"Table 47:\", \"Character Encumbrance 103\", \"\", \"\"]"}
+{"table_number": "1", "table_title": "Strength", "row_index": "14", "cells": "[\"Table 15:\", \"Warrior Melee Attacks per Round 36\", \"Table 48:\", \"Modified Movement Rates 103\", \"\", \"\"]"}
+{"table_number": "1", "table_title": "Strength", "row_index": "15", "cells": "[\"Table 16:\", \"Fighter's Followers 38\", \"Table 49:\", \"Carrying Capacities of Animals 105\", \"\", \"\"]"}
+{"table_number": "1", "table_title": "Strength", "row_index": "16", "cells": "[\"Table 17:\", \"Paladin Spell Progression 40\", \"Table 50:\", \"Stowage Capacity 105\", \"\", \"\"]"}
+{"table_number": "1", "table_title": "Strength", "row_index": "17", "cells": "[\"Table 18:\", \"Ranger Abilities 41\", \"Table 51:\", \"Combat Modifiers 120\", \"\", \"\"]"}
+{"table_number": "1", "table_title": "Strength", "row_index": "18", "cells": "[\"Table 19:\", \"Ranger's Followers 41\", \"Table 52:\", \"Weapon Type vs. Armor Modifiers 121\", \"\", \"\"]"}
+{"table_number": "1", "table_title": "Strength", "row_index": "19", "cells": "[\"Table 20:\", \"Wizard Experience Levels 42\", \"Table 53:\", \"Calculated THAC0s 121\", \"\", \"\"]"}
+{"table_number": "1", "table_title": "Strength", "row_index": "20", "cells": "[\"Table 21:\", \"Wizard Spell Progression 43\", \"Table 54:\", \"THAC0 Advancement 121\", \"\", \"\"]"}
+{"table_number": "1", "table_title": "Strength", "row_index": "21", "cells": "[\"Table 22:\", \"Wizard Specialist Requirements 45\", \"Table 55:\", \"Standard Modifiers to Initiative 125\", \"\", \"\"]"}
+{"table_number": "1", "table_title": "Strength", "row_index": "22", "cells": "[\"Table 23:\", \"Priest Experience Levels 47\", \"Table 56:\", \"Optional Modifiers to Initiative 125\", \"\", \"\"]"}
+{"table_number": "1", "table_title": "Strength", "row_index": "23", "cells": "[\"Table 24:\", \"Priest Spell Progression 47\", \"Table 57:\", \"Armor Modifiers for Wrestling 128\", \"\", \"\"]"}
+{"table_number": "1", "table_title": "Strength", "row_index": "24", "cells": "[\"Table 25:\", \"Rogue Experience Levels 53\", \"Table 58:\", \"Punching and Wrestling Results 129\", \"\", \"\"]"}
+{"table_number": "1", "table_title": "Strength", "row_index": "25", "cells": "[\"Table 26:\", \"Thieving Skill Base Scores 54\", \"Table 59:\", \"Cover and Concealment Modifiers 132\", \"\", \"\"]"}
+{"table_number": "1", "table_title": "Strength", "row_index": "26", "cells": "[\"Table 27:\", \"Thieving Skill Racial Adjustments 54\", \"Table 60:\", \"Character Saving Throws 134\", \"\", \"\"]"}
+{"table_number": "1", "table_title": "Strength", "row_index": "27", "cells": "[\"Table 28:\", \"Thieving Skill Dexterity Adjustments 54\", \"Table 61:\", \"Turning Undead 137\", \"\", \"\"]"}
+{"table_number": "1", "table_title": "Strength", "row_index": "28", "cells": "[\"Table 29:\", \"Thieving Skill Armor Adjustments 56\", \"Table 62:\", \"Visibility Ranges 155\", \"\", \"\"]"}
+{"table_number": "1", "table_title": "Strength", "row_index": "29", "cells": "[\"Table 30:\", \"Backstab Damage Multipliers 57\", \"Table 63:\", \"Light Sources 155\", \"\", \"\"]"}
+{"table_number": "1", "table_title": "Strength", "row_index": "30", "cells": "[\"Table 31:\", \"Thief's Followers 58\", \"Table 64:\", \"Base Movement Rates 157\", \"\", \"\"]"}
+{"table_number": "1", "table_title": "Strength", "row_index": "31", "cells": "[\"Table 32:\", \"Bard Spell Progression 59\", \"Table 65:\", \"Base Climbing Success Rates 161\", \"\", \"\"]"}
+{"table_number": "1", "table_title": "Strength", "row_index": "32", "cells": "[\"Table 33:\", \"Bard Abilities 59\", \"Table 66:\", \"Climbing Modifiers 161\", \"\", \"\"]"}
+{"table_number": "1", "table_title": "Strength", "row_index": "33", "cells": "[\"Table 34:\", \"Proficiency Slots 71\", \"Table 67:\", \"Rates of Climbing 163\", \"\", \"\"]"}
+{"table_number": "2", "table_title": "Dexterity", "row_index": "0", "cells": "[\"Table 2:<br>Dexterity\", \"\", \"\", \"\", \"\", \"\", \"\"]"}
+{"table_number": "2", "table_title": "Dexterity", "row_index": "1", "cells": "[\"Ability<br>Score\", \"Reaction<br>Adj.\", \"Missile<br>Attack<br>Adj.\", \"Defensive<br>Adj.\", \"\", \"\", \"\"]"}
+{"table_number": "2", "table_title": "Dexterity", "row_index": "2", "cells": "[\"1\", \"\\u20136\", \"\\u20136\", \"+5\", \"\", \"\", \"\"]"}
+{"table_number": "2", "table_title": "Dexterity", "row_index": "3", "cells": "[\"2\", \"\\u20134\", \"\\u20134\", \"+5\", \"\", \"\", \"\"]"}
+{"table_number": "2", "table_title": "Dexterity", "row_index": "4", "cells": "[\"3\", \"\\u20133\", \"\\u20133\", \"+4\", \"\", \"\", \"\"]"}
+{"table_number": "2", "table_title": "Dexterity", "row_index": "5", "cells": "[\"4\", \"\\u20132\", \"\\u20132\", \"+3\", \"\", \"\", \"\"]"}
+{"table_number": "2", "table_title": "Dexterity", "row_index": "6", "cells": "[\"5\", \"\\u20131\", \"\\u20131\", \"+2\", \"\", \"\", \"\"]"}
+{"table_number": "2", "table_title": "Dexterity", "row_index": "7", "cells": "[\"6\", \"0\", \"0\", \"+1\", \"\", \"\", \"\"]"}
+{"table_number": "2", "table_title": "Dexterity", "row_index": "8", "cells": "[\"7\", \"0\", \"0\", \"0\", \"\", \"\", \"\"]"}
+{"table_number": "2", "table_title": "Dexterity", "row_index": "9", "cells": "[\"8\", \"0\", \"0\", \"0\", \"\", \"\", \"\"]"}
+{"table_number": "2", "table_title": "Dexterity", "row_index": "10", "cells": "[\"9\", \"0\", \"0\", \"0\", \"\", \"\", \"\"]"}
+{"table_number": "2", "table_title": "Dexterity", "row_index": "11", "cells": "[\"10\\u201314\", \"0\", \"0\", \"0\", \"\", \"\", \"\"]"}
+{"table_number": "2", "table_title": "Dexterity", "row_index": "12", "cells": "[\"15\", \"0\", \"0\", \"\\u20131\", \"\", \"\", \"\"]"}
+{"table_number": "2", "table_title": "Dexterity", "row_index": "13", "cells": "[\"16\", \"+1\", \"+1\", \"\\u20132\", \"\", \"\", \"\"]"}
+{"table_number": "2", "table_title": "Dexterity", "row_index": "14", "cells": "[\"17\", \"+2\", \"+2\", \"\\u20133\", \"\", \"\", \"\"]"}
+{"table_number": "2", "table_title": "Dexterity", "row_index": "15", "cells": "[\"18\", \"+2\", \"+2\", \"\\u20134\", \"\", \"\", \"\"]"}
+{"table_number": "2", "table_title": "Dexterity", "row_index": "16", "cells": "[\"19\", \"+3\", \"+3\", \"\\u20134\", \"\", \"\", \"\"]"}
+{"table_number": "2", "table_title": "Dexterity", "row_index": "17", "cells": "[\"20\", \"+3\", \"+3\", \"\\u20134\", \"\", \"\", \"\"]"}
+{"table_number": "2", "table_title": "Dexterity", "row_index": "18", "cells": "[\"21\", \"+4\", \"+4\", \"\\u20135\", \"\", \"\", \"\"]"}
+{"table_number": "2", "table_title": "Dexterity", "row_index": "19", "cells": "[\"22\", \"+4\", \"+4\", \"\\u20135\", \"\", \"\", \"\"]"}
+{"table_number": "2", "table_title": "Dexterity", "row_index": "20", "cells": "[\"23\", \"+4\", \"+4\", \"\\u20135\", \"\", \"\", \"\"]"}
+{"table_number": "2", "table_title": "Dexterity", "row_index": "21", "cells": "[\"24\", \"+5\", \"+5\", \"\\u20136\", \"\", \"\", \"\"]"}
+{"table_number": "2", "table_title": "Dexterity", "row_index": "22", "cells": "[\"25\", \"+5\", \"+5\", \"\\u20136\", \"\", \"\", \"\"]"}
+{"table_number": "3", "table_title": "Constitution", "row_index": "0", "cells": "[\"Table 3:\"]"}
+{"table_number": "3", "table_title": "Constitution", "row_index": "1", "cells": "[\"Constitution\"]"}
+{"table_number": "3", "table_title": "Constitution", "row_index": "2", "cells": "[\"Ability<br>Score\", \"Hit Point<br>Adjustment\", \"System<br>Shock\", \"Resurrection<br>Survival\", \"Poison<br>Save\", \"Regeneration\"]"}
+{"table_number": "3", "table_title": "Constitution", "row_index": "3", "cells": "[\"1\", \"\\u20133\", \"25%\", \"30%\", \"\\u20132\", \"Nil\"]"}
+{"table_number": "3", "table_title": "Constitution", "row_index": "4", "cells": "[\"2\", \"\\u20132\", \"30%\", \"35%\", \"\\u20131\", \"Nil\"]"}
+{"table_number": "3", "table_title": "Constitution", "row_index": "5", "cells": "[\"3\", \"\\u20132\", \"35%\", \"40%\", \"0\", \"Nil\"]"}
+{"table_number": "3", "table_title": "Constitution", "row_index": "6", "cells": "[\"4\", \"\\u20131\", \"40%\", \"45%\", \"0\", \"Nil\"]"}
+{"table_number": "3", "table_title": "Constitution", "row_index": "7", "cells": "[\"5\", \"\\u20131\", \"45%\", \"50%\", \"0\", \"Nil\"]"}
+{"table_number": "3", "table_title": "Constitution", "row_index": "8", "cells": "[\"6\", \"\\u20131\", \"50%\", \"55%\", \"0\", \"Nil\"]"}
+{"table_number": "3", "table_title": "Constitution", "row_index": "9", "cells": "[\"7\", \"0\", \"55%\", \"60%\", \"0\", \"Nil\"]"}
+{"table_number": "3", "table_title": "Constitution", "row_index": "10", "cells": "[\"8\", \"0\", \"60%\", \"65%\", \"0\", \"Nil\"]"}
+{"table_number": "3", "table_title": "Constitution", "row_index": "11", "cells": "[\"9\", \"0\", \"65%\", \"70%\", \"0\", \"Nil\"]"}
+{"table_number": "3", "table_title": "Constitution", "row_index": "12", "cells": "[\"10\", \"0\", \"70%\", \"75%\", \"0\", \"Nil\"]"}
+{"table_number": "3", "table_title": "Constitution", "row_index": "13", "cells": "[\"11\", \"0\", \"75%\", \"80%\", \"0\", \"Nil\"]"}
+{"table_number": "3", "table_title": "Constitution", "row_index": "14", "cells": "[\"12\", \"0\", \"80%\", \"85%\", \"0\", \"Nil\"]"}
+{"table_number": "3", "table_title": "Constitution", "row_index": "15", "cells": "[\"13\", \"0\", \"85%\", \"90%\", \"0\", \"Nil\"]"}
+{"table_number": "3", "table_title": "Constitution", "row_index": "16", "cells": "[\"14\", \"0\", \"88%\", \"92%\", \"0\", \"Nil\"]"}
+{"table_number": "3", "table_title": "Constitution", "row_index": "17", "cells": "[\"15\", \"+1\", \"90%\", \"94%\", \"0\", \"Nil\"]"}
+{"table_number": "3", "table_title": "Constitution", "row_index": "18", "cells": "[\"16\", \"+2\", \"95%\", \"96%\", \"0\", \"Nil\"]"}
+{"table_number": "3", "table_title": "Constitution", "row_index": "19", "cells": "[\"17\", \"+2 (+3)*\", \"97%\", \"98%\", \"0\", \"Nil\"]"}
+{"table_number": "3", "table_title": "Constitution", "row_index": "20", "cells": "[\"18\", \"+2 (+4)*\", \"99%\", \"100%\", \"0\", \"Nil\"]"}
+{"table_number": "3", "table_title": "Constitution", "row_index": "21", "cells": "[\"19\", \"+2 (+5)*\", \"99%\", \"100%\", \"+1\", \"Nil\"]"}
+{"table_number": "3", "table_title": "Constitution", "row_index": "22", "cells": "[\"20\", \"+2 (+5)**\", \"99%\", \"100%\", \"+1\", \"1/6 turns\"]"}
+{"table_number": "3", "table_title": "Constitution", "row_index": "23", "cells": "[\"21\", \"+2 (+6)***\", \"99%\", \"100%\", \"+2\", \"1/5 turns\"]"}
+{"table_number": "3", "table_title": "Constitution", "row_index": "24", "cells": "[\"22\", \"+2 (+6)***\", \"99%\", \"100%\", \"+2\", \"1/4 turns\"]"}
+{"table_number": "3", "table_title": "Constitution", "row_index": "25", "cells": "[\"23\", \"+2 (+6)****\", \"99%\", \"100%\", \"+3\", \"1/3 turns\"]"}
+{"table_number": "3", "table_title": "Constitution", "row_index": "26", "cells": "[\"24\", \"+2 (+7)****\", \"99%\", \"100%\", \"+3\", \"1/2 turns\"]"}
+{"table_number": "3", "table_title": "Constitution", "row_index": "27", "cells": "[\"25\", \"+2 (+7)****\", \"100%\", \"100%\", \"+4\", \"1/1 turn\"]"}
+{"table_number": "4", "table_title": "Intelligence", "row_index": "0", "cells": "[\"Table 4:\", \"\", \"\", \"\", \"\", \"\", \"\", \"\"]"}
+{"table_number": "4", "table_title": "Intelligence", "row_index": "1", "cells": "[\"\", \"Intelligence\", \"\", \"\", \"\", \"\", \"\", \"\"]"}
+{"table_number": "4", "table_title": "Intelligence", "row_index": "2", "cells": "[\"Ability<br>Score\", \"# of<br>Lang.\", \"Spell<br>Level\", \"Chance to<br>Learn Spell\", \"Max. # of<br>Spells/Level\", \"Illusion<br>Immunity\"]"}
+{"table_number": "4", "table_title": "Intelligence", "row_index": "3", "cells": "[\"1\", \"0*\", \"\\u2014\", \"\\u2014\", \"\\u2014\", \"\\u2014\"]"}
+{"table_number": "4", "table_title": "Intelligence", "row_index": "4", "cells": "[\"2\", \"1\", \"\\u2014\", \"\\u2014\", \"\\u2014\", \"\\u2014\"]"}
+{"table_number": "4", "table_title": "Intelligence", "row_index": "5", "cells": "[\"3\", \"1\", \"\\u2014\", \"\\u2014\", \"\\u2014\", \"\\u2014\"]"}
+{"table_number": "4", "table_title": "Intelligence", "row_index": "6", "cells": "[\"4\", \"1\", \"\\u2014\", \"\\u2014\", \"\\u2014\", \"\\u2014\"]"}
+{"table_number": "4", "table_title": "Intelligence", "row_index": "7", "cells": "[\"5\", \"1\", \"\\u2014\", \"\\u2014\", \"\\u2014\", \"\\u2014\"]"}
+{"table_number": "4", "table_title": "Intelligence", "row_index": "8", "cells": "[\"6\", \"1\", \"\\u2014\", \"\\u2014\", \"\\u2014\", \"\\u2014\"]"}
+{"table_number": "4", "table_title": "Intelligence", "row_index": "9", "cells": "[\"7\", \"1\", \"\\u2014\", \"\\u2014\", \"\\u2014\", \"\\u2014\"]"}
+{"table_number": "4", "table_title": "Intelligence", "row_index": "10", "cells": "[\"8\", \"1\", \"\\u2014\", \"\\u2014\", \"\\u2014\", \"\\u2014\"]"}
+{"table_number": "4", "table_title": "Intelligence", "row_index": "11", "cells": "[\"9\", \"2\", \"4th\", \"35%\", \"6\", \"\\u2014\"]"}
+{"table_number": "4", "table_title": "Intelligence", "row_index": "12", "cells": "[\"10\", \"2\", \"5th\", \"40%\", \"7\", \"\\u2014\"]"}
+{"table_number": "4", "table_title": "Intelligence", "row_index": "13", "cells": "[\"11\", \"2\", \"5th\", \"45%\", \"7\", \"\\u2014\"]"}
+{"table_number": "4", "table_title": "Intelligence", "row_index": "14", "cells": "[\"12\", \"3\", \"6th\", \"50%\", \"7\", \"\\u2014\"]"}
+{"table_number": "4", "table_title": "Intelligence", "row_index": "15", "cells": "[\"13\", \"3\", \"6th\", \"55%\", \"9\", \"\\u2014\"]"}
+{"table_number": "4", "table_title": "Intelligence", "row_index": "16", "cells": "[\"14\", \"4\", \"7th\", \"60%\", \"9\", \"\\u2014\"]"}
+{"table_number": "4", "table_title": "Intelligence", "row_index": "17", "cells": "[\"15\", \"4\", \"7th\", \"65%\", \"11\", \"\\u2014\"]"}
+{"table_number": "4", "table_title": "Intelligence", "row_index": "18", "cells": "[\"16\", \"5\", \"8th\", \"70%\", \"11\", \"\\u2014\"]"}
+{"table_number": "4", "table_title": "Intelligence", "row_index": "19", "cells": "[\"17\", \"6\", \"8th\", \"75%\", \"14\", \"\\u2014\"]"}
+{"table_number": "4", "table_title": "Intelligence", "row_index": "20", "cells": "[\"18\", \"7\", \"9th\", \"85%\", \"18\", \"\\u2014\"]"}
+{"table_number": "4", "table_title": "Intelligence", "row_index": "21", "cells": "[\"19\", \"8\", \"9th\", \"95%\", \"All\", \"1st-level\"]"}
+{"table_number": "4", "table_title": "Intelligence", "row_index": "22", "cells": "[\"20\", \"9\", \"9th\", \"96%\", \"All\", \"2nd-level\"]"}
+{"table_number": "4", "table_title": "Intelligence", "row_index": "23", "cells": "[\"21\", \"10\", \"9th\", \"97%\", \"All\", \"3rd-level\"]"}
+{"table_number": "4", "table_title": "Intelligence", "row_index": "24", "cells": "[\"22\", \"11\", \"9th\", \"98%\", \"All\", \"4th-level\"]"}
+{"table_number": "4", "table_title": "Intelligence", "row_index": "25", "cells": "[\"23\", \"12\", \"9th\", \"99%\", \"All\", \"5th-level\"]"}
+{"table_number": "4", "table_title": "Intelligence", "row_index": "26", "cells": "[\"24\", \"15\", \"9th\", \"100%\", \"All\", \"6th-level\"]"}
+{"table_number": "4", "table_title": "Intelligence", "row_index": "27", "cells": "[\"25\", \"20\", \"9th\", \"100%\", \"All\", \"7th-level\"]"}
+{"table_number": "5", "table_title": "Wisdom", "row_index": "0", "cells": "[\"Ability<br>Score<br>1\", \"Magical<br>Defense<br>Adjustment<br>\\u20136\", \"Bonus<br>Spells<br>\\u2014\", \"Chance<br>of Spell<br>Failure<br>80%\", \"Spell<br>Immunity<br>\\u2014\"]"}
+{"table_number": "5", "table_title": "Wisdom", "row_index": "1", "cells": "[\"2\", \"\\u20134\", \"\\u2014\", \"60%\", \"\\u2014\"]"}
+{"table_number": "5", "table_title": "Wisdom", "row_index": "2", "cells": "[\"3\", \"\\u20133\", \"\\u2014\", \"50%\", \"\\u2014\"]"}
+{"table_number": "5", "table_title": "Wisdom", "row_index": "3", "cells": "[\"4\", \"\\u20132\", \"\\u2014\", \"45%\", \"\\u2014\"]"}
+{"table_number": "5", "table_title": "Wisdom", "row_index": "4", "cells": "[\"5\", \"\\u20131\", \"\\u2014\", \"40%\", \"\\u2014\"]"}
+{"table_number": "5", "table_title": "Wisdom", "row_index": "5", "cells": "[\"6\", \"\\u20131\", \"\\u2014\", \"35%\", \"\\u2014\"]"}
+{"table_number": "5", "table_title": "Wisdom", "row_index": "6", "cells": "[\"7\", \"\\u20131\", \"\\u2014\", \"30%\", \"\\u2014\"]"}
+{"table_number": "5", "table_title": "Wisdom", "row_index": "7", "cells": "[\"8<br>9\", \"0<br>0\", \"\\u2014<br>0\", \"25%<br>20%\", \"\\u2014<br>\\u2014\"]"}
+{"table_number": "5", "table_title": "Wisdom", "row_index": "8", "cells": "[\"10\", \"0\", \"0\", \"15%\", \"\\u2014\"]"}
+{"table_number": "5", "table_title": "Wisdom", "row_index": "9", "cells": "[\"11\", \"0\", \"0\", \"10%\", \"\\u2014\"]"}
+{"table_number": "5", "table_title": "Wisdom", "row_index": "10", "cells": "[\"12\", \"0\", \"0\", \"5%\", \"\\u2014\"]"}
+{"table_number": "5", "table_title": "Wisdom", "row_index": "11", "cells": "[\"13\", \"0\", \"1st\", \"0%\", \"\\u2014\"]"}
+{"table_number": "5", "table_title": "Wisdom", "row_index": "12", "cells": "[\"14\", \"0\", \"1st\", \"0%\", \"\\u2014\"]"}
+{"table_number": "5", "table_title": "Wisdom", "row_index": "13", "cells": "[\"15\", \"+1\", \"2nd\", \"0%\", \"\\u2014\"]"}
+{"table_number": "5", "table_title": "Wisdom", "row_index": "14", "cells": "[\"16\", \"+2\", \"2nd\", \"0%\", \"\\u2014\"]"}
+{"table_number": "5", "table_title": "Wisdom", "row_index": "15", "cells": "[\"17\", \"+3\", \"3rd\", \"0%\", \"\\u2014\"]"}
+{"table_number": "5", "table_title": "Wisdom", "row_index": "16", "cells": "[\"18\", \"+4\", \"4th\", \"0%\", \"\\u2014\"]"}
+{"table_number": "5", "table_title": "Wisdom", "row_index": "17", "cells": "[\"19\", \"+4\", \"1st, 3rd\", \"0%\", \"cause fear, charm person,\"]"}
+{"table_number": "5", "table_title": "Wisdom", "row_index": "18", "cells": "[\"20\", \"+4\", \"2nd, 4th\", \"0%\", \"command, friends, hypnotism<br>forget, hold person, ray of<br>en feeblement, scare\"]"}
+{"table_number": "5", "table_title": "Wisdom", "row_index": "19", "cells": "[\"21\", \"+4\", \"3rd, 5th\", \"0%\", \"fear\"]"}
+{"table_number": "5", "table_title": "Wisdom", "row_index": "20", "cells": "[\"22\", \"+4\", \"4th, 5th\", \"0%\", \"charm monster, confusion,<br>emotion, fumble, suggestion\"]"}
+{"table_number": "5", "table_title": "Wisdom", "row_index": "21", "cells": "[\"23\", \"+4\", \"1st, 6th\", \"0%\", \"chaos, feeblemind, hold<br>monster, magic jar, quest\"]"}
+{"table_number": "5", "table_title": "Wisdom", "row_index": "22", "cells": "[\"24\", \"+4\", \"5th, 6th\", \"0%\", \"geas, mass suggestion, rod<br>of rulership\"]"}
+{"table_number": "5", "table_title": "Wisdom", "row_index": "23", "cells": "[\"25\", \"+4\", \"6th, 7th\", \"0%\", \"antipathy/sympathy, death<br>spell, mass charm\"]"}
+{"table_number": "6", "table_title": "Charisma", "row_index": "0", "cells": "[\"Table 6:\", \"\", \"\", \"\", \"\", \"\"]"}
+{"table_number": "6", "table_title": "Charisma", "row_index": "1", "cells": "[\"Charisma\", \"\", \"\", \"\", \"\", \"\"]"}
+{"table_number": "6", "table_title": "Charisma", "row_index": "2", "cells": "[\"\", \"Maximum\", \"\", \"\", \"\", \"\"]"}
+{"table_number": "6", "table_title": "Charisma", "row_index": "3", "cells": "[\"Ability\", \"# of\", \"Loyalty\", \"Reaction\", \"\", \"\"]"}
+{"table_number": "6", "table_title": "Charisma", "row_index": "4", "cells": "[\"Score\", \"Henchmen\", \"Base\", \"Adjustment\", \"\", \"\"]"}
+{"table_number": "6", "table_title": "Charisma", "row_index": "5", "cells": "[\"1\", \"0\", \"-8\", \"<b>\\u2013</b> 7\", \"\", \"\"]"}
+{"table_number": "6", "table_title": "Charisma", "row_index": "6", "cells": "[\"2\", \"1\", \"<b>-</b> 7\", \"-6\", \"\", \"\"]"}
+{"table_number": "6", "table_title": "Charisma", "row_index": "7", "cells": "[\"3\", \"1\", \"-6\", \"<b>-</b> 5\", \"\", \"\"]"}
+{"table_number": "6", "table_title": "Charisma", "row_index": "8", "cells": "[\"4<br>5\", \"1\", \"-5<br>-4<br>-3<br>-2\", \"-4\", \"\", \"\"]"}
+{"table_number": "6", "table_title": "Charisma", "row_index": "9", "cells": "[\"5\", \"2\", \"-4\", \"-4<br>-3<br>-2<br>-1\", \"\", \"\"]"}
+{"table_number": "6", "table_title": "Charisma", "row_index": "10", "cells": "[\"6\", \"2\", \"-3\", \"-2\", \"\", \"\"]"}
+{"table_number": "6", "table_title": "Charisma", "row_index": "11", "cells": "[\"7\", \"2<br>3<br>3\", \"-2\", \"-1\", \"\", \"\"]"}
+{"table_number": "6", "table_title": "Charisma", "row_index": "12", "cells": "[\"8<br>9\", \"3\", \"-1\", \"0\", \"\", \"\"]"}
+{"table_number": "6", "table_title": "Charisma", "row_index": "13", "cells": "[\"9\", \"4\", \"0\", \"0\", \"\", \"\"]"}
+{"table_number": "6", "table_title": "Charisma", "row_index": "14", "cells": "[\"10\", \"4\", \"0\", \"0\", \"\", \"\"]"}
+{"table_number": "6", "table_title": "Charisma", "row_index": "15", "cells": "[\"11\", \"4\", \"0\", \"0\", \"\", \"\"]"}
+{"table_number": "6", "table_title": "Charisma", "row_index": "16", "cells": "[\"12\", \"5\", \"0\", \"0\", \"\", \"\"]"}
+{"table_number": "6", "table_title": "Charisma", "row_index": "17", "cells": "[\"13\", \"5\", \"0\", \"+1\", \"\", \"\"]"}
+{"table_number": "6", "table_title": "Charisma", "row_index": "18", "cells": "[\"14\", \"6\", \"+1\", \"+2\", \"\", \"\"]"}
+{"table_number": "6", "table_title": "Charisma", "row_index": "19", "cells": "[\"15\", \"7\", \"<b>_</b> _3\", \"<b>\\u22a5</b> \\u30b9\", \"\", \"\"]"}
+{"table_number": "7", "table_title": "Racial Ability Requirements", "row_index": "0", "cells": "[\"Ability\", \"Dwarf\", \"Elf\", \"Gnome\", \"Half-Elf\", \"Halfling\"]"}
+{"table_number": "7", "table_title": "Racial Ability Requirements", "row_index": "1", "cells": "[\"Strength\", \"8/18\", \"3/18\", \"6/18\", \"3/18\", \"7/18 *\"]"}
+{"table_number": "7", "table_title": "Racial Ability Requirements", "row_index": "2", "cells": "[\"Dexterity\", \"3/17\", \"6/18\", \"3/18\", \"6/18\", \"7/18\"]"}
+{"table_number": "7", "table_title": "Racial Ability Requirements", "row_index": "3", "cells": "[\"Constitution\", \"11/18\", \"7/18\", \"8/18\", \"6/18\", \"10/18\"]"}
+{"table_number": "7", "table_title": "Racial Ability Requirements", "row_index": "4", "cells": "[\"Intelligence\", \"3/18\", \"8/18\", \"6/18\", \"4/18\", \"6/18\"]"}
+{"table_number": "7", "table_title": "Racial Ability Requirements", "row_index": "5", "cells": "[\"Wisdom\", \"3/18\", \"3/18\", \"3/18\", \"3/18\", \"3/17\"]"}
+{"table_number": "7", "table_title": "Racial Ability Requirements", "row_index": "6", "cells": "[\"Charisma\", \"3/17\", \"8/18\", \"3/18\", \"3/18\", \"3/18\"]"}
+{"table_number": "9", "table_title": "Constitution Saving Throw Bonuses", "row_index": "0", "cells": "[\"Constitution Score\", \"Saving Throw Bonus\"]"}
+{"table_number": "9", "table_title": "Constitution Saving Throw Bonuses", "row_index": "1", "cells": "[\"4\\u20136\", \"+1\"]"}
+{"table_number": "9", "table_title": "Constitution Saving Throw Bonuses", "row_index": "2", "cells": "[\"7\\u201310\", \"+2\"]"}
+{"table_number": "9", "table_title": "Constitution Saving Throw Bonuses", "row_index": "3", "cells": "[\"11\\u201313\", \"+3\"]"}
+{"table_number": "9", "table_title": "Constitution Saving Throw Bonuses", "row_index": "4", "cells": "[\"14-17\", \"+4\"]"}
+{"table_number": "9", "table_title": "Constitution Saving Throw Bonuses", "row_index": "5", "cells": "[\"18-19\", \"+5\"]"}
+{"table_number": "9", "table_title": "Constitution Saving Throw Bonuses", "row_index": "6", "cells": "[\"Detect grade or slope in passage\", \"1-5 on 1d6\"]"}
+{"table_number": "9", "table_title": "Constitution Saving Throw Bonuses", "row_index": "7", "cells": "[\"Detect new tunnel/passage construction\", \"1-5 on 1d6\"]"}
+{"table_number": "9", "table_title": "Constitution Saving Throw Bonuses", "row_index": "8", "cells": "[\"Detect sliding/shifting walls or rooms\", \"1-4 on 1d6\"]"}
+{"table_number": "9", "table_title": "Constitution Saving Throw Bonuses", "row_index": "9", "cells": "[\"Detect stonework traps, pits, and deadfalls\", \"1-3 on 1d6\"]"}
+{"table_number": "9", "table_title": "Constitution Saving Throw Bonuses", "row_index": "10", "cells": "[\"Determine approximate depth underground\", \"1-3 on 1d6\"]"}
+{"table_number": "10", "table_title": "Average Height and Weight", "row_index": "0", "cells": "[\"\", \"Height in Inches\", \"\", \"Weight in Pounds\", \"\"]"}
+{"table_number": "10", "table_title": "Average Height and Weight", "row_index": "1", "cells": "[\"Race\", \"Base*\", \"Modifier\", \"Base*\", \"Modifier\"]"}
+{"table_number": "10", "table_title": "Average Height and Weight", "row_index": "2", "cells": "[\"Dwarf\", \"43/41\", \"1d10\", \"130/105\", \"4d10\"]"}
+{"table_number": "10", "table_title": "Average Height and Weight", "row_index": "3", "cells": "[\"Elf\", \"55/50\", \"1d10\", \"90/70\", \"3d10\"]"}
+{"table_number": "10", "table_title": "Average Height and Weight", "row_index": "4", "cells": "[\"Gnome\", \"38/36\", \"1d6\", \"72/68\", \"5d4\"]"}
+{"table_number": "10", "table_title": "Average Height and Weight", "row_index": "5", "cells": "[\"Half-elf\", \"60/58\", \"2d6\", \"110/85\", \"3d12\"]"}
+{"table_number": "10", "table_title": "Average Height and Weight", "row_index": "6", "cells": "[\"Halfling\", \"32/30\", \"2d8\", \"52/48\", \"5d4\"]"}
+{"table_number": "10", "table_title": "Average Height and Weight", "row_index": "7", "cells": "[\"Human\", \"60/59\", \"2d10\", \"140/100\", \"6d10\"]"}
+{"table_number": "11", "table_title": "Age", "row_index": "0", "cells": "[\"\", \"Starting Age\", \"\", \"Maximum Age Range\"]"}
+{"table_number": "11", "table_title": "Age", "row_index": "1", "cells": "[\"Race\", \"Base Age\", \"Variable\", \"(Base+Variable)\"]"}
+{"table_number": "11", "table_title": "Age", "row_index": "2", "cells": "[\"Dwarf\", \"40\", \"5d6\", \"250+2d100\"]"}
+{"table_number": "11", "table_title": "Age", "row_index": "3", "cells": "[\"Elf\", \"100\", \"5d6\", \"350+4d100*\"]"}
+{"table_number": "11", "table_title": "Age", "row_index": "4", "cells": "[\"Gnome\", \"60\", \"3d12\", \"200+3d100\"]"}
+{"table_number": "11", "table_title": "Age", "row_index": "5", "cells": "[\"Half-elf\", \"15\", \"1d6\", \"125+3d20\"]"}
+{"table_number": "11", "table_title": "Age", "row_index": "6", "cells": "[\"Halfling\", \"20\", \"3d4\", \"100+1d100\"]"}
+{"table_number": "11", "table_title": "Age", "row_index": "7", "cells": "[\"Human\", \"15\", \"1d4\", \"90+2d20\"]"}
+{"table_number": "12", "table_title": "Aging Effects", "row_index": "0", "cells": "[\"Race\", \"Middle Age*<br>(\\u00bd Base Max.)\", \"Old Age**<br>(\\u00bd Base Max.)\", \"Venerable***<br>(Base Max.)\"]"}
+{"table_number": "12", "table_title": "Aging Effects", "row_index": "1", "cells": "[\"Dwarf\", \"125 years\", \"167 years\", \"250 years\"]"}
+{"table_number": "12", "table_title": "Aging Effects", "row_index": "2", "cells": "[\"Elf\", \"175 years\", \"233 years\", \"350 years\"]"}
+{"table_number": "12", "table_title": "Aging Effects", "row_index": "3", "cells": "[\"Gnome\", \"100 years\", \"133 years\", \"200 years\"]"}
+{"table_number": "12", "table_title": "Aging Effects", "row_index": "4", "cells": "[\"Half-elf\", \"62 years\", \"83 years\", \"125 years\"]"}
+{"table_number": "12", "table_title": "Aging Effects", "row_index": "5", "cells": "[\"Halfling\", \"50 years\", \"67 years\", \"100 years\"]"}
+{"table_number": "12", "table_title": "Aging Effects", "row_index": "6", "cells": "[\"Human\", \"45 years\", \"60 years\", \"90 years\"]"}
+{"table_number": "13", "table_title": "Class Ability Minimums", "row_index": "0", "cells": "[\"Character\", \"\", \"\", \"\", \"\", \"\", \"\"]"}
+{"table_number": "13", "table_title": "Class Ability Minimums", "row_index": "1", "cells": "[\"Class\", \"Str\", \"Dex\", \"Con\", \"Int\", \"Wis\", \"Cha\"]"}
+{"table_number": "13", "table_title": "Class Ability Minimums", "row_index": "2", "cells": "[\"Fighter\", \"9\", \"\\u2014\", \"\\u2014\", \"\\u2014\", \"\\u2014\", \"\\u2014\"]"}
+{"table_number": "13", "table_title": "Class Ability Minimums", "row_index": "3", "cells": "[\"Paladin*\", \"12\", \"\\u2014\", \"9\", \"\\u2014\", \"13\", \"17\"]"}
+{"table_number": "13", "table_title": "Class Ability Minimums", "row_index": "4", "cells": "[\"Ranger*\", \"13\", \"13\", \"14\", \"\\u2014\", \"14\", \"\\u2014\"]"}
+{"table_number": "13", "table_title": "Class Ability Minimums", "row_index": "5", "cells": "[\"Mage\", \"\\u2014\", \"\\u2014\", \"\\u2014\", \"9\", \"\\u2014\", \"\\u2014\"]"}
+{"table_number": "13", "table_title": "Class Ability Minimums", "row_index": "6", "cells": "[\"Specialist*\", \"Var\", \"Var\", \"Var\", \"Var\", \"Var\", \"Var\"]"}
+{"table_number": "13", "table_title": "Class Ability Minimums", "row_index": "7", "cells": "[\"Cleric\", \"\\u2014\", \"\\u2014\", \"\\u2014\", \"\\u2014\", \"9\", \"\\u2014\"]"}
+{"table_number": "13", "table_title": "Class Ability Minimums", "row_index": "8", "cells": "[\"Druid*\", \"\\u2014\", \"\\u2014\", \"\\u2014\", \"\\u2014\", \"12\", \"15\"]"}
+{"table_number": "13", "table_title": "Class Ability Minimums", "row_index": "9", "cells": "[\"Thief\", \"\\u2014\", \"9\", \"\\u2014\", \"\\u2014\", \"\\u2014\", \"\\u2014\"]"}
+{"table_number": "13", "table_title": "Class Ability Minimums", "row_index": "10", "cells": "[\"Bard*\", \"\\u2014\", \"12\", \"\\u2014\", \"13\", \"\\u2014\", \"15\"]"}
+{"table_number": "14", "table_title": "Warrior Experience Levels", "row_index": "0", "cells": "[\"\", \"\", \"Daladia/\", \"Hit\"]"}
+{"table_number": "14", "table_title": "Warrior Experience Levels", "row_index": "1", "cells": "[\"Level\", \"Fighter\", \"Paladin/<br>Ranger\", \"Dice<br>(d10)\"]"}
+{"table_number": "14", "table_title": "Warrior Experience Levels", "row_index": "2", "cells": "[\"\", \"0\", \"Nangei<br>O\", \"` _ \\u2032\"]"}
+{"table_number": "14", "table_title": "Warrior Experience Levels", "row_index": "3", "cells": "[\"1\", \"0\", \"0\", \"1\"]"}
+{"table_number": "14", "table_title": "Warrior Experience Levels", "row_index": "4", "cells": "[\"2\", \"2,000\", \"2,250\", \"2\"]"}
+{"table_number": "14", "table_title": "Warrior Experience Levels", "row_index": "5", "cells": "[\"3\", \"4,000\", \"4,500\", \"3\"]"}
+{"table_number": "14", "table_title": "Warrior Experience Levels", "row_index": "6", "cells": "[\"4\", \"8,000\", \"9,000\", \"4\"]"}
+{"table_number": "14", "table_title": "Warrior Experience Levels", "row_index": "7", "cells": "[\"5\", \"16,000\", \"18,000\", \"5\"]"}
+{"table_number": "14", "table_title": "Warrior Experience Levels", "row_index": "8", "cells": "[\"6\", \"32,000\", \"36,000\", \"6\"]"}
+{"table_number": "14", "table_title": "Warrior Experience Levels", "row_index": "9", "cells": "[\"7\", \"64,000\", \"75,000\", \"7\"]"}
+{"table_number": "14", "table_title": "Warrior Experience Levels", "row_index": "10", "cells": "[\"8\", \"125,000\", \"150,000\", \"8\"]"}
+{"table_number": "14", "table_title": "Warrior Experience Levels", "row_index": "11", "cells": "[\"9\", \"250,000\", \"300,000\", \"9\"]"}
+{"table_number": "14", "table_title": "Warrior Experience Levels", "row_index": "12", "cells": "[\"10\", \"500,000\", \"600,000\", \"9+3\"]"}
+{"table_number": "14", "table_title": "Warrior Experience Levels", "row_index": "13", "cells": "[\"11\", \"750,000\", \"900,000\", \"9+6\"]"}
+{"table_number": "14", "table_title": "Warrior Experience Levels", "row_index": "14", "cells": "[\"12\", \"1,000,000\", \"1,200,000\", \"9+9\"]"}
+{"table_number": "14", "table_title": "Warrior Experience Levels", "row_index": "15", "cells": "[\"13\", \"1,250,000\", \"1,500,000\", \"9+12\"]"}
+{"table_number": "14", "table_title": "Warrior Experience Levels", "row_index": "16", "cells": "[\"14\", \"1,500,000\", \"1,800,000\", \"9+15\"]"}
+{"table_number": "14", "table_title": "Warrior Experience Levels", "row_index": "17", "cells": "[\"15\", \"1,750,000\", \"2,100,000\", \"9+18\"]"}
+{"table_number": "14", "table_title": "Warrior Experience Levels", "row_index": "18", "cells": "[\"16\", \"2,000,000\", \"2,400,000\", \"9+21\"]"}
+{"table_number": "14", "table_title": "Warrior Experience Levels", "row_index": "19", "cells": "[\"17\", \"2,250,000\", \"2,700,000\", \"9+24\"]"}
+{"table_number": "14", "table_title": "Warrior Experience Levels", "row_index": "20", "cells": "[\"18\", \"2,500,000\", \"3,000,000\", \"9+27\"]"}
+{"table_number": "14", "table_title": "Warrior Experience Levels", "row_index": "21", "cells": "[\"19\", \"\", \"\", \"9+30\"]"}
+{"table_number": "14", "table_title": "Warrior Experience Levels", "row_index": "22", "cells": "[\"20\", \"3,000,000\", \"3,600,000\", \"9+33\"]"}
+{"table_number": "14", "table_title": "Warrior Experience Levels", "row_index": "23", "cells": "[\"9<br>10<br>11<br>12<br>13<br>14<br>15<br>16<br>17<br>18\", \"250,000<br>500,000<br>750,000<br>1,000,000<br>1,250,000<br>1,500,000<br>2,000,000<br>2,250,000<br>2,750,000\", \"300,000<br>600,000<br>900,00"}
+{"table_number": "15", "table_title": "Warrior Melee Attacks per Round", "row_index": "0", "cells": "[\"Warrior Level\", \"Attacks/Round\"]"}
+{"table_number": "15", "table_title": "Warrior Melee Attacks per Round", "row_index": "1", "cells": "[\"1-6\", \"1/round\"]"}
+{"table_number": "15", "table_title": "Warrior Melee Attacks per Round", "row_index": "2", "cells": "[\"7\\u201312\", \"3/2 rounds\"]"}
+{"table_number": "15", "table_title": "Warrior Melee Attacks per Round", "row_index": "3", "cells": "[\"13 & up\", \"2/round\"]"}
+{"table_number": "16", "table_title": "Fighter\u2019s Followers", "row_index": "0", "cells": "[\"Die Roll<br>01\\u201340\", \"Leader (and suggested magical items)<br>5th-level fighter, plate mail, shield, battle axe<br>+2\"]"}
+{"table_number": "16", "table_title": "Fighter\u2019s Followers", "row_index": "1", "cells": "[\"41\\u201375\", \"6th-level fighter, plate mail, shield +1, spear\"]"}
+{"table_number": "16", "table_title": "Fighter\u2019s Followers", "row_index": "2", "cells": "[\"76\\u201395\", \"+1, dagger +1<br>6th-level fighter, plate mail +1, shield, spear<br>+1, dagger +1, plus 3rd-level fighter, splint\"]"}
+{"table_number": "16", "table_title": "Fighter\u2019s Followers", "row_index": "3", "cells": "[\"96\\u201399\", \"mail, shield, crossbow of distance<br>7th-level fighter, plate mail +1, shield +1,<br>broad sword +2, heavy war horse with horse<br>shoes of speed\"]"}
+{"table_number": "16", "table_title": "Fighter\u2019s Followers", "row_index": "4", "cells": "[\"00\", \"DM's Option\"]"}
+{"table_number": "16", "table_title": "Fighter\u2019s Followers", "row_index": "5", "cells": "[\"Die Roll<br>01\\u201350\", \"Troops/Followers (all 0th-level)<br>20 cavalry with ring mail, shield, 3 javelins, long<br>sword, hand axe; 100 infantry with scale mail,\"]"}
+{"table_number": "16", "table_title": "Fighter\u2019s Followers", "row_index": "6", "cells": "[\"51\\u201375\", \"polearm (chosen by player), club<br>20 infantry with splint mail, morning star, hand<br>axe; 60 infantry with leather armor, pike, short<br>sword\"]"}
+{"table_number": "16", "table_title": "Fighter\u2019s Followers", "row_index": "7", "cells": "[\"76\\u201390\", \"40 infantry with chain mail, heavy crossbow,<br>short sword; 20 infantry with chain mail, light<br>crossbow, military fork\"]"}
+{"table_number": "16", "table_title": "Fighter\u2019s Followers", "row_index": "8", "cells": "[\"91\\u201399\", \"10 cavalry with banded mail, shield, lance, bas<br>tard sword, mace; 20 cavalry with scale mail,<br>shield, lance, long sword, mace; 30 cavalry with<br>studded leather armor, shield, l"}
+{"table_number": "16", "table_title": "Fighter\u2019s Followers", "row_index": "9", "cells": "[\"00\", \"DM's Option (Barbarians, headhunters, armed<br>peasants, extra-heavy cavalry, etc.)\"]"}
+{"table_number": "17", "table_title": "Paladin Spell Progression", "row_index": "0", "cells": "[\"Paladin\", \"Casting\", \"\", \"Priest Spell Level\", \"\", \"\"]"}
+{"table_number": "17", "table_title": "Paladin Spell Progression", "row_index": "1", "cells": "[\"Level\", \"Level\", \"1\", \"2\", \"3\", \"4\"]"}
+{"table_number": "17", "table_title": "Paladin Spell Progression", "row_index": "2", "cells": "[\"9\", \"1\", \"1\", \"\\u2014\", \"\\u2014\", \"\\u2014\"]"}
+{"table_number": "17", "table_title": "Paladin Spell Progression", "row_index": "3", "cells": "[\"10\", \"2\", \"2\", \"\\u2014\", \"\\u2014\", \"\\u2014\"]"}
+{"table_number": "17", "table_title": "Paladin Spell Progression", "row_index": "4", "cells": "[\"11\", \"3\", \"2\", \"1\", \"\\u2014\", \"\\u2014\"]"}
+{"table_number": "17", "table_title": "Paladin Spell Progression", "row_index": "5", "cells": "[\"12\", \"4\", \"2\", \"2\", \"\\u2014\", \"\\u2014\"]"}
+{"table_number": "17", "table_title": "Paladin Spell Progression", "row_index": "6", "cells": "[\"13\", \"5\", \"2\", \"2\", \"1\", \"\\u2014\"]"}
+{"table_number": "17", "table_title": "Paladin Spell Progression", "row_index": "7", "cells": "[\"14\", \"6\", \"3\", \"2\", \"1\", \"\\u2014\"]"}
+{"table_number": "17", "table_title": "Paladin Spell Progression", "row_index": "8", "cells": "[\"15\", \"7\", \"3\", \"2\", \"1\", \"1\"]"}
+{"table_number": "17", "table_title": "Paladin Spell Progression", "row_index": "9", "cells": "[\"16\", \"8\", \"3\", \"3\", \"2\", \"1\"]"}
+{"table_number": "17", "table_title": "Paladin Spell Progression", "row_index": "10", "cells": "[\"17\", \"9*\", \"3\", \"3\", \"3\", \"1\"]"}
+{"table_number": "17", "table_title": "Paladin Spell Progression", "row_index": "11", "cells": "[\"18\", \"9*\", \"3\", \"3\", \"3\", \"1\"]"}
+{"table_number": "17", "table_title": "Paladin Spell Progression", "row_index": "12", "cells": "[\"19\", \"9*\", \"3\", \"3\", \"3\", \"2\"]"}
+{"table_number": "17", "table_title": "Paladin Spell Progression", "row_index": "13", "cells": "[\"20*\", \"9*\", \"3\", \"3\", \"3\", \"3\"]"}
+{"table_number": "19", "table_title": "Ranger\u2019s Followers", "row_index": "0", "cells": "[\"Table 19: Ranger's Followers\"]"}
+{"table_number": "19", "table_title": "Ranger\u2019s Followers", "row_index": "1", "cells": "[\"\\\\*If the ranger already has a follower of this type, ignore this result and roll again.\"]"}
+{"table_number": "18", "table_title": "Ranger Abilities", "row_index": "0", "cells": "[\"Ranger<br>Level\", \"Hide in<br>Shadows\", \"Move<br>Silently\", \"Casting<br>Level\", \"1\", \"Priest Spell Levels<br>2\", \"3\"]"}
+{"table_number": "18", "table_title": "Ranger Abilities", "row_index": "1", "cells": "[\"1\", \"10%\", \"15%\", \"\\u2014\", \"\\u2014\", \"\\u2014\", \"\\u2014\"]"}
+{"table_number": "18", "table_title": "Ranger Abilities", "row_index": "2", "cells": "[\"2\", \"15%\", \"21%\", \"\\u2014\", \"\\u2014\", \"\\u2014\", \"\\u2014\"]"}
+{"table_number": "18", "table_title": "Ranger Abilities", "row_index": "3", "cells": "[\"3\", \"20%\", \"27%\", \"\\u2014\", \"\\u2014\", \"\\u2014\", \"\\u2014\"]"}
+{"table_number": "18", "table_title": "Ranger Abilities", "row_index": "4", "cells": "[\"4\", \"25%\", \"33%\", \"\\u2014\", \"\\u2014\", \"\\u2014\", \"\\u2014\"]"}
+{"table_number": "18", "table_title": "Ranger Abilities", "row_index": "5", "cells": "[\"5\", \"31%\", \"40%\", \"\\u2014\", \"\\u2014\", \"\\u2014\", \"\\u2014\"]"}
+{"table_number": "18", "table_title": "Ranger Abilities", "row_index": "6", "cells": "[\"6\", \"37%\", \"47%\", \"\\u2014\", \"\\u2014\", \"\\u2014\", \"\\u2014\"]"}
+{"table_number": "18", "table_title": "Ranger Abilities", "row_index": "7", "cells": "[\"7\", \"43%\", \"55%\", \"\\u2014\", \"\\u2014\", \"\\u2014\", \"\\u2014\"]"}
+{"table_number": "18", "table_title": "Ranger Abilities", "row_index": "8", "cells": "[\"8\", \"49%\", \"62%\", \"1\", \"1\", \"\\u2014\", \"\\u2014\"]"}
+{"table_number": "18", "table_title": "Ranger Abilities", "row_index": "9", "cells": "[\"9\", \"56%\", \"70%\", \"2\", \"2\", \"\\u2014\", \"\\u2014\"]"}
+{"table_number": "18", "table_title": "Ranger Abilities", "row_index": "10", "cells": "[\"10\", \"63%\", \"78%\", \"3\", \"2\", \"1\", \"\\u2014\"]"}
+{"table_number": "18", "table_title": "Ranger Abilities", "row_index": "11", "cells": "[\"11\", \"70%\", \"86%\", \"4\", \"2\", \"2\", \"\\u2014\"]"}
+{"table_number": "18", "table_title": "Ranger Abilities", "row_index": "12", "cells": "[\"12\", \"77%\", \"94%\", \"5\", \"2\", \"2\", \"1\"]"}
+{"table_number": "18", "table_title": "Ranger Abilities", "row_index": "13", "cells": "[\"13\", \"85%\", \"99%*\", \"6\", \"3\", \"2\", \"1\"]"}
+{"table_number": "18", "table_title": "Ranger Abilities", "row_index": "14", "cells": "[\"14\", \"93%\", \"99%\", \"7\", \"3\", \"2\", \"2\"]"}
+{"table_number": "18", "table_title": "Ranger Abilities", "row_index": "15", "cells": "[\"15\", \"99%*\", \"99%\", \"8\", \"3\", \"3\", \"2\"]"}
+{"table_number": "18", "table_title": "Ranger Abilities", "row_index": "16", "cells": "[\"16\", \"99%\", \"99%\", \"9*\", \"3*\", \"3*\", \"3*\"]"}
+{"table_number": "20", "table_title": "Wizard Experience Levels", "row_index": "0", "cells": "[\"Level\", \"Mage/Specialist\", \"Hit Dice (d4)\"]"}
+{"table_number": "20", "table_title": "Wizard Experience Levels", "row_index": "1", "cells": "[\"1\", \"0\", \"1\"]"}
+{"table_number": "20", "table_title": "Wizard Experience Levels", "row_index": "2", "cells": "[\"2\", \"2,500\", \"2\"]"}
+{"table_number": "20", "table_title": "Wizard Experience Levels", "row_index": "3", "cells": "[\"3\", \"5,000\", \"3\"]"}
+{"table_number": "20", "table_title": "Wizard Experience Levels", "row_index": "4", "cells": "[\"4\", \"10,000\", \"4\"]"}
+{"table_number": "20", "table_title": "Wizard Experience Levels", "row_index": "5", "cells": "[\"5\", \"20,000\", \"5\"]"}
+{"table_number": "20", "table_title": "Wizard Experience Levels", "row_index": "6", "cells": "[\"6\", \"40,000\", \"6\"]"}
+{"table_number": "20", "table_title": "Wizard Experience Levels", "row_index": "7", "cells": "[\"7\", \"60,000\", \"7\"]"}
+{"table_number": "20", "table_title": "Wizard Experience Levels", "row_index": "8", "cells": "[\"8\", \"90,000\", \"8\"]"}
+{"table_number": "20", "table_title": "Wizard Experience Levels", "row_index": "9", "cells": "[\"9\", \"135,000\", \"9\"]"}
+{"table_number": "20", "table_title": "Wizard Experience Levels", "row_index": "10", "cells": "[\"10\", \"250,000\", \"10\"]"}
+{"table_number": "20", "table_title": "Wizard Experience Levels", "row_index": "11", "cells": "[\"11\", \"375,000\", \"10+1\"]"}
+{"table_number": "20", "table_title": "Wizard Experience Levels", "row_index": "12", "cells": "[\"12\", \"750,000\", \"10+2\"]"}
+{"table_number": "20", "table_title": "Wizard Experience Levels", "row_index": "13", "cells": "[\"13\", \"1,125,000\", \"10+3\"]"}
+{"table_number": "20", "table_title": "Wizard Experience Levels", "row_index": "14", "cells": "[\"14\", \"1,500,000\", \"10+4\"]"}
+{"table_number": "20", "table_title": "Wizard Experience Levels", "row_index": "15", "cells": "[\"15\", \"1,875,000\", \"10+5\"]"}
+{"table_number": "20", "table_title": "Wizard Experience Levels", "row_index": "16", "cells": "[\"16\", \"2,250,000\", \"10+6\"]"}
+{"table_number": "20", "table_title": "Wizard Experience Levels", "row_index": "17", "cells": "[\"17\", \"2,625,000\", \"10+7\"]"}
+{"table_number": "20", "table_title": "Wizard Experience Levels", "row_index": "18", "cells": "[\"18\", \"3,000,000\", \"10+8\"]"}
+{"table_number": "20", "table_title": "Wizard Experience Levels", "row_index": "19", "cells": "[\"19\", \"3,375,000\", \"10+9\"]"}
+{"table_number": "20", "table_title": "Wizard Experience Levels", "row_index": "20", "cells": "[\"20\", \"3,750,000\", \"10+10\"]"}
+{"table_number": "23", "table_title": "Priest Experience Levels", "row_index": "0", "cells": "[\"Level\", \"Cleric\", \"Druid\", \"Hit Dice<br>(d8)\"]"}
+{"table_number": "23", "table_title": "Priest Experience Levels", "row_index": "1", "cells": "[\"1\", \"0\", \"0\", \"1\"]"}
+{"table_number": "23", "table_title": "Priest Experience Levels", "row_index": "2", "cells": "[\"2\", \"1,500\", \"2,000\", \"2\"]"}
+{"table_number": "23", "table_title": "Priest Experience Levels", "row_index": "3", "cells": "[\"3\", \"3,000\", \"4,000\", \"3\"]"}
+{"table_number": "23", "table_title": "Priest Experience Levels", "row_index": "4", "cells": "[\"4\", \"6,000\", \"7,500\", \"4\"]"}
+{"table_number": "23", "table_title": "Priest Experience Levels", "row_index": "5", "cells": "[\"5\", \"13,000\", \"12,500\", \"5\"]"}
+{"table_number": "23", "table_title": "Priest Experience Levels", "row_index": "6", "cells": "[\"6\", \"27,500\", \"20,000\", \"6\"]"}
+{"table_number": "23", "table_title": "Priest Experience Levels", "row_index": "7", "cells": "[\"7\", \"55,000\", \"35,000\", \"7\"]"}
+{"table_number": "23", "table_title": "Priest Experience Levels", "row_index": "8", "cells": "[\"8\", \"110,000\", \"60,000\", \"8\"]"}
+{"table_number": "23", "table_title": "Priest Experience Levels", "row_index": "9", "cells": "[\"9\", \"225,000\", \"90,000\", \"9\"]"}
+{"table_number": "23", "table_title": "Priest Experience Levels", "row_index": "10", "cells": "[\"10\", \"450,000\", \"125,000\", \"9+2\"]"}
+{"table_number": "23", "table_title": "Priest Experience Levels", "row_index": "11", "cells": "[\"11\", \"675,000\", \"200,000\", \"9+4\"]"}
+{"table_number": "23", "table_title": "Priest Experience Levels", "row_index": "12", "cells": "[\"12\", \"900,000\", \"300,000\", \"9+6\"]"}
+{"table_number": "23", "table_title": "Priest Experience Levels", "row_index": "13", "cells": "[\"13\", \"1,125,000\", \"750,000\", \"9+8\"]"}
+{"table_number": "23", "table_title": "Priest Experience Levels", "row_index": "14", "cells": "[\"14\", \"1,350,000\", \"1,500,000\", \"9+10\"]"}
+{"table_number": "23", "table_title": "Priest Experience Levels", "row_index": "15", "cells": "[\"15\", \"1,575,000\", \"3,000,000\", \"9+12\"]"}
+{"table_number": "23", "table_title": "Priest Experience Levels", "row_index": "16", "cells": "[\"16\", \"1,800,000\", \"3,500,000\", \"9+14\"]"}
+{"table_number": "23", "table_title": "Priest Experience Levels", "row_index": "17", "cells": "[\"17\", \"2,025,000\", \"500,000*\", \"9+16\"]"}
+{"table_number": "23", "table_title": "Priest Experience Levels", "row_index": "18", "cells": "[\"18\", \"2,250,000\", \"1,000,000\", \"9+18\"]"}
+{"table_number": "23", "table_title": "Priest Experience Levels", "row_index": "19", "cells": "[\"19\", \"2,475,000\", \"1,500,000\", \"9+20\"]"}
+{"table_number": "23", "table_title": "Priest Experience Levels", "row_index": "20", "cells": "[\"20\", \"2,700,000\", \"2,000,000\", \"9+22\"]"}
+{"table_number": "24", "table_title": "Priest Spell Progression", "row_index": "0", "cells": "[\"Daire\", \"\", \"\", \"\", \"\", \"-1\", \"\", \"\"]"}
+{"table_number": "24", "table_title": "Priest Spell Progression", "row_index": "1", "cells": "[\"Priest\", \"_\", \"_\", \"\", \"ell Lev\", \"\", \"\", \"\"]"}
+{"table_number": "24", "table_title": "Priest Spell Progression", "row_index": "2", "cells": "[\"Level\", \"1\", \"2\", \"3\", \"4\", \"5\", \"6*\", \"7**\"]"}
+{"table_number": "24", "table_title": "Priest Spell Progression", "row_index": "3", "cells": "[\"1\", \"1\", \"_\", \"_\", \"_\", \"_\", \"_\", \"_\"]"}
+{"table_number": "24", "table_title": "Priest Spell Progression", "row_index": "4", "cells": "[\"2\", \"2\", \"_\", \"_\", \"_\", \"_\", \"_\", \"_\"]"}
+{"table_number": "24", "table_title": "Priest Spell Progression", "row_index": "5", "cells": "[\"3\", \"2\", \"1\", \"_\", \"_\", \"_\", \"_\", \"_\"]"}
+{"table_number": "24", "table_title": "Priest Spell Progression", "row_index": "6", "cells": "[\"4<br>5\", \"2<br>3<br>3\", \"2\", \"_\", \"_\", \"_\", \"_\", \"_\"]"}
+{"table_number": "24", "table_title": "Priest Spell Progression", "row_index": "7", "cells": "[\"5\", \"3\", \"2 3\", \"1\", \"_\", \"_\", \"_\", \"_\"]"}
+{"table_number": "24", "table_title": "Priest Spell Progression", "row_index": "8", "cells": "[\"6\", \"3\", \"3\", \"2\", \"_\", \"_\", \"_\", \"_\"]"}
+{"table_number": "24", "table_title": "Priest Spell Progression", "row_index": "9", "cells": "[\"7\", \"3\", \"3\", \"2<br>2<br>3\", \"1\", \"_\", \"_\", \"_\"]"}
+{"table_number": "24", "table_title": "Priest Spell Progression", "row_index": "10", "cells": "[\"8\", \"3\", \"3\", \"3\", \"2\", \"_\", \"_\", \"_\"]"}
+{"table_number": "24", "table_title": "Priest Spell Progression", "row_index": "11", "cells": "[\"9\", \"4\", \"4\", \"3\", \"\", \"1\", \"_\", \"_\"]"}
+{"table_number": "24", "table_title": "Priest Spell Progression", "row_index": "12", "cells": "[\"10\", \"4\", \"4\", \"3\", \"2\", \"2\", \"_\", \"_\"]"}
+{"table_number": "24", "table_title": "Priest Spell Progression", "row_index": "13", "cells": "[\"11\", \"5\", \"4\", \"\", \"3\", \"2\", \"1\", \"_\"]"}
+{"table_number": "24", "table_title": "Priest Spell Progression", "row_index": "14", "cells": "[\"12\", \"6\", \"5\", \"4<br>5\", \"3\", \"2<br>2<br>2<br>3\", \"\", \"_\"]"}
+{"table_number": "24", "table_title": "Priest Spell Progression", "row_index": "15", "cells": "[\"12<br>13\", \"6\", \"6\", \"6\", \"4\", \"2\", \"2<br>2\", \"_\"]"}
+{"table_number": "24", "table_title": "Priest Spell Progression", "row_index": "16", "cells": "[\"14\", \"6\", \"6\", \"6\", \"5\", \"3\", \"2\", \"1\"]"}
+{"table_number": "24", "table_title": "Priest Spell Progression", "row_index": "17", "cells": "[\"15\", \"6\", \"6\", \"6\", \"6\", \"4\", \"\", \"1\"]"}
+{"table_number": "24", "table_title": "Priest Spell Progression", "row_index": "18", "cells": "[\"16\", \"7\", \"7\", \"7\", \"6\", \"4\", \"2\", \"1\"]"}
+{"table_number": "24", "table_title": "Priest Spell Progression", "row_index": "19", "cells": "[\"17\", \"7\", \"7\", \"7\", \"7\", \"5\", \"3\", \"2\"]"}
+{"table_number": "24", "table_title": "Priest Spell Progression", "row_index": "20", "cells": "[\"18\", \"8\", \"8\", \"8\", \"8\", \"6\", \"4\", \"2<br>2<br>2\"]"}
+{"table_number": "24", "table_title": "Priest Spell Progression", "row_index": "21", "cells": "[\"19\", \"9\", \"9\", \"8\", \"8\", \"6\", \"4\", \"2\"]"}
+{"table_number": "24", "table_title": "Priest Spell Progression", "row_index": "22", "cells": "[\"20\", \"\", \"\", \"\", \"\", \"7\", \"5\", \"2\"]"}
+{"table_number": "24", "table_title": "Priest Spell Progression", "row_index": "23", "cells": "[\"20\", \"9\", \"9\", \"9\", \"8\", \"7\", \"5\", \"2\"]"}
+{"table_number": "25", "table_title": "Rogue Experience Levels", "row_index": "0", "cells": "[\"Level\", \"Thief/Bard\", \"Hit Dice (d6)\"]"}
+{"table_number": "25", "table_title": "Rogue Experience Levels", "row_index": "1", "cells": "[\"1\", \"0\", \"1\"]"}
+{"table_number": "25", "table_title": "Rogue Experience Levels", "row_index": "2", "cells": "[\"2\", \"1,250\", \"2\"]"}
+{"table_number": "25", "table_title": "Rogue Experience Levels", "row_index": "3", "cells": "[\"3\", \"2,500\", \"3\"]"}
+{"table_number": "25", "table_title": "Rogue Experience Levels", "row_index": "4", "cells": "[\"4\", \"5,000\", \"4\"]"}
+{"table_number": "25", "table_title": "Rogue Experience Levels", "row_index": "5", "cells": "[\"5\", \"10,000\", \"5\"]"}
+{"table_number": "25", "table_title": "Rogue Experience Levels", "row_index": "6", "cells": "[\"6\", \"20,000\", \"6\"]"}
+{"table_number": "25", "table_title": "Rogue Experience Levels", "row_index": "7", "cells": "[\"7\", \"40,000\", \"7\"]"}
+{"table_number": "25", "table_title": "Rogue Experience Levels", "row_index": "8", "cells": "[\"8\", \"70,000\", \"8\"]"}
+{"table_number": "25", "table_title": "Rogue Experience Levels", "row_index": "9", "cells": "[\"9\", \"110,000\", \"9\"]"}
+{"table_number": "25", "table_title": "Rogue Experience Levels", "row_index": "10", "cells": "[\"10\", \"160,000\", \"10\"]"}
+{"table_number": "25", "table_title": "Rogue Experience Levels", "row_index": "11", "cells": "[\"11\", \"220,000\", \"10+2\"]"}
+{"table_number": "25", "table_title": "Rogue Experience Levels", "row_index": "12", "cells": "[\"12\", \"440,000\", \"10+4\"]"}
+{"table_number": "25", "table_title": "Rogue Experience Levels", "row_index": "13", "cells": "[\"13\", \"660,000\", \"10+6\"]"}
+{"table_number": "25", "table_title": "Rogue Experience Levels", "row_index": "14", "cells": "[\"14\", \"880,000\", \"10+8\"]"}
+{"table_number": "25", "table_title": "Rogue Experience Levels", "row_index": "15", "cells": "[\"15\", \"1,100,000\", \"10+10\"]"}
+{"table_number": "25", "table_title": "Rogue Experience Levels", "row_index": "16", "cells": "[\"16\", \"1,320,000\", \"10+12\"]"}
+{"table_number": "25", "table_title": "Rogue Experience Levels", "row_index": "17", "cells": "[\"17\", \"1,540,000\", \"10+14\"]"}
+{"table_number": "25", "table_title": "Rogue Experience Levels", "row_index": "18", "cells": "[\"18\", \"1,760,000\", \"10+16\"]"}
+{"table_number": "25", "table_title": "Rogue Experience Levels", "row_index": "19", "cells": "[\"19\", \"1,980,000\", \"10+18\"]"}
+{"table_number": "25", "table_title": "Rogue Experience Levels", "row_index": "20", "cells": "[\"20\", \"2,200,000\", \"10+20\"]"}
+{"table_number": "26", "table_title": "Thieving Skill Base Scores", "row_index": "0", "cells": "[\"Skill\", \"Base Score\"]"}
+{"table_number": "26", "table_title": "Thieving Skill Base Scores", "row_index": "1", "cells": "[\"Pick Pockets\", \"15%\"]"}
+{"table_number": "26", "table_title": "Thieving Skill Base Scores", "row_index": "2", "cells": "[\"Open Locks\", \"10%\"]"}
+{"table_number": "26", "table_title": "Thieving Skill Base Scores", "row_index": "3", "cells": "[\"Find/Remove Traps\", \"5%\"]"}
+{"table_number": "26", "table_title": "Thieving Skill Base Scores", "row_index": "4", "cells": "[\"Move Silently\", \"10%\"]"}
+{"table_number": "26", "table_title": "Thieving Skill Base Scores", "row_index": "5", "cells": "[\"Hide in Shadows\", \"5%\"]"}
+{"table_number": "26", "table_title": "Thieving Skill Base Scores", "row_index": "6", "cells": "[\"Detect Noise\", \"15%\"]"}
+{"table_number": "26", "table_title": "Thieving Skill Base Scores", "row_index": "7", "cells": "[\"Climb Walls\", \"60%\"]"}
+{"table_number": "26", "table_title": "Thieving Skill Base Scores", "row_index": "8", "cells": "[\"Read Languages\", \"0%\"]"}
+{"table_number": "27", "table_title": "Thieving Skill Racial Adjustments", "row_index": "0", "cells": "[\"Skill Pick Pockets Open Locks Find/Remove Traps Move Silently Hide in Shadows Detect Noise Climb Walls Pood Languages\", \"Dwarf\", \"Elf<br>+5%<br>-5%<br>-<br>+5%<br>+10%<br>+5%\", \"Gnome<br>+5%<br>+10%"}
+{"table_number": "27", "table_title": "Thieving Skill Racial Adjustments", "row_index": "1", "cells": "[\"Read Languages\", \"-5%\", \"_\", \"_\", \"_\", \"-5%\"]"}
+{"table_number": "28", "table_title": "Thieving Skill Dexterity Adjustments", "row_index": "0", "cells": "[\"Dexterity\", \"Pick<br>Pockets\", \"Open<br>Locks\", \"Find/<br>Remove Traps\", \"Move<br>Silently\", \"Hide in<br>Shadows\"]"}
+{"table_number": "28", "table_title": "Thieving Skill Dexterity Adjustments", "row_index": "1", "cells": "[\"9\", \"-15%\", \"-10%\", \"-10%\", \"-20%\", \"-10%\"]"}
+{"table_number": "28", "table_title": "Thieving Skill Dexterity Adjustments", "row_index": "2", "cells": "[\"10\", \"-10%\", \"-5%\", \"-10%\", \"-15%\", \"-5%\"]"}
+{"table_number": "28", "table_title": "Thieving Skill Dexterity Adjustments", "row_index": "3", "cells": "[\"11\", \"-5%\", \"_\", \"-5%\", \"-10%\", \"_\"]"}
+{"table_number": "28", "table_title": "Thieving Skill Dexterity Adjustments", "row_index": "4", "cells": "[\"12\", \"_\", \"_\", \"_\", \"-5%\", \"_\"]"}
+{"table_number": "28", "table_title": "Thieving Skill Dexterity Adjustments", "row_index": "5", "cells": "[\"13\\u201315\", \"_\", \"_\", \"_\", \"_\", \"_\"]"}
+{"table_number": "28", "table_title": "Thieving Skill Dexterity Adjustments", "row_index": "6", "cells": "[\"16\", \"_\", \"+5%\", \"_\", \"_\", \"_\"]"}
+{"table_number": "28", "table_title": "Thieving Skill Dexterity Adjustments", "row_index": "7", "cells": "[\"17\", \"+5%\", \"+10%\", \"_\", \"+5%\", \"+5%\"]"}
+{"table_number": "28", "table_title": "Thieving Skill Dexterity Adjustments", "row_index": "8", "cells": "[\"18\", \"+10%\", \"+15%\", \"+5%\", \"+10%\", \"+10%\"]"}
+{"table_number": "28", "table_title": "Thieving Skill Dexterity Adjustments", "row_index": "9", "cells": "[\"19\", \"+15%\", \"+20%\", \"+10%\", \"+15%\", \"+15%\"]"}
+{"table_number": "29", "table_title": "Thieving Skill Armor Adjustments", "row_index": "0", "cells": "[\"\", \"\", \"\", \"Padded or\"]"}
+{"table_number": "29", "table_title": "Thieving Skill Armor Adjustments", "row_index": "1", "cells": "[\"Skill\", \"No Armor\", \"Elven Chain*\", \"Studded Leather\"]"}
+{"table_number": "29", "table_title": "Thieving Skill Armor Adjustments", "row_index": "2", "cells": "[\"Pick Pockets\", \"+5%\", \"\\u201320%\", \"\\u201330%\"]"}
+{"table_number": "29", "table_title": "Thieving Skill Armor Adjustments", "row_index": "3", "cells": "[\"Open Locks\", \"\\u2014\", \"\\u20135%\", \"\\u201310%\"]"}
+{"table_number": "29", "table_title": "Thieving Skill Armor Adjustments", "row_index": "4", "cells": "[\"Find/Remove Traps\", \"\\u2014\", \"\\u20135%\", \"\\u201310%\"]"}
+{"table_number": "29", "table_title": "Thieving Skill Armor Adjustments", "row_index": "5", "cells": "[\"Move Silently\", \"+10%\", \"\\u201310%\", \"\\u201320%\"]"}
+{"table_number": "29", "table_title": "Thieving Skill Armor Adjustments", "row_index": "6", "cells": "[\"Hide in Shadows\", \"+5%\", \"\\u201310%\", \"\\u201320%\"]"}
+{"table_number": "29", "table_title": "Thieving Skill Armor Adjustments", "row_index": "7", "cells": "[\"Detect Noise\", \"\\u2014\", \"\\u20135%\", \"\\u201310%\"]"}
+{"table_number": "29", "table_title": "Thieving Skill Armor Adjustments", "row_index": "8", "cells": "[\"Climb Walls\", \"+10%\", \"\\u201320%\", \"\\u201330%\"]"}
+{"table_number": "29", "table_title": "Thieving Skill Armor Adjustments", "row_index": "9", "cells": "[\"Read Languages\", \"\\u2014\", \"\\u2014\", \"\\u2014\"]"}
+{"table_number": "30", "table_title": "Backstab Damage Multipliers", "row_index": "0", "cells": "[\"Thief's Level\", \"Damage Multiplier\"]"}
+{"table_number": "30", "table_title": "Backstab Damage Multipliers", "row_index": "1", "cells": "[\"1\\u20134\", \"=2\"]"}
+{"table_number": "30", "table_title": "Backstab Damage Multipliers", "row_index": "2", "cells": "[\"5\\u20138\", \"=3\"]"}
+{"table_number": "30", "table_title": "Backstab Damage Multipliers", "row_index": "3", "cells": "[\"9\\u201312\", \"=4\"]"}
+{"table_number": "30", "table_title": "Backstab Damage Multipliers", "row_index": "4", "cells": "[\"13+\", \"=5\"]"}
+{"table_number": "31", "table_title": "Thief\u2019s Followers", "row_index": "0", "cells": "[\"D100<br>Roll<br>01\\u201303<br>04\\u201308<br>09\\u201313<br>14\\u201315<br>16\\u201318<br>19\\u201324<br>25\\u201327<br>28\\u201330<br>31\\u201335<br>36\\u201338<br>39\\u201341<br>42\\u201346<br>47\\u201350<br>"}
+{"table_number": "31", "table_title": "Thief\u2019s Followers", "row_index": "1", "cells": "[\"00\", \"Other (DM selection)\", \"\\u2014\"]"}
+{"table_number": "32", "table_title": "Bard Spell Progression", "row_index": "0", "cells": "[\"Table 32:<br>Bard Spell Progression\", \"\", \"\", \"\", \"\", \"\", \"\"]"}
+{"table_number": "32", "table_title": "Bard Spell Progression", "row_index": "1", "cells": "[\"Bard<br>Level<br>1<br>2<br>3<br>4<br>5<br>6<br>7<br>8<br>9<br>10<br>11<br>12<br>13<br>14<br>15<br>16<br>17<br>18<br>19<br>20\", \"1<br>\\u2014<br>1<br>2<br>2<br>3<br>3<br>3<br>3<br>3<br>3<br>3<br>3<br>"}
+{"table_number": "32", "table_title": "Bard Spell Progression", "row_index": "2", "cells": "[\"Table 33:<br>Bard Abilities\", \"\", \"\", \"\", \"\", \"\", \"\"]"}
+{"table_number": "32", "table_title": "Bard Spell Progression", "row_index": "3", "cells": "[\"\", \"Climb<br>Walls<br>50%\", \"Detect<br>Noise<br>20%\", \"\", \"Pick<br>Pockets<br>10%\", \"\", \"Read<br>Languages<br>5%\"]"}
+{"table_number": "34", "table_title": "Proficiency Slots", "row_index": "0", "cells": "[\"\", \"We<br>Profic\", \"\", \"eapon<br>encies\", \"\", \"\"]"}
+{"table_number": "34", "table_title": "Proficiency Slots", "row_index": "1", "cells": "[\"Group\", \"Initial\", \"#Levels\", \"Penalty\", \"Initial\", \"#Levels\"]"}
+{"table_number": "34", "table_title": "Proficiency Slots", "row_index": "2", "cells": "[\"Warrior\", \"4\", \"3\", \"-2\", \"3\", \"3\"]"}
+{"table_number": "34", "table_title": "Proficiency Slots", "row_index": "3", "cells": "[\"Wizard\", \"1\", \"6\", \"<b>-</b> 5\", \"4\", \"3\"]"}
+{"table_number": "34", "table_title": "Proficiency Slots", "row_index": "4", "cells": "[\"Priest\", \"2\", \"4\", \"-3\", \"4\", \"3\"]"}
+{"table_number": "34", "table_title": "Proficiency Slots", "row_index": "5", "cells": "[\"Rogue\", \"2\", \"4\", \"-3\", \"3\", \"4\"]"}
+{"table_number": "35", "table_title": "Specialist Attacks per Round", "row_index": "0", "cells": "[\"Fighter<br>Level\", \"Melee<br>Weapon\", \"\", \"Heavy<br>X-bow\", \"Thrown<br>Dagger\", \"Thrown<br>Dart\", \"Other<br>(Non-bow)<br>Missiles\"]"}
+{"table_number": "35", "table_title": "Specialist Attacks per Round", "row_index": "1", "cells": "[\"1\\u20136\", \"3/2\", \"1/1\", \"1/2\", \"3/1\", \"4/1\", \"3/2\"]"}
+{"table_number": "35", "table_title": "Specialist Attacks per Round", "row_index": "2", "cells": "[\"7\\u201312\", \"2/1\", \"3/2\", \"1/1\", \"4/1\", \"5/1\", \"2/1\"]"}
+{"table_number": "35", "table_title": "Specialist Attacks per Round", "row_index": "3", "cells": "[\"13+\", \"5/2\", \"2/1\", \"3/2\", \"5/1\", \"6/1\", \"5/2\"]"}
+{"table_number": "36", "table_title": "Secondary Skills", "row_index": "0", "cells": "[\"D100\", \"\"]"}
+{"table_number": "36", "table_title": "Secondary Skills", "row_index": "1", "cells": "[\"Roll\", \"Secondary Skill\"]"}
+{"table_number": "36", "table_title": "Secondary Skills", "row_index": "2", "cells": "[\"01\\u201302\", \"Armorer (make, repair & evaluate armor and weapons)\"]"}
+{"table_number": "36", "table_title": "Secondary Skills", "row_index": "3", "cells": "[\"03\\u201304\", \"Bowyer/Fletcher (make, repair & evaluate bows and arrows)\"]"}
+{"table_number": "36", "table_title": "Secondary Skills", "row_index": "4", "cells": "[\"05\\u201310\", \"Farmer (basic agriculture)\"]"}
+{"table_number": "36", "table_title": "Secondary Skills", "row_index": "5", "cells": "[\"11\\u201314\", \"Fisher (swimming, nets, and small boat handling)\"]"}
+{"table_number": "36", "table_title": "Secondary Skills", "row_index": "6", "cells": "[\"15\\u201320\", \"Forester (basic wood lore, lumbering)\"]"}
+{"table_number": "36", "table_title": "Secondary Skills", "row_index": "7", "cells": "[\"21\\u201323\", \"Gambler (knowledge of gambling games)\"]"}
+{"table_number": "36", "table_title": "Secondary Skills", "row_index": "8", "cells": "[\"24\\u201327\", \"Groom (animal handling)\"]"}
+{"table_number": "36", "table_title": "Secondary Skills", "row_index": "9", "cells": "[\"28\\u201332\", \"Hunter (basic wood lore, butchering, basic tracking)\"]"}
+{"table_number": "36", "table_title": "Secondary Skills", "row_index": "10", "cells": "[\"33\\u201334\", \"Jeweler (appraisal of gems and jewelry)\"]"}
+{"table_number": "36", "table_title": "Secondary Skills", "row_index": "11", "cells": "[\"35\\u201337\", \"Leather worker (skinning, tanning)\"]"}
+{"table_number": "36", "table_title": "Secondary Skills", "row_index": "12", "cells": "[\"38\\u201339\", \"Limner/Painter (map making, appraisal of art objects)\"]"}
+{"table_number": "36", "table_title": "Secondary Skills", "row_index": "13", "cells": "[\"40\\u201342\", \"Mason (stone-cutting)\"]"}
+{"table_number": "36", "table_title": "Secondary Skills", "row_index": "14", "cells": "[\"43\\u201344\", \"Miner (stone-cutting, assaying)\"]"}
+{"table_number": "36", "table_title": "Secondary Skills", "row_index": "15", "cells": "[\"45\\u201346\", \"Navigator (astronomy, sailing, swimming, navigation)\"]"}
+{"table_number": "36", "table_title": "Secondary Skills", "row_index": "16", "cells": "[\"47\\u201349\", \"Sailor (sailing, swimming)\"]"}
+{"table_number": "36", "table_title": "Secondary Skills", "row_index": "17", "cells": "[\"50\\u201351\", \"Scribe (reading, writing, basic math)\"]"}
+{"table_number": "36", "table_title": "Secondary Skills", "row_index": "18", "cells": "[\"52\\u201353\", \"Shipwright (sailing, carpentry)\"]"}
+{"table_number": "36", "table_title": "Secondary Skills", "row_index": "19", "cells": "[\"54\\u201356\", \"Tailor/Weaver (weaving, sewing, embroidery)\"]"}
+{"table_number": "36", "table_title": "Secondary Skills", "row_index": "20", "cells": "[\"57\\u201359\", \"Teamster/Freighter (animal handling, wagon repair)\"]"}
+{"table_number": "36", "table_title": "Secondary Skills", "row_index": "21", "cells": "[\"60\\u201362\", \"Trader/Barterer (appraisal of common goods)\"]"}
+{"table_number": "36", "table_title": "Secondary Skills", "row_index": "22", "cells": "[\"63\\u201366\", \"Trapper/Furrier (basic wood lore, skinning)\"]"}
+{"table_number": "36", "table_title": "Secondary Skills", "row_index": "23", "cells": "[\"67\\u201368\", \"Weaponsmith (make, repair, & evaluate weapons)\"]"}
+{"table_number": "36", "table_title": "Secondary Skills", "row_index": "24", "cells": "[\"69\\u201371\", \"Woodworker/Carpenter (carpentry, carving)\"]"}
+{"table_number": "36", "table_title": "Secondary Skills", "row_index": "25", "cells": "[\"72\\u201385\", \"No skill of measurable worth\"]"}
+{"table_number": "37", "table_title": "Nonweapon Proficiency Groups", "row_index": "0", "cells": "[\"General\", \"\", \"\", \"\", \"Rogue\", \"\", \"\", \"\"]"}
+{"table_number": "37", "table_title": "Nonweapon Proficiency Groups", "row_index": "1", "cells": "[\"\", \"# of Slots\", \"Relevant\", \"Check\", \"\", \"# of Slots\", \"Relevant\", \"Check\"]"}
+{"table_number": "37", "table_title": "Nonweapon Proficiency Groups", "row_index": "2", "cells": "[\"Proficiency\", \"Required\", \"Ability\", \"Modifier\", \"Proficiency\", \"Required\", \"Ability\", \"Modifier\"]"}
+{"table_number": "37", "table_title": "Nonweapon Proficiency Groups", "row_index": "3", "cells": "[\"Agriculture\", \"1\", \"Intelligence\", \"0\", \"Ancient History\", \"1\", \"Intelligence\", \"\\u20131\"]"}
+{"table_number": "37", "table_title": "Nonweapon Proficiency Groups", "row_index": "4", "cells": "[\"Animal Handling\", \"1\", \"Wisdom\", \"\\u20131\", \"Appraising\", \"1\", \"Intelligence\", \"0\"]"}
+{"table_number": "37", "table_title": "Nonweapon Proficiency Groups", "row_index": "5", "cells": "[\"Animal Training\", \"1\", \"Wisdom\", \"0\", \"Blind-fighting\", \"2\", \"NA\", \"NA\"]"}
+{"table_number": "37", "table_title": "Nonweapon Proficiency Groups", "row_index": "6", "cells": "[\"Artistic Ability\", \"1\", \"Wisdom\", \"0\", \"Disguise\", \"1\", \"Charisma\", \"\\u20131\"]"}
+{"table_number": "37", "table_title": "Nonweapon Proficiency Groups", "row_index": "7", "cells": "[\"Blacksmithing\", \"1\", \"Strength\", \"0\", \"Forgery\", \"1\", \"Dexterity\", \"\\u20131\"]"}
+{"table_number": "37", "table_title": "Nonweapon Proficiency Groups", "row_index": "8", "cells": "[\"Brewing\", \"1\", \"Intelligence\", \"0\", \"Gaming\", \"1\", \"Charisma\", \"0\"]"}
+{"table_number": "37", "table_title": "Nonweapon Proficiency Groups", "row_index": "9", "cells": "[\"Carpentry\", \"1\", \"Strength\", \"0\", \"Gem Cutting\", \"2\", \"Dexterity\", \"\\u20132\"]"}
+{"table_number": "37", "table_title": "Nonweapon Proficiency Groups", "row_index": "10", "cells": "[\"Cobbling\", \"1\", \"Dexterity\", \"0\", \"Juggling\", \"1\", \"Dexterity\", \"\\u20131\"]"}
+{"table_number": "37", "table_title": "Nonweapon Proficiency Groups", "row_index": "11", "cells": "[\"Cooking\", \"1\", \"Intelligence\", \"0\", \"Jumping\", \"1\", \"Strength\", \"0\"]"}
+{"table_number": "37", "table_title": "Nonweapon Proficiency Groups", "row_index": "12", "cells": "[\"Dancing\", \"1\", \"Dexterity\", \"0\", \"Local History\", \"1\", \"Charisma\", \"0\"]"}
+{"table_number": "37", "table_title": "Nonweapon Proficiency Groups", "row_index": "13", "cells": "[\"Direction Sense\", \"1\", \"Wisdom\", \"+1\", \"Musical Instrument\", \"1\", \"Dexterity\", \"\\u20131\"]"}
+{"table_number": "37", "table_title": "Nonweapon Proficiency Groups", "row_index": "14", "cells": "[\"Etiquette\", \"1\", \"Charisma\", \"0\", \"Reading Lips\", \"2\", \"Intelligence\", \"\\u20132\"]"}
+{"table_number": "37", "table_title": "Nonweapon Proficiency Groups", "row_index": "15", "cells": "[\"Fire-building\", \"1\", \"Wisdom\", \"\\u20131\", \"Set Snares\", \"1\", \"Dexterity\", \"\\u20131\"]"}
+{"table_number": "37", "table_title": "Nonweapon Proficiency Groups", "row_index": "16", "cells": "[\"\", \"\", \"\", \"\", \"Tightrope Walking\", \"1\", \"Dexterity\", \"0\"]"}
+{"table_number": "37", "table_title": "Nonweapon Proficiency Groups", "row_index": "17", "cells": "[\"Fishing\", \"1\", \"Wisdom\", \"\\u20131\", \"\", \"\", \"\", \"\"]"}
+{"table_number": "37", "table_title": "Nonweapon Proficiency Groups", "row_index": "18", "cells": "[\"Heraldry\", \"1\", \"Intelligence\", \"0\", \"Tumbling\", \"1\", \"Dexterity\", \"0\"]"}
+{"table_number": "37", "table_title": "Nonweapon Proficiency Groups", "row_index": "19", "cells": "[\"Languages, Modern\", \"1\", \"Intelligence\", \"0\", \"Ventriloquism\", \"1\", \"Intelligence\", \"\\u20132\"]"}
+{"table_number": "37", "table_title": "Nonweapon Proficiency Groups", "row_index": "20", "cells": "[\"Leatherworking\", \"1\", \"Intelligence\", \"0\", \"\", \"\", \"\", \"\"]"}
+{"table_number": "37", "table_title": "Nonweapon Proficiency Groups", "row_index": "21", "cells": "[\"Mining\", \"2\", \"Wisdom\", \"\\u20133\", \"Warrior\", \"\", \"\", \"\"]"}
+{"table_number": "37", "table_title": "Nonweapon Proficiency Groups", "row_index": "22", "cells": "[\"Pottery\", \"1\", \"Dexterity\", \"\\u20132\", \"\", \"# of Slots\", \"Relevant\", \"Check\"]"}
+{"table_number": "37", "table_title": "Nonweapon Proficiency Groups", "row_index": "23", "cells": "[\"Riding, Airborne\", \"2\", \"Wisdom\", \"\\u20132\", \"Proficiency\", \"Required\", \"Ability\", \"Modifier\"]"}
+{"table_number": "37", "table_title": "Nonweapon Proficiency Groups", "row_index": "24", "cells": "[\"Riding, Land-based\", \"1\", \"Wisdom\", \"+3\", \"Animal Lore\", \"1\", \"Intelligence\", \"0\"]"}
+{"table_number": "37", "table_title": "Nonweapon Proficiency Groups", "row_index": "25", "cells": "[\"Rope Use\", \"1\", \"Dexterity\", \"0\", \"Armorer\", \"2\", \"Intelligence\", \"\\u20132\"]"}
+{"table_number": "37", "table_title": "Nonweapon Proficiency Groups", "row_index": "26", "cells": "[\"Seamanship\", \"1\", \"Dexterity\", \"+1\", \"Blind-fighting\", \"2\", \"NA\", \"NA\"]"}
+{"table_number": "37", "table_title": "Nonweapon Proficiency Groups", "row_index": "27", "cells": "[\"\", \"\", \"\", \"\", \"Bowyer/Fletcher\", \"1\", \"Dexterity\", \"\\u20131\"]"}
+{"table_number": "37", "table_title": "Nonweapon Proficiency Groups", "row_index": "28", "cells": "[\"Seamstress/Tailor\", \"1\", \"Dexterity\", \"\\u20131\", \"\", \"\", \"\", \"\"]"}
+{"table_number": "37", "table_title": "Nonweapon Proficiency Groups", "row_index": "29", "cells": "[\"Singing\", \"1\", \"Charisma\", \"0\", \"Charioteering\", \"1\", \"Dexterity\", \"+2\"]"}
+{"table_number": "37", "table_title": "Nonweapon Proficiency Groups", "row_index": "30", "cells": "[\"Stonemasonry\", \"1\", \"Strength\", \"\\u20132\", \"Endurance\", \"2\", \"Constitution\", \"0\"]"}
+{"table_number": "37", "table_title": "Nonweapon Proficiency Groups", "row_index": "31", "cells": "[\"Swimming\", \"1\", \"Strength\", \"0\", \"Gaming\", \"1\", \"Charisma\", \"0\"]"}
+{"table_number": "37", "table_title": "Nonweapon Proficiency Groups", "row_index": "32", "cells": "[\"Weather Sense\", \"1\", \"Wisdom\", \"\\u20131\", \"Hunting\", \"1\", \"Wisdom\", \"\\u20131\"]"}
+{"table_number": "37", "table_title": "Nonweapon Proficiency Groups", "row_index": "33", "cells": "[\"Weaving\", \"1\", \"Intelligence\", \"\\u20131\", \"Mountaineering\", \"1\", \"NA\", \"NA\"]"}
+{"table_number": "37", "table_title": "Nonweapon Proficiency Groups", "row_index": "34", "cells": "[\"\", \"\", \"\", \"\", \"Navigation\", \"1\", \"Intelligence\", \"\\u20132\"]"}
+{"table_number": "37", "table_title": "Nonweapon Proficiency Groups", "row_index": "35", "cells": "[\"Priest\", \"\", \"\", \"\", \"Running\", \"1\", \"Constitution\", \"\\u20136\"]"}
+{"table_number": "37", "table_title": "Nonweapon Proficiency Groups", "row_index": "36", "cells": "[\"\", \"# of Slots\", \"Relevant\", \"Check\", \"Set Snares\", \"1\", \"Dexterity\", \"\\u20131\"]"}
+{"table_number": "37", "table_title": "Nonweapon Proficiency Groups", "row_index": "37", "cells": "[\"Proficiency\", \"Required\", \"Ability\", \"Modifier\", \"Survival\", \"2\", \"Intelligence\", \"0\"]"}
+{"table_number": "37", "table_title": "Nonweapon Proficiency Groups", "row_index": "38", "cells": "[\"Ancient History\", \"1\", \"Intelligence\", \"\\u20131\", \"Tracking\", \"2\", \"Wisdom\", \"0\"]"}
+{"table_number": "37", "table_title": "Nonweapon Proficiency Groups", "row_index": "39", "cells": "[\"Astrology\", \"2\", \"Intelligence\", \"0\", \"Weaponsmithing\", \"3\", \"Intelligence\", \"\\u20133\"]"}
+{"table_number": "37", "table_title": "Nonweapon Proficiency Groups", "row_index": "40", "cells": "[\"Engineering\", \"2\", \"Intelligence\", \"\\u20133\", \"\", \"\", \"\", \"\"]"}
+{"table_number": "37", "table_title": "Nonweapon Proficiency Groups", "row_index": "41", "cells": "[\"Healing\", \"2\", \"Wisdom\", \"\\u20132\", \"Wizard\", \"\", \"\", \"\"]"}
+{"table_number": "37", "table_title": "Nonweapon Proficiency Groups", "row_index": "42", "cells": "[\"Herbalism\", \"2\", \"Intelligence\", \"\\u20132\", \"\", \"# of Slots\", \"Relevant\", \"Check\"]"}
+{"table_number": "37", "table_title": "Nonweapon Proficiency Groups", "row_index": "43", "cells": "[\"Languages, Ancient\", \"1\", \"Intelligence\", \"0\", \"Proficiency\", \"Required\", \"Ability\", \"Modifier\"]"}
+{"table_number": "37", "table_title": "Nonweapon Proficiency Groups", "row_index": "44", "cells": "[\"Local History\", \"1\", \"Charisma\", \"0\", \"Ancient History\", \"1\", \"Intelligence\", \"\\u20131\"]"}
+{"table_number": "37", "table_title": "Nonweapon Proficiency Groups", "row_index": "45", "cells": "[\"Musical Instrument\", \"1\", \"Dexterity\", \"\\u20131\", \"Astrology\", \"2\", \"Intelligence\", \"0\"]"}
+{"table_number": "37", "table_title": "Nonweapon Proficiency Groups", "row_index": "46", "cells": "[\"Navigation\", \"1\", \"Intelligence\", \"\\u20132\", \"Engineering\", \"2\", \"Intelligence\", \"\\u20133\"]"}
+{"table_number": "37", "table_title": "Nonweapon Proficiency Groups", "row_index": "47", "cells": "[\"Reading/Writing\", \"1\", \"Intelligence\", \"+1\", \"Gem Cutting\", \"2\", \"Dexterity\", \"\\u20132\"]"}
+{"table_number": "37", "table_title": "Nonweapon Proficiency Groups", "row_index": "48", "cells": "[\"Religion\", \"1\", \"Wisdom\", \"0\", \"Herbalism\", \"2\", \"Intelligence\", \"\\u20132\"]"}
+{"table_number": "37", "table_title": "Nonweapon Proficiency Groups", "row_index": "49", "cells": "[\"Spellcraft\", \"1\", \"Intelligence\", \"\\u20132\", \"Languages, Ancient\", \"1\", \"Intelligence\", \"0\"]"}
+{"table_number": "37", "table_title": "Nonweapon Proficiency Groups", "row_index": "50", "cells": "[\"\", \"\", \"\", \"\", \"Navigation\", \"1\", \"Intelligence\", \"\\u20132\"]"}
+{"table_number": "37", "table_title": "Nonweapon Proficiency Groups", "row_index": "51", "cells": "[\"\", \"\", \"\", \"\", \"Reading/Writing\", \"1\", \"Intelligence\", \"+1\"]"}
+{"table_number": "37", "table_title": "Nonweapon Proficiency Groups", "row_index": "52", "cells": "[\"\", \"\", \"\", \"\", \"Religion\", \"1\", \"Wisdom\", \"0\"]"}
+{"table_number": "37", "table_title": "Nonweapon Proficiency Groups", "row_index": "53", "cells": "[\"\", \"\", \"\", \"\", \"Spellcraft\", \"1\", \"Intelligence\", \"\\u20132\"]"}
+{"table_number": "39", "table_title": "Tracking Modifiers", "row_index": "0", "cells": "[\"Terrain\", \"Modifier\"]"}
+{"table_number": "39", "table_title": "Tracking Modifiers", "row_index": "1", "cells": "[\"Soft or muddy ground\", \"+4\"]"}
+{"table_number": "39", "table_title": "Tracking Modifiers", "row_index": "2", "cells": "[\"Thick brush, vines, or reeds\", \"+3\"]"}
+{"table_number": "39", "table_title": "Tracking Modifiers", "row_index": "3", "cells": "[\"Occasional signs of passage, dust\", \"+2\"]"}
+{"table_number": "39", "table_title": "Tracking Modifiers", "row_index": "4", "cells": "[\"Normal ground, wood floor\", \"0\"]"}
+{"table_number": "39", "table_title": "Tracking Modifiers", "row_index": "5", "cells": "[\"Rocky ground or shallow water\", \"\\u201310\"]"}
+{"table_number": "39", "table_title": "Tracking Modifiers", "row_index": "6", "cells": "[\"Every two creatures in the group\", \"+1\"]"}
+{"table_number": "39", "table_title": "Tracking Modifiers", "row_index": "7", "cells": "[\"Every 12 hours since trail was made\", \"\\u20131\"]"}
+{"table_number": "39", "table_title": "Tracking Modifiers", "row_index": "8", "cells": "[\"Every hour of rain, snow, or sleet\", \"\\u20135\"]"}
+{"table_number": "39", "table_title": "Tracking Modifiers", "row_index": "9", "cells": "[\"Poor lighting (moon or starlight)\", \"\\u20136\"]"}
+{"table_number": "39", "table_title": "Tracking Modifiers", "row_index": "10", "cells": "[\"Tracked party attempts to hide trail\", \"\\u20135\"]"}
+{"table_number": "41", "table_title": "Weapon Construction", "row_index": "0", "cells": "[\"\", \"Construction\", \"Material\"]"}
+{"table_number": "41", "table_title": "Weapon Construction", "row_index": "1", "cells": "[\"Weapon\", \"Time\", \"Cost\"]"}
+{"table_number": "41", "table_title": "Weapon Construction", "row_index": "2", "cells": "[\"Arrowhead\", \"10/day\", \"1 cp\"]"}
+{"table_number": "41", "table_title": "Weapon Construction", "row_index": "3", "cells": "[\"Battle Axe\", \"10 days\", \"10 sp\"]"}
+{"table_number": "41", "table_title": "Weapon Construction", "row_index": "4", "cells": "[\"Hand Axe\", \"5 days\", \"5 sp\"]"}
+{"table_number": "41", "table_title": "Weapon Construction", "row_index": "5", "cells": "[\"Dagger\", \"5 days\", \"2 sp\"]"}
+{"table_number": "41", "table_title": "Weapon Construction", "row_index": "6", "cells": "[\"Heavy Crossbow\", \"20 days\", \"10 sp\"]"}
+{"table_number": "41", "table_title": "Weapon Construction", "row_index": "7", "cells": "[\"Light Crossbow\", \"15 days\", \"5 sp\"]"}
+{"table_number": "41", "table_title": "Weapon Construction", "row_index": "8", "cells": "[\"Fork, Trident\", \"20 days\", \"10 sp\"]"}
+{"table_number": "41", "table_title": "Weapon Construction", "row_index": "9", "cells": "[\"Spear, Lance\", \"4 days\", \"4 sp\"]"}
+{"table_number": "41", "table_title": "Weapon Construction", "row_index": "10", "cells": "[\"Short Sword\", \"20 days\", \"5 sp\"]"}
+{"table_number": "41", "table_title": "Weapon Construction", "row_index": "11", "cells": "[\"Long Sword\", \"30 days\", \"10 sp\"]"}
+{"table_number": "41", "table_title": "Weapon Construction", "row_index": "12", "cells": "[\"2-hd Sword\", \"45 days\", \"2 gp\"]"}
+{"table_number": "42", "table_title": "Standard Exchange Rates", "row_index": "0", "cells": "[\"\", \"Exchange Value\", \"\", \"\", \"\", \"\"]"}
+{"table_number": "42", "table_title": "Standard Exchange Rates", "row_index": "1", "cells": "[\"Coin\", \"CP\", \"SP\", \"\\u0114\\u03a1\", \"GP\", \"PP\"]"}
+{"table_number": "42", "table_title": "Standard Exchange Rates", "row_index": "2", "cells": "[\"Copper Piece (CP) =\", \"1\", \"1/10\", \"1/50\", \"1/100\", \"1/500\"]"}
+{"table_number": "42", "table_title": "Standard Exchange Rates", "row_index": "3", "cells": "[\"Silver Piece (SP) =\", \"10\", \"1\", \"1/5\", \"1/10\", \"1/50\"]"}
+{"table_number": "42", "table_title": "Standard Exchange Rates", "row_index": "4", "cells": "[\"Electrum Piece (EP) =\", \"50\", \"5\", \"1\", \"1/2\", \"1/10\"]"}
+{"table_number": "42", "table_title": "Standard Exchange Rates", "row_index": "5", "cells": "[\"Gold Piece (GP) =\", \"100\", \"10\", \"2\", \"1\", \"1/5\"]"}
+{"table_number": "42", "table_title": "Standard Exchange Rates", "row_index": "6", "cells": "[\"Platinum Piece (PP) =\", \"500\", \"50\", \"10\", \"5\", \"1\"]"}
+{"table_number": "43", "table_title": "Initial Character Funds", "row_index": "0", "cells": "[\"#### Table 43: Initial Character Funds\"]"}
+{"table_number": "43", "table_title": "Initial Character Funds", "row_index": "1", "cells": "[\"Character Group Die Range 5d4 \\u00d7 10 gp Warrior Wizard  $(1d4+1) \\\\times 10 \\\\text{ gp}$ 2d6 \\u00d7 10 gp 3d6 \\u00d7 10 gp Rogue Priest \\\\*\"]"}
+{"table_number": "43", "table_title": "Initial Character Funds", "row_index": "2", "cells": "[\"\\\\* Priest characters can use their money only to purchase equipment and goods. Once all purchases are made, the priest character must return all but two or three of his remaining gold pieces to his"}
+{"table_number": "43", "table_title": "Initial Character Funds", "row_index": "3", "cells": "[\"### **Chapter 6**\"]"}
+{"table_number": "44", "table_title": "Equipment", "row_index": "0", "cells": "[\"Clothing\", \"\", \"Household Provisioning\", \"\", \"Animals\", \"\"]"}
+{"table_number": "44", "table_title": "Equipment", "row_index": "1", "cells": "[\"Belt\", \"3 sp\", \"Barrel of pickled fish\", \"3 gp\", \"Boar\", \"10 gp\"]"}
+{"table_number": "44", "table_title": "Equipment", "row_index": "2", "cells": "[\"Boots\", \"\\u2014\", \"Butter (per lb.)\", \"2 sp\", \"Bull\", \"20 gp\"]"}
+{"table_number": "44", "table_title": "Equipment", "row_index": "3", "cells": "[\"Riding\", \"3 gp\", \"Coarse sugar (per lb.)\", \"1 gp\", \"Calf\", \"5 gp\"]"}
+{"table_number": "44", "table_title": "Equipment", "row_index": "4", "cells": "[\"Soft\", \"1 gp\", \"Dry rations (per week)\", \"10 gp\", \"Camel\", \"50 gp\"]"}
+{"table_number": "44", "table_title": "Equipment", "row_index": "5", "cells": "[\"Breeches\", \"2 gp\", \"Eggs (per 100)\", \"8 sp\", \"Capon\", \"3 cp\"]"}
+{"table_number": "44", "table_title": "Equipment", "row_index": "6", "cells": "[\"Cap, hat<br>Cloak\", \"1 sp<br>\\u2014\", \"(per two dozen)<br>Figs (per lb.)\", \"2 sp<br>3 sp\", \"Cat\", \"1 sp\"]"}
+{"table_number": "44", "table_title": "Equipment", "row_index": "7", "cells": "[\"Good cloth\", \"8 sp\", \"Firewood (per day)\", \"1 cp\", \"Chicken<br>Cow\", \"2 cp<br>10 gp\"]"}
+{"table_number": "44", "table_title": "Equipment", "row_index": "8", "cells": "[\"Fine fur\", \"50 gp\", \"Herbs (per lb.)\", \"5 cp\", \"Dog\", \"\\u2014\"]"}
+{"table_number": "44", "table_title": "Equipment", "row_index": "9", "cells": "[\"Girdle\", \"3 gp\", \"Nuts (per lb.)\", \"1 gp\", \"Guard\", \"25 gp\"]"}
+{"table_number": "44", "table_title": "Equipment", "row_index": "10", "cells": "[\"Gloves\", \"1 gp\", \"Raisins (per lb.)\", \"2 sp\", \"Hunting\", \"17 gp\"]"}
+{"table_number": "44", "table_title": "Equipment", "row_index": "11", "cells": "[\"Gown, common\", \"12 sp\", \"Rations, standard (1 wk)\", \"3 gp\", \"War\", \"20 gp\"]"}
+{"table_number": "44", "table_title": "Equipment", "row_index": "12", "cells": "[\"Hose\", \"2 gp\", \"Rations, iron (1 wk)\", \"5 gp\", \"Donkey, mule, or ass\", \"8 gp\"]"}
+{"table_number": "44", "table_title": "Equipment", "row_index": "13", "cells": "[\"Knife sheath\", \"3 cp\", \"Rice (per lb.)\", \"2 sp\", \"Elephant\", \"\\u2014\"]"}
+{"table_number": "44", "table_title": "Equipment", "row_index": "14", "cells": "[\"Mittens\", \"3 sp\", \"Salt (per lb.)\", \"1 sp\", \"Labor\", \"200 gp\"]"}
+{"table_number": "44", "table_title": "Equipment", "row_index": "15", "cells": "[\"Pin<br>Plain brooch\", \"6 gp<br>10 gp\", \"Salted herring (per 100)<br>Spice (per lb.)\", \"1 gp<br>\\u2014\", \"War<br>Falcon (trained)\", \"500 gp<br>1,000 gp\"]"}
+{"table_number": "44", "table_title": "Equipment", "row_index": "16", "cells": "[\"Robe\", \"\\u2014\", \"Exotic (saffron, clove)\", \"15 gp\", \"Goat\", \"1 gp\"]"}
+{"table_number": "44", "table_title": "Equipment", "row_index": "17", "cells": "[\"Common\", \"9 sp\", \"Rare (pepper, ginger)\", \"2 gp\", \"Goose\", \"5 cp\"]"}
+{"table_number": "44", "table_title": "Equipment", "row_index": "18", "cells": "[\"Embroidered\", \"20 gp\", \"Uncommon (cinnamon)\", \"1 gp\", \"Guinea hen\", \"2 cp\"]"}
+{"table_number": "44", "table_title": "Equipment", "row_index": "19", "cells": "[\"Sandals\", \"5 cp\", \"Tun of cider (250 gal.)\", \"8 gp\", \"Horse\", \"\\u2014\"]"}
+{"table_number": "44", "table_title": "Equipment", "row_index": "20", "cells": "[\"Sash\", \"2 sp\", \"Tun of good wine\", \"\", \"Draft\", \"200 gp\"]"}
+{"table_number": "44", "table_title": "Equipment", "row_index": "21", "cells": "[\"Shoes\", \"1 gp\", \"(250 gal.)\", \"20 gp\", \"Heavy war\", \"400 gp\"]"}
+{"table_number": "44", "table_title": "Equipment", "row_index": "22", "cells": "[\"Silk jacket\", \"80 gp\", \"\", \"\", \"Light war\", \"150 gp\"]"}
+{"table_number": "44", "table_title": "Equipment", "row_index": "23", "cells": "[\"Surcoat<br>Sword scabbard, hanger,\", \"6 sp\", \"Transport *<br>Barge\", \"500 gp\", \"Medium war<br>Riding\", \"225 gp<br>75 gp\"]"}
+{"table_number": "44", "table_title": "Equipment", "row_index": "24", "cells": "[\"baldric\", \"4 gp\", \"Canoe\", \"\\u2014\", \"Hunting cat\", \"\"]"}
+{"table_number": "44", "table_title": "Equipment", "row_index": "25", "cells": "[\"Tabard\", \"6 sp\", \"Small\", \"30 gp\", \"(jaguar, etc.)\", \"5,000 gp\"]"}
+{"table_number": "44", "table_title": "Equipment", "row_index": "26", "cells": "[\"Toga, coarse\", \"8 cp\", \"War\", \"50 gp\", \"Ox\", \"15 gp\"]"}
+{"table_number": "44", "table_title": "Equipment", "row_index": "27", "cells": "[\"Tunic\", \"8 sp\", \"Caravel\", \"10,000 gp\", \"Partridge\", \"5 cp\"]"}
+{"table_number": "44", "table_title": "Equipment", "row_index": "28", "cells": "[\"Vest\", \"6 sp\", \"Carriage\", \"\\u2014\", \"Peacock\", \"5 sp\"]"}
+{"table_number": "44", "table_title": "Equipment", "row_index": "29", "cells": "[\"\", \"\", \"Common\", \"150 gp\", \"Pig\", \"3 gp\"]"}
+{"table_number": "44", "table_title": "Equipment", "row_index": "30", "cells": "[\"Daily Food and Lodging\", \"\", \"Coach, ornamented\", \"7,000 gp\", \"Pigeon\", \"1 cp\"]"}
+{"table_number": "44", "table_title": "Equipment", "row_index": "31", "cells": "[\"Ale (per gallon)<br>Banquet (per person)\", \"2 sp<br>10 gp\", \"Chariot<br>Riding\", \"\\u2014<br>200 gp\", \"Pigeon, homing<br>Pony\", \"100 gp<br>30 gp\"]"}
+{"table_number": "44", "table_title": "Equipment", "row_index": "32", "cells": "[\"Bread\", \"5 cp\", \"War\", \"500 gp\", \"Ram\", \"4 gp\"]"}
+{"table_number": "44", "table_title": "Equipment", "row_index": "33", "cells": "[\"Cheese\", \"4 sp\", \"Coaster\", \"5,000 gp\", \"Sheep\", \"2 gp\"]"}
+{"table_number": "44", "table_title": "Equipment", "row_index": "34", "cells": "[\"City rooms (per month)\", \"\\u2014\", \"Cog\", \"10,000 gp\", \"Songbird\", \"10 sp\"]"}
+{"table_number": "44", "table_title": "Equipment", "row_index": "35", "cells": "[\"Common\", \"20 gp\", \"Curragh\", \"500 gp\", \"Swan\", \"5 sp\"]"}
+{"table_number": "44", "table_title": "Equipment", "row_index": "36", "cells": "[\"Poor\", \"6 sp\", \"Drakkar\", \"25,000 gp\", \"\", \"\"]"}
+{"table_number": "44", "table_title": "Equipment", "row_index": "37", "cells": "[\"Common wine (pitcher)\", \"2 sp\", \"Dromond\", \"15,000 gp\", \"Services\", \"\"]"}
+{"table_number": "44", "table_title": "Equipment", "row_index": "38", "cells": "[\"Egg or fresh vegetables<br>Grain and stabling for horse\", \"1 cp\", \"Galleon<br>Great galley\", \"50,000 gp<br>30,000 gp\", \"Bath<br>Clerk (per letter)\", \"3 cp<br>2 sp\"]"}
+{"table_number": "44", "table_title": "Equipment", "row_index": "39", "cells": "[\"(daily)\", \"5 sp\", \"Knarr\", \"3,000 gp\", \"Doctor, leech,\", \"\"]"}
+{"table_number": "44", "table_title": "Equipment", "row_index": "40", "cells": "[\"Honey\", \"5 sp\", \"Longship\", \"10,000 gp\", \"or bleeding\", \"3 gp\"]"}
+{"table_number": "44", "table_title": "Equipment", "row_index": "41", "cells": "[\"Inn lodging (per day/week)\", \"\\u2014\", \"Oar\", \"\\u2014\", \"Guide, in city (per day)\", \"2 sp\"]"}
+{"table_number": "44", "table_title": "Equipment", "row_index": "42", "cells": "[\"Common\", \"5 sp/3 gp\", \"Common\", \"2 gp\", \"Lantern or torchbearer\", \"\"]"}
+{"table_number": "44", "table_title": "Equipment", "row_index": "43", "cells": "[\"Poor\", \"5 cp/2 sp\", \"Galley\", \"10 gp\", \"(per night)\", \"1 sp\"]"}
+{"table_number": "44", "table_title": "Equipment", "row_index": "44", "cells": "[\"Meat for one meal\", \"1 sp\", \"Raft or small keelboat\", \"100 gp\", \"Laundry (by load)\", \"1 cp\"]"}
+{"table_number": "44", "table_title": "Equipment", "row_index": "45", "cells": "[\"Meals (per day)\", \"\\u2014\", \"Sail\", \"20 gp\", \"Messenger, in city\", \"\"]"}
+{"table_number": "44", "table_title": "Equipment", "row_index": "46", "cells": "[\"Good<br>Common\", \"5 sp<br>3 sp\", \"Sedan chair<br>Wagon or cart wheel\", \"100 gp<br>5 gp\", \"(per message)<br>Minstrel\", \"1 sp\"]"}
+{"table_number": "44", "table_title": "Equipment", "row_index": "47", "cells": "[\"Poor\", \"1 sp\", \"\", \"\", \"(per performance)\", \"3 gp\"]"}
+{"table_number": "44", "table_title": "Equipment", "row_index": "48", "cells": "[\"Separate latrine for rooms\", \"\", \"* Movement rates for this equipment\", \"\", \"Mourner (per funeral)\", \"2 sp\"]"}
+{"table_number": "44", "table_title": "Equipment", "row_index": "49", "cells": "[\"(per month)\", \"2 gp\", \"are given in the DMG.\", \"\", \"Teamster w/wagon\", \"1 sp/mile\"]"}
+{"table_number": "44", "table_title": "Equipment", "row_index": "50", "cells": "[\"Small beer (per gallon)\", \"5 cp\", \"\", \"\", \"\", \"\"]"}
+{"table_number": "44", "table_title": "Equipment", "row_index": "51", "cells": "[\"Soup\", \"5 cp\", \"\", \"\", \"\", \"\"]"}
+{"table_number": "45", "table_title": "Missile Weapon Ranges", "row_index": "0", "cells": "[\"\", \"\", \"Ra\", \"ange (yar\", \"ds)\"]"}
+{"table_number": "45", "table_title": "Missile Weapon Ranges", "row_index": "1", "cells": "[\"Weapon\", \"ROF\", \"S\", \"M\", \"L\"]"}
+{"table_number": "45", "table_title": "Missile Weapon Ranges", "row_index": "2", "cells": "[\"Arquebus\", \"1/3\", \"50\", \"150\", \"210\"]"}
+{"table_number": "45", "table_title": "Missile Weapon Ranges", "row_index": "3", "cells": "[\"Blowgun<br>Comp. long bow,\", \"2/1\", \"10\", \"20\", \"30\"]"}
+{"table_number": "45", "table_title": "Missile Weapon Ranges", "row_index": "4", "cells": "[\"flight arrow\", \"2/1\", \"60\", \"120\", \"210\"]"}
+{"table_number": "45", "table_title": "Missile Weapon Ranges", "row_index": "5", "cells": "[\"Comp. long bow,<br>sheaf arrow\", \"2/1\", \"40\", \"80\", \"170\"]"}
+{"table_number": "45", "table_title": "Missile Weapon Ranges", "row_index": "6", "cells": "[\"Comp. short bow\", \"2/1\", \"50\", \"100\", \"180\"]"}
+{"table_number": "45", "table_title": "Missile Weapon Ranges", "row_index": "7", "cells": "[\"Longbow,<br>flight arrow\", \"2/1\", \"70\", \"140\", \"210\"]"}
+{"table_number": "45", "table_title": "Missile Weapon Ranges", "row_index": "8", "cells": "[\"Longbow,<br>sheaf arrow<br>Short bow<br>Club\", \"2/1<br>2/1<br>1\", \"50<br>50<br>10\", \"100<br>100<br>20\", \"170<br>150<br>30\"]"}
+{"table_number": "45", "table_title": "Missile Weapon Ranges", "row_index": "9", "cells": "[\"Hand crossbow<br>Heavy crossbow<br>Light crossbow\", \"1<br>1/2<br>1\", \"20<br>80<br>60\", \"40<br>160<br>120\", \"60<br>240<br>180\"]"}
+{"table_number": "45", "table_title": "Missile Weapon Ranges", "row_index": "10", "cells": "[\"Dagger<br>Dart<br>Hammer\", \"2/1<br>3/1<br>1\", \"10<br>10<br>10\", \"20<br>20<br>20\", \"30<br>40<br>30\"]"}
+{"table_number": "45", "table_title": "Missile Weapon Ranges", "row_index": "11", "cells": "[\"Hand axe\", \"1\", \"10\", \"20\", \"30\", \"\"]"}
+{"table_number": "45", "table_title": "Missile Weapon Ranges", "row_index": "12", "cells": "[\"Harpoon\", \"1\", \"10\", \"20\", \"30\", \"\"]"}
+{"table_number": "45", "table_title": "Missile Weapon Ranges", "row_index": "13", "cells": "[\"Javelin\", \"1\", \"20\", \"40\", \"60\", \"\"]"}
+{"table_number": "45", "table_title": "Missile Weapon Ranges", "row_index": "14", "cells": "[\"Knife\", \"2/1\", \"10\", \"20\", \"30\", \"\"]"}
+{"table_number": "45", "table_title": "Missile Weapon Ranges", "row_index": "15", "cells": "[\"Sling bullet\", \"1\", \"50\", \"100\", \"200\", \"\"]"}
+{"table_number": "45", "table_title": "Missile Weapon Ranges", "row_index": "16", "cells": "[\"Sling stone\", \"1\", \"40\", \"80\", \"160\", \"\"]"}
+{"table_number": "45", "table_title": "Missile Weapon Ranges", "row_index": "17", "cells": "[\"Spear\", \"1\", \"10\", \"20\", \"30\", \"\"]"}
+{"table_number": "45", "table_title": "Missile Weapon Ranges", "row_index": "18", "cells": "[\"Staff sling bullet\", \"2/1\", \"_\", \"30-60\", \"90\", \"\"]"}
+{"table_number": "45", "table_title": "Missile Weapon Ranges", "row_index": "19", "cells": "[\"Staff sling stone\", \"2/1\", \"_\", \"30-60\", \"90\", \"\"]"}
+{"table_number": "46", "table_title": "Armor Class Ratings", "row_index": "0", "cells": "[\"Type of Armor<br>None\", \"AC Rating<br>10\"]"}
+{"table_number": "46", "table_title": "Armor Class Ratings", "row_index": "1", "cells": "[\"Shield only\", \"9\"]"}
+{"table_number": "46", "table_title": "Armor Class Ratings", "row_index": "2", "cells": "[\"Leather or padded armor\", \"8\"]"}
+{"table_number": "46", "table_title": "Armor Class Ratings", "row_index": "3", "cells": "[\"Leather or padded armor + shield,\", \"\"]"}
+{"table_number": "46", "table_title": "Armor Class Ratings", "row_index": "4", "cells": "[\"studded leather, or ring mail armor\", \"7\"]"}
+{"table_number": "46", "table_title": "Armor Class Ratings", "row_index": "5", "cells": "[\"Studded leather or ring mail + shield,\", \"\"]"}
+{"table_number": "46", "table_title": "Armor Class Ratings", "row_index": "6", "cells": "[\"brigandine, scale mail, or hide armor\", \"6\"]"}
+{"table_number": "46", "table_title": "Armor Class Ratings", "row_index": "7", "cells": "[\"Scale mail or hide + shield, chain mail\", \"5\"]"}
+{"table_number": "46", "table_title": "Armor Class Ratings", "row_index": "8", "cells": "[\"Chain mail + shield, splint mail,\", \"\"]"}
+{"table_number": "46", "table_title": "Armor Class Ratings", "row_index": "9", "cells": "[\"banded mail, bronze plate mail\", \"4\"]"}
+{"table_number": "46", "table_title": "Armor Class Ratings", "row_index": "10", "cells": "[\"Splint mail, banded mail, or bronze\", \"\"]"}
+{"table_number": "46", "table_title": "Armor Class Ratings", "row_index": "11", "cells": "[\"plate mail + shield, plate mail\", \"3\"]"}
+{"table_number": "46", "table_title": "Armor Class Ratings", "row_index": "12", "cells": "[\"Plate mail + shield, field plate\", \"2\"]"}
+{"table_number": "46", "table_title": "Armor Class Ratings", "row_index": "13", "cells": "[\"Field plate armor + shield, full plate\", \"1\"]"}
+{"table_number": "46", "table_title": "Armor Class Ratings", "row_index": "14", "cells": "[\"Full plate armor + shield\", \"0\"]"}
+{"table_number": "46", "table_title": "Armor Class Ratings", "row_index": "15", "cells": "[\"See \\\"Shields\\\" for more information on the defensive<br>benefits of various shields.\", \"\"]"}
+{"table_number": "47", "table_title": "Character Encumbrance", "row_index": "0", "cells": "[\"Table 47:\"]"}
+{"table_number": "47", "table_title": "Character Encumbrance", "row_index": "1", "cells": "[\"Character Encumbrance\"]"}
+{"table_number": "47", "table_title": "Character Encumbrance", "row_index": "2", "cells": "[\"Character<br>Strength\", \"Unencumbered\", \"Light\", \"Encumbrance<br>Moderate\", \"Heavy\", \"Severe\", \"Max. Carried<br>Weight\"]"}
+{"table_number": "47", "table_title": "Character Encumbrance", "row_index": "3", "cells": "[\"2\", \"0\\u20131\", \"2\", \"3\", \"4\", \"5\\u20136\", \"6\"]"}
+{"table_number": "47", "table_title": "Character Encumbrance", "row_index": "4", "cells": "[\"3\", \"0\\u20135\", \"6\", \"7\", \"8\\u20139\", \"10\", \"10\"]"}
+{"table_number": "47", "table_title": "Character Encumbrance", "row_index": "5", "cells": "[\"4\\u20135\", \"0\\u201310\", \"11\\u201313\", \"14\\u201316\", \"17\\u201319\", \"20\\u201325\", \"25\"]"}
+{"table_number": "47", "table_title": "Character Encumbrance", "row_index": "6", "cells": "[\"6\\u20137\", \"0\\u201320\", \"21\\u201329\", \"30\\u201338\", \"39\\u201346\", \"47\\u201355\", \"55\"]"}
+{"table_number": "47", "table_title": "Character Encumbrance", "row_index": "7", "cells": "[\"8\\u20139\", \"0\\u201335\", \"36\\u201350\", \"51\\u201365\", \"66\\u201380\", \"81\\u201390\", \"90\"]"}
+{"table_number": "47", "table_title": "Character Encumbrance", "row_index": "8", "cells": "[\"10\\u201311\", \"0\\u201340\", \"41\\u201358\", \"59\\u201376\", \"77\\u201396\", \"97\\u2013110\", \"110\"]"}
+{"table_number": "47", "table_title": "Character Encumbrance", "row_index": "9", "cells": "[\"12\\u201313\", \"0\\u201345\", \"46\\u201369\", \"70\\u201393\", \"94\\u2013117\", \"118\\u2013140\", \"140\"]"}
+{"table_number": "47", "table_title": "Character Encumbrance", "row_index": "10", "cells": "[\"14\\u201315\", \"0\\u201355\", \"56\\u201385\", \"86\\u2013115\", \"116\\u2013145\", \"146\\u2013170\", \"170\"]"}
+{"table_number": "47", "table_title": "Character Encumbrance", "row_index": "11", "cells": "[\"16\", \"0\\u201370\", \"71\\u2013100\", \"101\\u2013130\", \"131\\u2013160\", \"161\\u2013195\", \"195\"]"}
+{"table_number": "47", "table_title": "Character Encumbrance", "row_index": "12", "cells": "[\"17\", \"0\\u201385\", \"86\\u2013121\", \"122\\u2013157\", \"158\\u2013193\", \"194\\u2013220\", \"220\"]"}
+{"table_number": "47", "table_title": "Character Encumbrance", "row_index": "13", "cells": "[\"18\", \"0\\u2013110\", \"111\\u2013149\", \"150\\u2013188\", \"189\\u2013227\", \"228\\u2013255\", \"255\"]"}
+{"table_number": "47", "table_title": "Character Encumbrance", "row_index": "14", "cells": "[\"18/01\\u201350\", \"0\\u2013135\", \"136\\u2013174\", \"175\\u2013213\", \"214\\u2013252\", \"253\\u2013280\", \"280\"]"}
+{"table_number": "47", "table_title": "Character Encumbrance", "row_index": "15", "cells": "[\"18/51\\u201375\", \"0\\u2013160\", \"161\\u2013199\", \"200\\u2013238\", \"239\\u2013277\", \"278\\u2013305\", \"305\"]"}
+{"table_number": "47", "table_title": "Character Encumbrance", "row_index": "16", "cells": "[\"18/76\\u201390\", \"0\\u2013185\", \"186\\u2013224\", \"225\\u2013263\", \"264\\u2013302\", \"303\\u2013330\", \"330\"]"}
+{"table_number": "47", "table_title": "Character Encumbrance", "row_index": "17", "cells": "[\"18/91\\u201399\", \"0\\u2013235\", \"236\\u2013274\", \"275\\u2013313\", \"314\\u2013352\", \"353\\u2013380\", \"380\"]"}
+{"table_number": "47", "table_title": "Character Encumbrance", "row_index": "18", "cells": "[\"18/00\", \"0\\u2013335\", \"336\\u2013374\", \"375\\u2013413\", \"414\\u2013452\", \"453\\u2013480\", \"480\"]"}
+{"table_number": "48", "table_title": "Modified Movement Rates", "row_index": "0", "cells": "[\"Base Move\", \"\", \"\", \"\", \"\", \"\", \"Modified Movement Rate\", \"\", \"\", \"\", \"\", \"\", \"\"]"}
+{"table_number": "48", "table_title": "Modified Movement Rates", "row_index": "1", "cells": "[\"Strength\", \"12\", \"11\", \"10\", \"9\", \"8\", \"7\", \"6\", \"5\", \"4\", \"3\", \"2\", \"1\"]"}
+{"table_number": "48", "table_title": "Modified Movement Rates", "row_index": "2", "cells": "[\"Score\", \"6\", \"5\", \"5\", \"4\", \"4\", \"3\", \"3\", \"2\", \"2\", \"1\", \"1\", \"1\"]"}
+{"table_number": "48", "table_title": "Modified Movement Rates", "row_index": "3", "cells": "[\"2\", \"1\", \"\\u2014\", \"2\", \"\\u2014\", \"\\u2014\", \"3\", \"\\u2014\", \"\\u2014\", \"4\", \"\\u2014\", \"\\u2014\", \"5\"]"}
+{"table_number": "48", "table_title": "Modified Movement Rates", "row_index": "4", "cells": "[\"3\", \"5\", \"\\u2014\", \"6\", \"\\u2014\", \"7\", \"\\u2014\", \"\\u2014\", \"8\", \"\\u2014\", \"9\", \"\\u2014\", \"\\u2014\"]"}
+{"table_number": "48", "table_title": "Modified Movement Rates", "row_index": "5", "cells": "[\"4\\u20135\", \"10\", \"11\", \"12\", \"13\", \"14\", \"15\", \"16\", \"17\", \"18\", \"19\", \"20\", \"21\"]"}
+{"table_number": "48", "table_title": "Modified Movement Rates", "row_index": "6", "cells": "[\"6\\u20137\", \"20\", \"23\", \"26\", \"29\", \"32\", \"35\", \"38\", \"41\", \"44\", \"47\", \"50\", \"53\"]"}
+{"table_number": "48", "table_title": "Modified Movement Rates", "row_index": "7", "cells": "[\"8\\u20139\", \"35\", \"40\", \"45\", \"50\", \"55\", \"60\", \"65\", \"70\", \"75\", \"80\", \"85\", \"89\"]"}
+{"table_number": "48", "table_title": "Modified Movement Rates", "row_index": "8", "cells": "[\"10\\u201311\", \"40\", \"46\", \"52\", \"58\", \"64\", \"70\", \"76\", \"82\", \"88\", \"94\", \"100\", \"106\"]"}
+{"table_number": "48", "table_title": "Modified Movement Rates", "row_index": "9", "cells": "[\"12\\u201313\", \"45\", \"53\", \"61\", \"69\", \"77\", \"85\", \"93\", \"101\", \"109\", \"117\", \"125\", \"133\"]"}
+{"table_number": "48", "table_title": "Modified Movement Rates", "row_index": "10", "cells": "[\"14\\u201315\", \"55\", \"65\", \"75\", \"85\", \"95\", \"105\", \"115\", \"125\", \"135\", \"145\", \"155\", \"165\"]"}
+{"table_number": "48", "table_title": "Modified Movement Rates", "row_index": "11", "cells": "[\"16\", \"70\", \"80\", \"90\", \"100\", \"110\", \"120\", \"130\", \"140\", \"150\", \"160\", \"170\", \"180\"]"}
+{"table_number": "48", "table_title": "Modified Movement Rates", "row_index": "12", "cells": "[\"17\", \"85\", \"97\", \"109\", \"121\", \"133\", \"145\", \"157\", \"169\", \"181\", \"193\", \"205\", \"217\"]"}
+{"table_number": "48", "table_title": "Modified Movement Rates", "row_index": "13", "cells": "[\"18\", \"110\", \"123\", \"136\", \"149\", \"162\", \"175\", \"188\", \"201\", \"214\", \"227\", \"240\", \"253\"]"}
+{"table_number": "48", "table_title": "Modified Movement Rates", "row_index": "14", "cells": "[\"18/01\\u201350\", \"135\", \"148\", \"161\", \"174\", \"187\", \"200\", \"213\", \"226\", \"239\", \"252\", \"265\", \"278\"]"}
+{"table_number": "48", "table_title": "Modified Movement Rates", "row_index": "15", "cells": "[\"18/51\\u201375\", \"160\", \"173\", \"186\", \"199\", \"212\", \"225\", \"238\", \"251\", \"264\", \"277\", \"290\", \"303\"]"}
+{"table_number": "48", "table_title": "Modified Movement Rates", "row_index": "16", "cells": "[\"18/76\\u201390\", \"185\", \"198\", \"211\", \"224\", \"237\", \"250\", \"263\", \"276\", \"289\", \"302\", \"315\", \"328\"]"}
+{"table_number": "48", "table_title": "Modified Movement Rates", "row_index": "17", "cells": "[\"18/91\\u201399\", \"235\", \"248\", \"261\", \"274\", \"287\", \"300\", \"313\", \"326\", \"339\", \"352\", \"365\", \"378\"]"}
+{"table_number": "48", "table_title": "Modified Movement Rates", "row_index": "18", "cells": "[\"18/00\", \"335\", \"348\", \"361\", \"374\", \"387\", \"400\", \"413\", \"426\", \"439\", \"452\", \"465\", \"478\"]"}
+{"table_number": "49", "table_title": "Carrying Capacities of Animals", "row_index": "0", "cells": "[\"Mount\", \"Base Move\", \"\\u00bd Move\", \"\\u00bc Move\"]"}
+{"table_number": "49", "table_title": "Carrying Capacities of Animals", "row_index": "1", "cells": "[\"Camel\", \"0\\u2013330 lbs.\", \"331\\u2013500 lbs.\", \"501\\u2013660 lbs.\"]"}
+{"table_number": "49", "table_title": "Carrying Capacities of Animals", "row_index": "2", "cells": "[\"Dog\", \"0\\u201315 lbs.\", \"16\\u201320 lbs.\", \"21\\u201330 lbs.\"]"}
+{"table_number": "49", "table_title": "Carrying Capacities of Animals", "row_index": "3", "cells": "[\"Elephant\", \"0\\u2013500 lbs.\", \"501\\u2013750 lbs.\", \"751\\u20131,000 lbs.\"]"}
+{"table_number": "49", "table_title": "Carrying Capacities of Animals", "row_index": "4", "cells": "[\"Horse, draft\", \"0\\u2013260 lbs.\", \"261\\u2013390 lbs.\", \"391\\u2013520 lbs.\"]"}
+{"table_number": "49", "table_title": "Carrying Capacities of Animals", "row_index": "5", "cells": "[\"Horse, heavy\", \"0\\u2013260 lbs.\", \"261\\u2013390 lbs.\", \"391\\u2013520 lbs.\"]"}
+{"table_number": "49", "table_title": "Carrying Capacities of Animals", "row_index": "6", "cells": "[\"Horse, light\", \"0\\u2013170 lbs.\", \"171\\u2013255 lbs.\", \"256\\u2013340 lbs.\"]"}
+{"table_number": "49", "table_title": "Carrying Capacities of Animals", "row_index": "7", "cells": "[\"Horse, medium\", \"0\\u2013220 lbs.\", \"221\\u2013330 lbs.\", \"331\\u2013440 lbs.\"]"}
+{"table_number": "49", "table_title": "Carrying Capacities of Animals", "row_index": "8", "cells": "[\"Horse, riding\", \"0\\u2013180 lbs.\", \"181\\u2013270 lbs.\", \"271\\u2013360 lbs.\"]"}
+{"table_number": "49", "table_title": "Carrying Capacities of Animals", "row_index": "9", "cells": "[\"Mule\", \"0\\u2013250 lbs.\", \"251\\u2013375 lbs.\", \"376\\u2013500 lbs.\"]"}
+{"table_number": "49", "table_title": "Carrying Capacities of Animals", "row_index": "10", "cells": "[\"Ox\", \"0\\u2013220 lbs.\", \"221\\u2013330 lbs.\", \"331\\u2013440 lbs.\"]"}
+{"table_number": "49", "table_title": "Carrying Capacities of Animals", "row_index": "11", "cells": "[\"Yak\", \"0\\u2013220 lbs.\", \"221\\u2013330 lbs.\", \"331\\u2013440 lbs.\"]"}
+{"table_number": "50", "table_title": "Stowage Capacity", "row_index": "0", "cells": "[\"Item\", \"Weight Cap.\", \"Volume\"]"}
+{"table_number": "50", "table_title": "Stowage Capacity", "row_index": "1", "cells": "[\"Backpack\", \"50 lbs.\", \"3'=2'=1'\"]"}
+{"table_number": "50", "table_title": "Stowage Capacity", "row_index": "2", "cells": "[\"Basket, large\", \"20 lbs.\", \"2'=2'=2'\"]"}
+{"table_number": "50", "table_title": "Stowage Capacity", "row_index": "3", "cells": "[\"Basket, small\", \"10 lbs.\", \"1'=1'=1'\"]"}
+{"table_number": "50", "table_title": "Stowage Capacity", "row_index": "4", "cells": "[\"Belt pouch, large\", \"8 lbs.\", \"6\\\"=8\\\"=2\\\"\"]"}
+{"table_number": "50", "table_title": "Stowage Capacity", "row_index": "5", "cells": "[\"Belt pouch, small\", \"5 lbs.\", \"4\\\"=6\\\"=2\\\"\"]"}
+{"table_number": "50", "table_title": "Stowage Capacity", "row_index": "6", "cells": "[\"Chest, large\", \"100 lbs.\", \"3'=2'=2'\"]"}
+{"table_number": "50", "table_title": "Stowage Capacity", "row_index": "7", "cells": "[\"Chest, small\", \"40 lbs.\", \"2'=1'=1'\"]"}
+{"table_number": "50", "table_title": "Stowage Capacity", "row_index": "8", "cells": "[\"Sack, large\", \"30 lbs.\", \"2'=2'=1'\"]"}
+{"table_number": "50", "table_title": "Stowage Capacity", "row_index": "9", "cells": "[\"Sack, small\", \"15 lbs.\", \"1'=1'=8\\\"\"]"}
+{"table_number": "50", "table_title": "Stowage Capacity", "row_index": "10", "cells": "[\"Saddle bags, large\", \"30 lbs.\", \"18\\\"=1'=6\\\"\"]"}
+{"table_number": "50", "table_title": "Stowage Capacity", "row_index": "11", "cells": "[\"Saddle bags, small\", \"20 lbs.\", \"1'=1'=6\\\"\"]"}
+{"table_number": "51", "table_title": "Combat Modifiers", "row_index": "0", "cells": "[\"Situation\", \"Attack Roll<br>Modifier\"]"}
+{"table_number": "51", "table_title": "Combat Modifiers", "row_index": "1", "cells": "[\"Attacker on higher ground\", \"+1\"]"}
+{"table_number": "51", "table_title": "Combat Modifiers", "row_index": "2", "cells": "[\"Defender invisible\", \"\\u20134\"]"}
+{"table_number": "51", "table_title": "Combat Modifiers", "row_index": "3", "cells": "[\"Defender off-balance\", \"+2\"]"}
+{"table_number": "51", "table_title": "Combat Modifiers", "row_index": "4", "cells": "[\"Defender sleeping or held\", \"Automatic*\"]"}
+{"table_number": "51", "table_title": "Combat Modifiers", "row_index": "5", "cells": "[\"Defender stunned or prone\", \"+4\"]"}
+{"table_number": "51", "table_title": "Combat Modifiers", "row_index": "6", "cells": "[\"Defender surprised\", \"+1\"]"}
+{"table_number": "51", "table_title": "Combat Modifiers", "row_index": "7", "cells": "[\"Missile fire, long range\", \"\\u20135\"]"}
+{"table_number": "51", "table_title": "Combat Modifiers", "row_index": "8", "cells": "[\"Missile fire, medium range\", \"\\u20132\"]"}
+{"table_number": "51", "table_title": "Combat Modifiers", "row_index": "9", "cells": "[\"Rear attack\", \"+2\"]"}
+{"table_number": "52", "table_title": "Weapon Type vs. Armor Modifiers", "row_index": "0", "cells": "[\"Armor Type\", \"Slash\", \"Pierce\", \"Bludgeon\", \"\", \"\"]"}
+{"table_number": "52", "table_title": "Weapon Type vs. Armor Modifiers", "row_index": "1", "cells": "[\"Banded mail\", \"+2\", \"0\", \"+1\", \"\", \"\"]"}
+{"table_number": "52", "table_title": "Weapon Type vs. Armor Modifiers", "row_index": "2", "cells": "[\"Brigandine\", \"+1\", \"+1\", \"0\", \"\", \"\"]"}
+{"table_number": "52", "table_title": "Weapon Type vs. Armor Modifiers", "row_index": "3", "cells": "[\"Chain mail\", \"+2\", \"0\", \"-2\", \"\", \"\"]"}
+{"table_number": "52", "table_title": "Weapon Type vs. Armor Modifiers", "row_index": "4", "cells": "[\"Field Plate\", \"+3\", \"+1\", \"0\", \"\", \"\"]"}
+{"table_number": "52", "table_title": "Weapon Type vs. Armor Modifiers", "row_index": "5", "cells": "[\"Full Plate\", \"+4\", \"+3\", \"0\", \"\", \"\"]"}
+{"table_number": "52", "table_title": "Weapon Type vs. Armor Modifiers", "row_index": "6", "cells": "[\"Leather armor*\", \"0\", \"-2\", \"0\", \"\", \"\"]"}
+{"table_number": "52", "table_title": "Weapon Type vs. Armor Modifiers", "row_index": "7", "cells": "[\"Plate mail**\", \"+3\", \"0\", \"0\", \"\", \"\"]"}
+{"table_number": "52", "table_title": "Weapon Type vs. Armor Modifiers", "row_index": "8", "cells": "[\"Ring mail\", \"+1\", \"+1\", \"0\", \"\", \"\"]"}
+{"table_number": "52", "table_title": "Weapon Type vs. Armor Modifiers", "row_index": "9", "cells": "[\"Scale mail\", \"0\", \"+1\", \"0\", \"\", \"\"]"}
+{"table_number": "52", "table_title": "Weapon Type vs. Armor Modifiers", "row_index": "10", "cells": "[\"Splint mail\", \"0\", \"+1\", \"+2\", \"\", \"\"]"}
+{"table_number": "52", "table_title": "Weapon Type vs. Armor Modifiers", "row_index": "11", "cells": "[\"Studded leather\", \"+2\", \"+1\", \"0\", \"\", \"\"]"}
+{"table_number": "52", "table_title": "Weapon Type vs. Armor Modifiers", "row_index": "12", "cells": "[\"* Includes padded armor and hides\", \"\", \"\", \"\", \"\", \"\"]"}
+{"table_number": "54", "table_title": "THAC0 Advancement", "row_index": "0", "cells": "[\"\", \"Improvement Rate\"]"}
+{"table_number": "54", "table_title": "THAC0 Advancement", "row_index": "1", "cells": "[\"Group\", \"Points/Level\"]"}
+{"table_number": "54", "table_title": "THAC0 Advancement", "row_index": "2", "cells": "[\"Priest\", \"2/3\"]"}
+{"table_number": "54", "table_title": "THAC0 Advancement", "row_index": "3", "cells": "[\"Rogue\", \"1/2\"]"}
+{"table_number": "54", "table_title": "THAC0 Advancement", "row_index": "4", "cells": "[\"Warrior\", \"1/1\"]"}
+{"table_number": "54", "table_title": "THAC0 Advancement", "row_index": "5", "cells": "[\"Wizard\", \"1/3\"]"}
+{"table_number": "53", "table_title": "Calculated THAC0s", "row_index": "0", "cells": "[\"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"Level\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\", \"\"]"}
+{"table_number": "53", "table_title": "Calculated THAC0s", "row_index": "1", "cells": "[\"Group\", \"1\", \"2\", \"3\", \"4\", \"5\", \"6\", \"7\", \"8\", \"9\", \"10\", \"11\", \"12\", \"13\", \"14\", \"15\", \"16\", \"17\", \"18\", \"19\", \"20\"]"}
+{"table_number": "53", "table_title": "Calculated THAC0s", "row_index": "2", "cells": "[\"Priest\", \"20\", \"20\", \"20\", \"18\", \"18\", \"18\", \"16\", \"16\", \"16\", \"14\", \"14\", \"14\", \"12\", \"12\", \"12\", \"10\", \"10\", \"10\", \"8\", \"8\"]"}
+{"table_number": "53", "table_title": "Calculated THAC0s", "row_index": "3", "cells": "[\"Rogue\", \"20\", \"20\", \"19\", \"19\", \"18\", \"18\", \"17\", \"17\", \"16\", \"16\", \"15\", \"15\", \"14\", \"14\", \"13\", \"13\", \"12\", \"12\", \"11\", \"11\"]"}
+{"table_number": "53", "table_title": "Calculated THAC0s", "row_index": "4", "cells": "[\"Warrior\", \"20\", \"19\", \"18\", \"17\", \"16\", \"15\", \"14\", \"13\", \"12\", \"11\", \"10\", \"9\", \"8\", \"7\", \"6\", \"5\", \"4\", \"3\", \"2\", \"1\"]"}
+{"table_number": "53", "table_title": "Calculated THAC0s", "row_index": "5", "cells": "[\"Wizard\", \"20\", \"20\", \"20\", \"19\", \"19\", \"19\", \"18\", \"18\", \"18\", \"17\", \"17\", \"17\", \"16\", \"16\", \"16\", \"15\", \"15\", \"15\", \"14\", \"14\"]"}
+{"table_number": "55", "table_title": "Standard Modifiers to Initiative", "row_index": "0", "cells": "[\"Specific Situation\", \"Modifier\"]"}
+{"table_number": "55", "table_title": "Standard Modifiers to Initiative", "row_index": "1", "cells": "[\"Hasted\", \"\\u20132\"]"}
+{"table_number": "55", "table_title": "Standard Modifiers to Initiative", "row_index": "2", "cells": "[\"Slowed\", \"+2\"]"}
+{"table_number": "55", "table_title": "Standard Modifiers to Initiative", "row_index": "3", "cells": "[\"On higher ground\", \"\\u20131\"]"}
+{"table_number": "55", "table_title": "Standard Modifiers to Initiative", "row_index": "4", "cells": "[\"Set to receive a charge\", \"\\u20132\"]"}
+{"table_number": "55", "table_title": "Standard Modifiers to Initiative", "row_index": "5", "cells": "[\"Wading or slippery footing\", \"+2\"]"}
+{"table_number": "55", "table_title": "Standard Modifiers to Initiative", "row_index": "6", "cells": "[\"Wading in deep water\", \"+4\"]"}
+{"table_number": "55", "table_title": "Standard Modifiers to Initiative", "row_index": "7", "cells": "[\"Foreign environment*\", \"+6\"]"}
+{"table_number": "55", "table_title": "Standard Modifiers to Initiative", "row_index": "8", "cells": "[\"Hindered (tangled, climbing, held)\", \"+3\"]"}
+{"table_number": "55", "table_title": "Standard Modifiers to Initiative", "row_index": "9", "cells": "[\"Waiting (see Chapter 11)\", \"+1\"]"}
+{"table_number": "56", "table_title": "Optional Modifiers to Initiative", "row_index": "0", "cells": "[\"Specific Situation<br>Attacking with weapon\", \"Modifier<br>Weapon speed\"]"}
+{"table_number": "56", "table_title": "Optional Modifiers to Initiative", "row_index": "1", "cells": "[\"Breath weapon\", \"+1\"]"}
+{"table_number": "56", "table_title": "Optional Modifiers to Initiative", "row_index": "2", "cells": "[\"Casting a spell\", \"Casting time\"]"}
+{"table_number": "56", "table_title": "Optional Modifiers to Initiative", "row_index": "3", "cells": "[\"Creature size (Monsters attacking\", \"\"]"}
+{"table_number": "56", "table_title": "Optional Modifiers to Initiative", "row_index": "4", "cells": "[\"with natural weapons only)*\", \"\"]"}
+{"table_number": "56", "table_title": "Optional Modifiers to Initiative", "row_index": "5", "cells": "[\"Tiny\", \"0\"]"}
+{"table_number": "56", "table_title": "Optional Modifiers to Initiative", "row_index": "6", "cells": "[\"Small\", \"+3\"]"}
+{"table_number": "56", "table_title": "Optional Modifiers to Initiative", "row_index": "7", "cells": "[\"Medium\", \"+3\"]"}
+{"table_number": "56", "table_title": "Optional Modifiers to Initiative", "row_index": "8", "cells": "[\"Large\", \"+6\"]"}
+{"table_number": "56", "table_title": "Optional Modifiers to Initiative", "row_index": "9", "cells": "[\"Huge\", \"+9\"]"}
+{"table_number": "56", "table_title": "Optional Modifiers to Initiative", "row_index": "10", "cells": "[\"Gargantuan\", \"+12\"]"}
+{"table_number": "56", "table_title": "Optional Modifiers to Initiative", "row_index": "11", "cells": "[\"Innate spell ability\", \"+3\"]"}
+{"table_number": "56", "table_title": "Optional Modifiers to Initiative", "row_index": "12", "cells": "[\"Magical Items**\", \"\"]"}
+{"table_number": "56", "table_title": "Optional Modifiers to Initiative", "row_index": "13", "cells": "[\"Miscellaneous Magic\", \"+3\"]"}
+{"table_number": "56", "table_title": "Optional Modifiers to Initiative", "row_index": "14", "cells": "[\"Potion\", \"+4\"]"}
+{"table_number": "56", "table_title": "Optional Modifiers to Initiative", "row_index": "15", "cells": "[\"Ring\", \"+3\"]"}
+{"table_number": "56", "table_title": "Optional Modifiers to Initiative", "row_index": "16", "cells": "[\"Rod\", \"+1\"]"}
+{"table_number": "56", "table_title": "Optional Modifiers to Initiative", "row_index": "17", "cells": "[\"Scroll\", \"Casting time of spell\"]"}
+{"table_number": "56", "table_title": "Optional Modifiers to Initiative", "row_index": "18", "cells": "[\"Stave\", \"+2\"]"}
+{"table_number": "56", "table_title": "Optional Modifiers to Initiative", "row_index": "19", "cells": "[\"Wand\", \"+3\"]"}
+{"table_number": "57", "table_title": "Armor Modifiers for Wrestling", "row_index": "0", "cells": "[\"Armor\", \"Modifier\"]"}
+{"table_number": "57", "table_title": "Armor Modifiers for Wrestling", "row_index": "1", "cells": "[\"Studded leather\", \"-1\"]"}
+{"table_number": "57", "table_title": "Armor Modifiers for Wrestling", "row_index": "2", "cells": "[\"Chain, ring, and scale mail\", \"-2\"]"}
+{"table_number": "57", "table_title": "Armor Modifiers for Wrestling", "row_index": "3", "cells": "[\"Banded, splint, and plate mail\", \"-5\"]"}
+{"table_number": "57", "table_title": "Armor Modifiers for Wrestling", "row_index": "4", "cells": "[\"Field plate armor\", \"-8\"]"}
+{"table_number": "57", "table_title": "Armor Modifiers for Wrestling", "row_index": "5", "cells": "[\"Full plate armor\", \"-10\"]"}
+{"table_number": "58", "table_title": "Punching and Wrestling Results", "row_index": "0", "cells": "[\"Attack Roll\", \"Punch\", \"Damage\", \"% K.O.\", \"Wrestle\"]"}
+{"table_number": "58", "table_title": "Punching and Wrestling Results", "row_index": "1", "cells": "[\"20+\", \"Haymaker\", \"2\", \"10\", \"Bear hug*\"]"}
+{"table_number": "58", "table_title": "Punching and Wrestling Results", "row_index": "2", "cells": "[\"19\", \"Wild swing\", \"0\", \"1\", \"Arm twist\"]"}
+{"table_number": "58", "table_title": "Punching and Wrestling Results", "row_index": "3", "cells": "[\"18\", \"Rabbit punch\", \"1\", \"3\", \"Kick\"]"}
+{"table_number": "58", "table_title": "Punching and Wrestling Results", "row_index": "4", "cells": "[\"17\", \"Kidney punch\", \"1\", \"5\", \"Trip\"]"}
+{"table_number": "58", "table_title": "Punching and Wrestling Results", "row_index": "5", "cells": "[\"16\", \"Glancing blow\", \"1\", \"2\", \"Elbow smash\"]"}
+{"table_number": "58", "table_title": "Punching and Wrestling Results", "row_index": "6", "cells": "[\"15\", \"Jab\", \"2\", \"6\", \"Arm lock*\"]"}
+{"table_number": "58", "table_title": "Punching and Wrestling Results", "row_index": "7", "cells": "[\"14\", \"Uppercut\", \"1\", \"8\", \"Leg twist\"]"}
+{"table_number": "58", "table_title": "Punching and Wrestling Results", "row_index": "8", "cells": "[\"13\", \"Hook\", \"2\", \"9\", \"Leg lock\"]"}
+{"table_number": "58", "table_title": "Punching and Wrestling Results", "row_index": "9", "cells": "[\"12\", \"Kidney punch\", \"1\", \"5\", \"Throw\"]"}
+{"table_number": "58", "table_title": "Punching and Wrestling Results", "row_index": "10", "cells": "[\"11\", \"Hook\", \"2\", \"10\", \"Gouge\"]"}
+{"table_number": "58", "table_title": "Punching and Wrestling Results", "row_index": "11", "cells": "[\"10\", \"Glancing blow\", \"1\", \"3\", \"Elbow smash\"]"}
+{"table_number": "58", "table_title": "Punching and Wrestling Results", "row_index": "12", "cells": "[\"9\", \"Combination\", \"1\", \"10\", \"Leg lock*\"]"}
+{"table_number": "58", "table_title": "Punching and Wrestling Results", "row_index": "13", "cells": "[\"8\", \"Uppercut\", \"1\", \"9\", \"Headlock*\"]"}
+{"table_number": "58", "table_title": "Punching and Wrestling Results", "row_index": "14", "cells": "[\"7\", \"Combination\", \"2\", \"10\", \"Throw\"]"}
+{"table_number": "58", "table_title": "Punching and Wrestling Results", "row_index": "15", "cells": "[\"6\", \"Jab\", \"2\", \"8\", \"Gouge\"]"}
+{"table_number": "58", "table_title": "Punching and Wrestling Results", "row_index": "16", "cells": "[\"5\", \"Glancing blow\", \"1\", \"3\", \"Kick\"]"}
+{"table_number": "58", "table_title": "Punching and Wrestling Results", "row_index": "17", "cells": "[\"4\", \"Rabbit punch\", \"2\", \"5\", \"Arm lock*\"]"}
+{"table_number": "58", "table_title": "Punching and Wrestling Results", "row_index": "18", "cells": "[\"3\", \"Hook\", \"2\", \"12\", \"Gouge\"]"}
+{"table_number": "58", "table_title": "Punching and Wrestling Results", "row_index": "19", "cells": "[\"2\", \"Uppercut\", \"2\", \"15\", \"Headlock*\"]"}
+{"table_number": "58", "table_title": "Punching and Wrestling Results", "row_index": "20", "cells": "[\"1\", \"Wild swing\", \"0\", \"2\", \"Leg twist\"]"}
+{"table_number": "58", "table_title": "Punching and Wrestling Results", "row_index": "21", "cells": "[\"Less than 1\", \"Haymaker\", \"2\", \"25\", \"Bear hug*\"]"}
+{"table_number": "59", "table_title": "Cover and Concealment Modifiers", "row_index": "0", "cells": "[\"Target is:\", \"Cover\", \"Concealment\"]"}
+{"table_number": "59", "table_title": "Cover and Concealment Modifiers", "row_index": "1", "cells": "[\"25% hidden\", \"\\u20132\", \"\\u20131\"]"}
+{"table_number": "59", "table_title": "Cover and Concealment Modifiers", "row_index": "2", "cells": "[\"50% hidden\", \"\\u20134\", \"\\u20132\"]"}
+{"table_number": "59", "table_title": "Cover and Concealment Modifiers", "row_index": "3", "cells": "[\"75% hidden\", \"\\u20137\", \"\\u20133\"]"}
+{"table_number": "59", "table_title": "Cover and Concealment Modifiers", "row_index": "4", "cells": "[\"90% hidden\", \"\\u201310\", \"\\u20134\"]"}
+{"table_number": "60", "table_title": "Character Saving Throws", "row_index": "0", "cells": "[\"Priests\", \"Character Class and<br>Experience Level<br>1\\u20133<br>4\\u20136<br>7\\u20139<br>10\\u201312\", \"Paralyzation,<br>Poison, or<br>Death Magic<br>10<br>9<br>7<br>6\", \"Rod, Staff,<br>or Wand<br>1"}
+{"table_number": "60", "table_title": "Character Saving Throws", "row_index": "1", "cells": "[\"\", \"13\\u201315\", \"5\", \"9\", \"8\", \"11\", \"10\"]"}
+{"table_number": "60", "table_title": "Character Saving Throws", "row_index": "2", "cells": "[\"\", \"16\\u201318\", \"4\", \"8\", \"7\", \"10\", \"9\"]"}
+{"table_number": "60", "table_title": "Character Saving Throws", "row_index": "3", "cells": "[\"\", \"19+\", \"2\", \"6\", \"5\", \"8\", \"7\"]"}
+{"table_number": "60", "table_title": "Character Saving Throws", "row_index": "4", "cells": "[\"Rogues\", \"1\\u20134\", \"13\", \"14\", \"12\", \"16\", \"15\"]"}
+{"table_number": "60", "table_title": "Character Saving Throws", "row_index": "5", "cells": "[\"\", \"5\\u20138\", \"12\", \"12\", \"11\", \"15\", \"13\"]"}
+{"table_number": "60", "table_title": "Character Saving Throws", "row_index": "6", "cells": "[\"\", \"9\\u201312\", \"11\", \"10\", \"10\", \"14\", \"11\"]"}
+{"table_number": "60", "table_title": "Character Saving Throws", "row_index": "7", "cells": "[\"\", \"13\\u201316\", \"10\", \"8\", \"9\", \"13\", \"9\"]"}
+{"table_number": "60", "table_title": "Character Saving Throws", "row_index": "8", "cells": "[\"\", \"17\\u201320\", \"9\", \"6\", \"8\", \"12\", \"7\"]"}
+{"table_number": "60", "table_title": "Character Saving Throws", "row_index": "9", "cells": "[\"\", \"21+\", \"8\", \"4\", \"7\", \"11\", \"5\"]"}
+{"table_number": "60", "table_title": "Character Saving Throws", "row_index": "10", "cells": "[\"Warriors\", \"0\", \"16\", \"18\", \"17\", \"20\", \"19\"]"}
+{"table_number": "60", "table_title": "Character Saving Throws", "row_index": "11", "cells": "[\"\", \"1\\u20132\", \"14\", \"16\", \"15\", \"17\", \"17\"]"}
+{"table_number": "60", "table_title": "Character Saving Throws", "row_index": "12", "cells": "[\"\", \"3\\u20134\", \"13\", \"15\", \"14\", \"16\", \"16\"]"}
+{"table_number": "60", "table_title": "Character Saving Throws", "row_index": "13", "cells": "[\"\", \"5\\u20136\", \"11\", \"13\", \"12\", \"13\", \"14\"]"}
+{"table_number": "60", "table_title": "Character Saving Throws", "row_index": "14", "cells": "[\"\", \"7\\u20138\", \"10\", \"12\", \"11\", \"12\", \"13\"]"}
+{"table_number": "60", "table_title": "Character Saving Throws", "row_index": "15", "cells": "[\"\", \"9\\u201310\", \"8\", \"10\", \"9\", \"9\", \"11\"]"}
+{"table_number": "60", "table_title": "Character Saving Throws", "row_index": "16", "cells": "[\"\", \"11\\u201312\", \"7\", \"9\", \"8\", \"8\", \"10\"]"}
+{"table_number": "60", "table_title": "Character Saving Throws", "row_index": "17", "cells": "[\"\", \"13\\u201314\", \"5\", \"7\", \"6\", \"5\", \"8\"]"}
+{"table_number": "60", "table_title": "Character Saving Throws", "row_index": "18", "cells": "[\"\", \"15\\u201316\", \"4\", \"6\", \"5\", \"4\", \"7\"]"}
+{"table_number": "60", "table_title": "Character Saving Throws", "row_index": "19", "cells": "[\"\", \"17+\", \"3\", \"5\", \"4\", \"4\", \"6\"]"}
+{"table_number": "60", "table_title": "Character Saving Throws", "row_index": "20", "cells": "[\"Wizards\", \"1\\u20135\", \"14\", \"11\", \"13\", \"15\", \"12\"]"}
+{"table_number": "60", "table_title": "Character Saving Throws", "row_index": "21", "cells": "[\"\", \"6\\u201310\", \"13\", \"9\", \"11\", \"13\", \"10\"]"}
+{"table_number": "60", "table_title": "Character Saving Throws", "row_index": "22", "cells": "[\"\", \"11\\u201315\", \"11\", \"7\", \"9\", \"11\", \"8\"]"}
+{"table_number": "60", "table_title": "Character Saving Throws", "row_index": "23", "cells": "[\"\", \"16\\u201320\", \"10\", \"5\", \"7\", \"9\", \"6\"]"}
+{"table_number": "60", "table_title": "Character Saving Throws", "row_index": "24", "cells": "[\"\", \"21+\", \"8\", \"3\", \"5\", \"7\", \"4\"]"}
+{"table_number": "61", "table_title": "Turning Undead", "row_index": "0", "cells": "[\"Type or Hit Dice\", \"\", \"\", \"\", \"\", \"\", \"\", \"Level of Priest\\u2020\", \"\", \"\", \"\", \"\", \"\"]"}
+{"table_number": "61", "table_title": "Turning Undead", "row_index": "1", "cells": "[\"of Undead\", \"1\", \"2\", \"3\", \"4\", \"5\", \"6\", \"7\", \"8\", \"9\", \"10\\u201311\", \"12\\u201313\", \"14+\"]"}
+{"table_number": "61", "table_title": "Turning Undead", "row_index": "2", "cells": "[\"Skeleton or 1 HD\", \"10\", \"7\", \"4\", \"T\", \"T\", \"D\", \"D\", \"D*\", \"D*\", \"D*\", \"D*\", \"D*\"]"}
+{"table_number": "61", "table_title": "Turning Undead", "row_index": "3", "cells": "[\"Zombie\", \"13\", \"10\", \"7\", \"4\", \"T\", \"T\", \"D\", \"D\", \"D*\", \"D*\", \"D*\", \"D*\"]"}
+{"table_number": "61", "table_title": "Turning Undead", "row_index": "4", "cells": "[\"Ghoul or 2 HD\", \"16\", \"13\", \"10\", \"7\", \"4\", \"T\", \"T\", \"D\", \"D\", \"D*\", \"D*\", \"D*\"]"}
+{"table_number": "61", "table_title": "Turning Undead", "row_index": "5", "cells": "[\"Shadow or 3\\u20134 HD\", \"19\", \"16\", \"13\", \"10\", \"7\", \"4\", \"T\", \"T\", \"D\", \"D\", \"D*\", \"D*\"]"}
+{"table_number": "61", "table_title": "Turning Undead", "row_index": "6", "cells": "[\"Wight or 5 HD\", \"20\", \"19\", \"16\", \"13\", \"10\", \"7\", \"4\", \"T\", \"T\", \"D\", \"D\", \"D*\"]"}
+{"table_number": "61", "table_title": "Turning Undead", "row_index": "7", "cells": "[\"Ghast\", \"\\u2014\", \"20\", \"19\", \"16\", \"13\", \"10\", \"7\", \"4\", \"T\", \"T\", \"D\", \"D\"]"}
+{"table_number": "61", "table_title": "Turning Undead", "row_index": "8", "cells": "[\"Wraith or 6 HD\", \"\\u2014\", \"\\u2014\", \"20\", \"19\", \"16\", \"13\", \"10\", \"7\", \"4\", \"T\", \"T\", \"D\"]"}
+{"table_number": "61", "table_title": "Turning Undead", "row_index": "9", "cells": "[\"Mummy or 7 HD\", \"\\u2014\", \"\\u2014\", \"\\u2014\", \"20\", \"19\", \"16\", \"13\", \"10\", \"7\", \"4\", \"T\", \"T\"]"}
+{"table_number": "61", "table_title": "Turning Undead", "row_index": "10", "cells": "[\"Spectre or 8 HD\", \"\\u2014\", \"\\u2014\", \"\\u2014\", \"\\u2014\", \"20\", \"19\", \"16\", \"13\", \"10\", \"7\", \"4\", \"T\"]"}
+{"table_number": "61", "table_title": "Turning Undead", "row_index": "11", "cells": "[\"Vampire or 9 HD\", \"\\u2014\", \"\\u2014\", \"\\u2014\", \"\\u2014\", \"\\u2014\", \"20\", \"19\", \"16\", \"13\", \"10\", \"7\", \"4\"]"}
+{"table_number": "61", "table_title": "Turning Undead", "row_index": "12", "cells": "[\"Ghost or 10 HD\", \"\\u2014\", \"\\u2014\", \"\\u2014\", \"\\u2014\", \"\\u2014\", \"\\u2014\", \"20\", \"19\", \"16\", \"13\", \"10\", \"7\"]"}
+{"table_number": "61", "table_title": "Turning Undead", "row_index": "13", "cells": "[\"Lich or 11+ HD\", \"\\u2014\", \"\\u2014\", \"\\u2014\", \"\\u2014\", \"\\u2014\", \"\\u2014\", \"\\u2014\", \"20\", \"19\", \"16\", \"13\", \"10\"]"}
+{"table_number": "61", "table_title": "Turning Undead", "row_index": "14", "cells": "[\"Special**\", \"\\u2014\", \"\\u2014\", \"\\u2014\", \"\\u2014\", \"\\u2014\", \"\\u2014\", \"\\u2014\", \"\\u2014\", \"20\", \"19\", \"16\", \"13\"]"}
+{"table_number": "62", "table_title": "Visibility Ranges", "row_index": "0", "cells": "[\"\", \"\", \"\", \"\\u2022\", \"\", \"\"]"}
+{"table_number": "62", "table_title": "Visibility Ranges", "row_index": "1", "cells": "[\"Condition\", \"Movement\", \"Spotted\", \"Type\", \"ID\", \"Detail\"]"}
+{"table_number": "62", "table_title": "Visibility Ranges", "row_index": "2", "cells": "[\"Clear sky\", \"1,500\", \"1,000\", \"500\", \"100\", \"10\"]"}
+{"table_number": "62", "table_title": "Visibility Ranges", "row_index": "3", "cells": "[\"Fog, dense or blizzard\", \"10\", \"10\", \"5\", \"5\", \"3\"]"}
+{"table_number": "62", "table_title": "Visibility Ranges", "row_index": "4", "cells": "[\"Fog, light or snow\", \"500\", \"200\", \"100\", \"30\", \"10\"]"}
+{"table_number": "62", "table_title": "Visibility Ranges", "row_index": "5", "cells": "[\"Fog, moderate\", \"100\", \"50\", \"25\", \"15\", \"10\"]"}
+{"table_number": "62", "table_title": "Visibility Ranges", "row_index": "6", "cells": "[\"Mist or light rain\", \"1,000\", \"500\", \"250\", \"30\", \"10\"]"}
+{"table_number": "62", "table_title": "Visibility Ranges", "row_index": "7", "cells": "[\"Night, full moon\", \"100\", \"50\", \"30\", \"10\", \"5\"]"}
+{"table_number": "62", "table_title": "Visibility Ranges", "row_index": "8", "cells": "[\"Night, no moon\", \"50\", \"20\", \"10\", \"5\", \"3\"]"}
+{"table_number": "62", "table_title": "Visibility Ranges", "row_index": "9", "cells": "[\"Twilight\", \"500\", \"300\", \"150\", \"30\", \"10\"]"}
+{"table_number": "63", "table_title": "Light Sources", "row_index": "0", "cells": "[\"Source Beacon lantern Bonfire Bullseye lantern Campfire Candle Continual light Hooded lantern Light spell Torch Warpon**\", \"Radius<br>240 ft.*<br>50 ft.<br>60 ft.*<br>35 ft.<br>5 ft.<br>60 ft.<br>30"}
+{"table_number": "63", "table_title": "Light Sources", "row_index": "1", "cells": "[\"Weapon**\", \"5 ft.\", \"As desired\"]"}
+{"table_number": "64", "table_title": "Base Movement Rates", "row_index": "0", "cells": "[\"Race\", \"Rate\"]"}
+{"table_number": "64", "table_title": "Base Movement Rates", "row_index": "1", "cells": "[\"Human\", \"12\"]"}
+{"table_number": "64", "table_title": "Base Movement Rates", "row_index": "2", "cells": "[\"Dwarf\", \"6\"]"}
+{"table_number": "64", "table_title": "Base Movement Rates", "row_index": "3", "cells": "[\"Elf\", \"12\"]"}
+{"table_number": "64", "table_title": "Base Movement Rates", "row_index": "4", "cells": "[\"Gnome\", \"6\"]"}
+{"table_number": "64", "table_title": "Base Movement Rates", "row_index": "5", "cells": "[\"Half-elf\", \"12\"]"}
+{"table_number": "64", "table_title": "Base Movement Rates", "row_index": "6", "cells": "[\"Halfling\", \"6\"]"}
+{"table_number": "66", "table_title": "Climbing Modifiers", "row_index": "0", "cells": "[\"Situation\", \"Modifier\"]"}
+{"table_number": "66", "table_title": "Climbing Modifiers", "row_index": "1", "cells": "[\"Abundant handholds<br>(brush, trees, ledges)<br>Rope and wall **\", \"+40%<br>+55%\"]"}
+{"table_number": "66", "table_title": "Climbing Modifiers", "row_index": "2", "cells": "[\"Sloped inward<br>Armor:<br>Banded, splint\", \"+25%<br>\\u201325%\"]"}
+{"table_number": "66", "table_title": "Climbing Modifiers", "row_index": "3", "cells": "[\"Plate armors (all types)<br>Scale, chain\", \"\\u201350%<br>\\u201315%\"]"}
+{"table_number": "66", "table_title": "Climbing Modifiers", "row_index": "4", "cells": "[\"Studded leather, padded<br>Character race: *\", \"\\u20135%\"]"}
+{"table_number": "66", "table_title": "Climbing Modifiers", "row_index": "5", "cells": "[\"Dwarf<br>Gnome\", \"\\u201310%<br>\\u201315%\"]"}
+{"table_number": "66", "table_title": "Climbing Modifiers", "row_index": "6", "cells": "[\"Halfling<br>Encumbrance\", \"\\u201315%<br>\\u20135% \\u2020\"]"}
+{"table_number": "66", "table_title": "Climbing Modifiers", "row_index": "7", "cells": "[\"Surface condition:<br>Slightly slippery\", \"\"]"}
+{"table_number": "66", "table_title": "Climbing Modifiers", "row_index": "8", "cells": "[\"(wet or crumbling)<br>Slippery (icy, slimy)<br>Climber wounded below 1<br>\\u20442 hp\", \"\\u201325%<br>\\u201340%<br>\\u201310%\"]"}
+{"table_number": "67", "table_title": "Rates of Climbing", "row_index": "0", "cells": "[\"\", \"\", \"\\u2014\\u2014Surface Condition\\u2014\\u2014\", \"\"]"}
+{"table_number": "67", "table_title": "Rates of Climbing", "row_index": "1", "cells": "[\"Type of Surface\", \"Dry\", \"Slightly Slippery\", \"Slippery\"]"}
+{"table_number": "67", "table_title": "Rates of Climbing", "row_index": "2", "cells": "[\"Very smooth *\", \"1/4\", \"**\", \"**\"]"}
+{"table_number": "67", "table_title": "Rates of Climbing", "row_index": "3", "cells": "[\"Smooth, cracked *\", \"1/2\", \"1/3\", \"1/4\"]"}
+{"table_number": "67", "table_title": "Rates of Climbing", "row_index": "4", "cells": "[\"Rough *\", \"1\", \"1/3\", \"1/4\"]"}
+{"table_number": "67", "table_title": "Rates of Climbing", "row_index": "5", "cells": "[\"Rough w/ledges\", \"1\", \"1/2\", \"1/3\"]"}
+{"table_number": "67", "table_title": "Rates of Climbing", "row_index": "6", "cells": "[\"Ice wall\", \"_\", \"_\", \"1/4\"]"}
+{"table_number": "67", "table_title": "Rates of Climbing", "row_index": "7", "cells": "[\"Tree\", \"4\", \"3\", \"2\"]"}
+{"table_number": "67", "table_title": "Rates of Climbing", "row_index": "8", "cells": "[\"Sloping wall\", \"3\", \"2\", \"1\"]"}
+{"table_number": "67", "table_title": "Rates of Climbing", "row_index": "9", "cells": "[\"Rope and wall\", \"2\", \"1\", \"1/2\"]"}
+{"table_number": "33", "table_title": "Bard Abilities", "row_index": "0", "cells": "[\"Climb\", \"Detect\", \"Pick\", \"Read\"]"}
+{"table_number": "33", "table_title": "Bard Abilities", "row_index": "1", "cells": "[\"Walls\", \"Noise\", \"\", \"Pockets Languages\"]"}
+{"table_number": "33", "table_title": "Bard Abilities", "row_index": "2", "cells": "[\"50%\", \"20%\", \"10%\", \"5%\"]"}
+{"table_number": "21", "table_title": "Wizard Spell Progression", "row_index": "0", "cells": "[\"\", \"\", \"\", \"Wizard Spell Progression\", \"Table 21:\", \"\", \"\", \"\", \"\", \"\"]"}
+{"table_number": "21", "table_title": "Wizard Spell Progression", "row_index": "1", "cells": "[\"Wizard<br>Level<br>1<br>2<br>3<br>4<br>5<br>6<br>7<br>8<br>9<br>10<br>11<br>12<br>13\", \"1<br>1<br>2<br>2<br>3<br>4<br>4<br>4<br>4<br>4<br>4<br>4<br>4<br>5\", \"2<br>\\u2014<br>\\u2014<br>1<br>2<br>2<br>"}
+{"table_number": "21", "table_title": "Wizard Spell Progression", "row_index": "2", "cells": "[\"14<br>15<br>16<br>17<br>18<br>19<br>20\", \"5<br>5<br>5<br>5<br>5<br>5<br>5\", \"5<br>5<br>5<br>5<br>5<br>5<br>5\", \"5<br>5<br>5<br>5<br>5<br>5<br>5\", \"4<br>5<br>5<br>5<br>5<br>5<br>5\", \"4<br>5<br>5<br>5"}
+{"table_number": "40", "table_title": "Movement While Tracking", "row_index": "0", "cells": "[\"### **Movement While Tracking**\"]"}
+{"table_number": "40", "table_title": "Movement While Tracking", "row_index": "1", "cells": "[\"Chance to Track Movement Rate 1\\u20136 1 \\u20444 normal 7\\u201314 1 \\u20442 normal 14 or greater 3 \\u20444 normal\"]"}
+{"table_number": "40", "table_title": "Movement While Tracking", "row_index": "2", "cells": "[\"modified chance to track as found from Table 39.\"]"}
+{"table_number": "40", "table_title": "Movement While Tracking", "row_index": "3", "cells": "[\"In the earlier example, Thule has a modified tracking chance of 9, so he moves at 1 \\u20442 his normal movement rate.\"]"}
+{"table_number": "40", "table_title": "Movement While Tracking", "row_index": "4", "cells": "[\"Tumbling: The character is practiced in all manner of acrobatics\\u2014dives, rolls, somersaults, handstands, flips, etc. Tumbling can only be performed while burdened with light encumbrance or less."}
+{"table_number": "40", "table_title": "Movement While Tracking", "row_index": "5", "cells": "[\"On a successful proficiency check, he suffers only one-half the normal damage from falls of 60 feet or less and none from falls of 10 feet or less. Falls from greater heights result in normal damage"}
+{"table_number": "40", "table_title": "Movement While Tracking", "row_index": "6", "cells": "[\"Ventriloquism: The character has learned the secrets of \\\"throwing his voice.\\\" Although not actually making sound come from somewhere else (like the spell), the character can deceive others into be"}
+{"table_number": "40", "table_title": "Movement While Tracking", "row_index": "7", "cells": "[\"| Modifier |\"]"}
+{"table_number": "40", "table_title": "Movement While Tracking", "row_index": "8", "cells": "[\"|----------|\"]"}
+{"table_number": "40", "table_title": "Movement While Tracking", "row_index": "9", "cells": "[\"| +6       |\"]"}
+{"table_number": "40", "table_title": "Movement While Tracking", "row_index": "10", "cells": "[\"| +4       |\"]"}
+{"table_number": "40", "table_title": "Movement While Tracking", "row_index": "11", "cells": "[\"| +2       |\"]"}
+{"table_number": "40", "table_title": "Movement While Tracking", "row_index": "12", "cells": "[\"| 0        |\"]"}
+{"table_number": "40", "table_title": "Movement While Tracking", "row_index": "13", "cells": "[\"| \\u20131       |\"]"}
+{"table_number": "40", "table_title": "Movement While Tracking", "row_index": "14", "cells": "[\"| \\u20132       |\"]"}
+{"table_number": "40", "table_title": "Movement While Tracking", "row_index": "15", "cells": "[\"| \\u20134       |\"]"}
+{"table_number": "40", "table_title": "Movement While Tracking", "row_index": "16", "cells": "[\"|          |\"]"}
+{"table_number": "40", "table_title": "Movement While Tracking", "row_index": "17", "cells": "[\"A successful proficiency check means the character has successfully deceived his audience. One check must be made for every sentence or response. The character is limited to sounds he could normally"}
+{"table_number": "40", "table_title": "Movement While Tracking", "row_index": "18", "cells": "[\"Since ventriloquism relies on deception, people's knowledge of speech, and assumptions about what should and shouldn't talk, it is effective only on intelligent creatures. Thus, it has no effect on "}
+{"table_number": "40", "table_title": "Movement While Tracking", "row_index": "19", "cells": "[\"Weaponsmithing: This highly specialized proficiency enables a character to perform the difficult and highly exacting work involved in making metal weapons, particularly those with blades. The charac"}
+{"table_number": "40", "table_title": "Movement While Tracking", "row_index": "20", "cells": "[\"The time and cost to make various types of weapons are listed on Table 41.\"]"}
+{"table_number": "40", "table_title": "Movement While Tracking", "row_index": "21", "cells": "[\"Weather Sense: This proficiency enables the character to make intelligent guesses about upcoming weather conditions. A successful proficiency check means the character has correctly guessed the gene"}
+{"table_number": "40", "table_title": "Movement While Tracking", "row_index": "22", "cells": "[\"Sometimes impending weather conditions are so obvious that no proficiency check is required. It is difficult not to notice the tornado funnel tearing across the plain or the mass of dark clouds on t"}
+{"table_number": "40", "table_title": "Movement While Tracking", "row_index": "23", "cells": "[\"Weaving: A character with weaving proficiency is able to create garments, tapestries, and draperies from wool or cotton. The character requires a spinning apparatus and a loom. A weaver can create t"}
+{"table_number": "65", "table_title": "Base Climbing Success Rates", "row_index": "0", "cells": "[\"### **Base Climbing Success Rates**\"]"}
+{"table_number": "65", "table_title": "Base Climbing Success Rates", "row_index": "1", "cells": "[\"Thief with mountaineering proficiency \\\\* Climb walls % + 10% Thief Climb walls % Mountaineering proficiency \\\\* 40% + 10% per proficiency slot Mountaineer (decided by DM) 50%\"]"}
+

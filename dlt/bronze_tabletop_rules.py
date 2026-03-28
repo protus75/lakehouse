@@ -964,325 +964,255 @@ def extract_spell_list_entries(filepath: Path, page_printed: dict[int, int],
 
 
 
-def extract_all_tables(markdown: str, toc_tables: list[dict],
-                       page_texts: list[str],
-                       page_printed: dict[int, int],
-                       config: dict | None = None) -> list[dict]:
-    """Parse ALL tables by walking markdown lines sequentially.
-
-    Scan lines top-to-bottom. When we see a 'Table N' label line followed
-    by pipe-delimited rows, that's the data for Table N. Match the number
-    to the ToC to get the title. Tables appear in document order — once a
-    table number is found, it won't appear again as a real table.
-
-    Returns list of dicts: {table_number, table_title, rows: [[cell, ...], ...]}
-    """
-    from rapidfuzz import fuzz
-
-    toc_lookup = {t["table_number"]: t["title"] for t in toc_tables}
-    toc_nums_sorted = sorted(toc_lookup.keys())  # sequential order
-    toc_nums = set(toc_nums_sorted)
-    # Next expected table number — only accept this or higher (sequential)
-    next_expected_idx = 0
-
-    # Build title → table_number lookup for fuzzy matching headings
-    title_to_num = {t["title"].lower(): t["table_number"] for t in toc_tables if t["title"]}
-
-    lines = markdown.split("\n")
-    tables = []
-    found_nums = set()
-
-    pending_table_num = None
-    lines_since_label = 0  # how many lines since we set pending_table_num
-    i = 0
-
-    def _try_table_label(text: str) -> int | None:
-        """Check if text is a 'Table N:' label (not a prose reference).
-        Returns the table number or None.
-
-        A label: 'Table 37:', '#### Table 37:', '| Table 33:<br>Bard...'
-        NOT a label: 'Table 37 lists all...', 'as shown in Table 37'
-        """
-        clean = text.lstrip("#").lstrip().lstrip("*").lstrip()
-        clean = clean.lstrip("|").lstrip()
-        clean = clean.split("<br>")[0].strip()
-        if not clean.lower().startswith("table "):
-            return None
-        rest = clean[6:].lstrip()
-        num_str = ""
-        j = 0
-        for j, ch in enumerate(rest):
-            if ch.isdigit():
-                num_str += ch
-            else:
-                break
-        if not num_str:
-            return None
-        # What follows the number? Must be ':' or end of string or just a title.
-        # Reject if followed by prose verbs (lists, shows, contains, etc.)
-        after = rest[len(num_str):].lstrip()
-        if after and not after.startswith(":") and not after.startswith("."):
-            # Check first word — if it's a verb, this is prose not a label
-            first_word = after.split()[0].lower().rstrip(".,;") if after.split() else ""
-            prose_verbs = {"lists", "shows", "contains", "gives", "indicates",
-                           "details", "describes", "summarizes", "provides",
-                           "determines", "displays", "includes", "is", "has",
-                           "for", "to", "of", "and", "the", "in", "on",
-                           "would", "can", "also", "or"}
-            if first_word in prose_verbs:
-                return None
-        candidate = int(num_str)
-        if candidate in toc_nums and candidate not in found_nums:
-            return candidate
-        return None
-
+def _find_pipe_block(lines: list[str], start: int) -> list[list[str]]:
+    """Extract a contiguous pipe-delimited table block starting at line index.
+    Returns parsed rows (list of cell lists). Skips separator rows."""
+    rows = []
+    i = start
     while i < len(lines):
-        stripped = lines[i].strip()
+        s = lines[i].strip()
+        if s.startswith("|") and s.count("|") >= 2:
+            cells = [c.strip() for c in s.split("|")]
+            if cells and cells[0] == "":
+                cells = cells[1:]
+            if cells and cells[-1] == "":
+                cells = cells[:-1]
+            # Skip separator rows (all dashes/colons)
+            if not all(re.match(r'^[\s\-:]+$', c) or c == "" for c in cells):
+                rows.append(cells)
+            i += 1
+        elif not s:
+            # Blank line — continue if next line is a pipe row (multi-block table)
+            if i + 1 < len(lines) and lines[i + 1].strip().startswith("|"):
+                i += 1
+                continue
+            break
+        else:
+            break
+    return rows
 
-        # Check if this line contains a "Table N" label
-        candidate = _try_table_label(stripped)
-        if candidate is not None:
-            # If we already have a pending label that never found pipes,
-            # capture it as a text table before moving on
-            if pending_table_num is not None and pending_table_num != candidate:
-                label_line = i - lines_since_label
-                text_rows = []
-                for j in range(label_line, i):
-                    s = lines[j].strip()
-                    if s:
-                        text_rows.append([s])
-                if len(text_rows) >= 2:
-                    tables.append({
-                        "table_number": pending_table_num,
-                        "table_title": toc_lookup.get(pending_table_num, ""),
-                        "format": "text",
-                        "rows": text_rows,
-                    })
-                    found_nums.add(pending_table_num)
-                    while (next_expected_idx < len(toc_nums_sorted)
-                           and toc_nums_sorted[next_expected_idx] <= pending_table_num):
-                        next_expected_idx += 1
-            pending_table_num = candidate
-            lines_since_label = 0
 
-        # If no table number match, try fuzzy matching heading text to ToC titles.
-        # Only match lines that look like table headings (short, formatted lines)
-        # and NOT section headings that happen to share a table title.
-        # Require either: pipes on the next few lines OR "table" in the heading.
-        if pending_table_num is None and stripped and next_expected_idx < len(toc_nums_sorted):
-            clean_heading = stripped.lstrip("#").lstrip().lstrip("*").strip().rstrip("*").strip()
-            if 5 <= len(clean_heading) <= 80:
-                # Check if pipes follow within 5 lines (actual table, not prose)
-                has_nearby_pipes = any(
-                    j < len(lines) and lines[j].strip().startswith("|")
-                    for j in range(i + 1, min(i + 6, len(lines)))
-                )
-                if has_nearby_pipes:
-                    tnum = toc_nums_sorted[next_expected_idx]
-                    if tnum not in found_nums:
-                        title = toc_lookup.get(tnum, "").lower()
-                        if title:
-                            score = fuzz.ratio(clean_heading.lower(), title)
-                            if score >= 85:
-                                pending_table_num = tnum
-                                lines_since_label = 0
+def _find_pipe_blocks_in_range(lines: list[str], start: int, end: int) -> list[tuple[int, list[list[str]]]]:
+    """Find all pipe-delimited table blocks within a line range.
+    Returns [(start_line, parsed_rows), ...]."""
+    blocks = []
+    i = start
+    while i < end:
+        s = lines[i].strip()
+        if s.startswith("|") and s.count("|") >= 2:
+            block_start = i
+            rows = _find_pipe_block(lines, i)
+            if rows:
+                blocks.append((block_start, rows))
+                i = block_start + len(rows) + 1
+                continue
+        i += 1
+    return blocks
 
-        is_pipe_row = stripped.startswith("|") and stripped.count("|") >= 2
 
-        # Check if a pipe row contains a "Table N:" label that starts a new table.
-        # Only match if previous line was NOT a pipe row (= start of a new block,
-        # not mid-stream in an existing block like the ToC).
-        if is_pipe_row and pending_table_num is None:
-            prev = lines[i - 1].strip() if i > 0 else ""
-            prev_is_pipe = prev.startswith("|") and prev.count("|") >= 2
-            if not prev_is_pipe:
-                pipe_candidate = _try_table_label(stripped)
-                if pipe_candidate is not None:
-                    pending_table_num = pipe_candidate
-                    lines_since_label = 0
-
-        # If we have a pending table and hit pipe rows, capture as pipe format
-        # But if the gap since label is large (>10), the pipes are likely unrelated
-        # — trigger text capture instead
-        if is_pipe_row and pending_table_num is not None and lines_since_label > 10:
-            label_line = i - lines_since_label
-            text_rows = []
-            for j in range(label_line, i):
-                s = lines[j].strip()
-                if s:
-                    text_rows.append([s])
-            if len(text_rows) >= 2:
-                tables.append({
-                    "table_number": pending_table_num,
-                    "table_title": toc_lookup.get(pending_table_num, ""),
-                    "format": "text",
-                    "rows": text_rows,
-                })
-                found_nums.add(pending_table_num)
-                while (next_expected_idx < len(toc_nums_sorted)
-                       and toc_nums_sorted[next_expected_idx] <= pending_table_num):
-                    next_expected_idx += 1
-            pending_table_num = None
-            # Don't consume the pipe row — let it be captured by a future label
-        if is_pipe_row and pending_table_num is not None:
-            raw_rows = []
+def strip_tables_from_markdown(markdown: str) -> str:
+    """Remove all pipe-delimited table blocks and their heading labels from markdown.
+    Call AFTER extract_all_tables so tables are captured before removal."""
+    lines = markdown.split("\n")
+    result = []
+    i = 0
+    while i < len(lines):
+        s = lines[i].strip()
+        if s.startswith("|") and s.count("|") >= 2:
+            # Skip entire pipe block
             while i < len(lines):
-                s = lines[i].strip()
-                if s.startswith("|") and s.count("|") >= 2:
-                    raw_rows.append(s)
+                s2 = lines[i].strip()
+                if s2.startswith("|") and s2.count("|") >= 2:
                     i += 1
-                elif not s:
+                elif not s2:
+                    # Blank line — skip if next is pipe
                     if i + 1 < len(lines) and lines[i + 1].strip().startswith("|"):
                         i += 1
                         continue
                     break
                 else:
                     break
+        else:
+            result.append(lines[i])
+            i += 1
+    return "\n".join(result)
 
-            parsed_rows = []
-            for row in raw_rows:
-                cells = [c.strip() for c in row.split("|")]
-                if cells and cells[0] == "":
-                    cells = cells[1:]
-                if cells and cells[-1] == "":
-                    cells = cells[:-1]
-                if all(re.match(r'^[\s\-:]+$', c) or c == "" for c in cells):
-                    continue
-                parsed_rows.append(cells)
 
-            if parsed_rows:
-                # Reject suspiciously large blocks (>100 rows = likely ToC, not data)
-                if len(parsed_rows) > 100:
-                    _log(f"  Tables: skipping T{pending_table_num} — {len(parsed_rows)} rows (likely ToC)")
-                    pending_table_num = None
-                    continue
-                tables.append({
-                    "table_number": pending_table_num,
-                    "table_title": toc_lookup.get(pending_table_num, ""),
-                    "format": "pipe",
-                    "rows": parsed_rows,
-                })
-                found_nums.add(pending_table_num)
-                while (next_expected_idx < len(toc_nums_sorted)
-                       and toc_nums_sorted[next_expected_idx] <= pending_table_num):
-                    next_expected_idx += 1
-                pending_table_num = None
+def extract_all_tables(markdown: str, toc_entries: list[dict],
+                       page_texts: list[str],
+                       page_printed: dict[int, int],
+                       config: dict | None = None) -> list[dict]:
+    """Extract tables using validated ToC as the driver.
+
+    Iterates every is_table=True ToC entry, searches the markdown for a matching
+    pipe block near the expected page. Returns the same format as before:
+    [{table_number, table_title, toc_title, format, rows: [[cell, ...], ...]}, ...]
+    """
+    from rapidfuzz import fuzz
+    from dlt.lib.tabletop_cleanup import _build_page_position_map
+
+    # Build target list: every is_table ToC entry
+    table_targets = []
+    synthetic_num = 1000
+    for entry in toc_entries:
+        if not entry.get("is_table") or entry.get("is_excluded"):
+            continue
+        title = entry.get("title", "")
+        page = entry.get("page_start", 0)
+        # Extract table number from title if present
+        num_match = re.search(r'Table\s+(\d+)', title)
+        if num_match:
+            tnum = int(num_match.group(1))
+        else:
+            tnum = synthetic_num
+            synthetic_num += 1
+        table_targets.append({
+            "table_number": tnum,
+            "toc_title": title,
+            "table_title": title.split(":", 1)[-1].strip() if ":" in title else title,
+            "page": page,
+        })
+
+    if not table_targets:
+        _log("  Tables: no is_table entries in ToC")
+        return []
+
+    # Build page anchors for markdown position lookup
+    page_anchors = _build_page_position_map(
+        markdown, page_texts, page_printed, len(page_texts), config
+    )
+
+    # Build printed_page → markdown char range lookup
+    # page_anchors is [(md_pos, printed_page), ...] sorted by md_pos
+    def _page_char_range(printed_page: int) -> tuple[int, int]:
+        """Find approximate char range in markdown for a printed page (±2 pages)."""
+        target_low = printed_page - 2
+        target_high = printed_page + 2
+        start = len(markdown)
+        end = 0
+        for md_pos, pp in page_anchors:
+            if target_low <= pp <= target_high:
+                start = min(start, md_pos)
+                end = max(end, md_pos)
+        if start >= end:
+            # Fallback: search entire document
+            return 0, len(markdown)
+        # Extend end to next anchor or end of doc
+        for md_pos, pp in page_anchors:
+            if md_pos > end:
+                end = md_pos
+                break
+        else:
+            end = len(markdown)
+        return start, end
+
+    lines = markdown.split("\n")
+    # Build line_start → line_index mapping for char pos → line conversion
+    line_starts = []
+    pos = 0
+    for line in lines:
+        line_starts.append(pos)
+        pos += len(line) + 1  # +1 for \n
+
+    def _char_to_line(char_pos: int) -> int:
+        """Convert character position to line index."""
+        lo, hi = 0, len(line_starts) - 1
+        while lo < hi:
+            mid = (lo + hi + 1) // 2
+            if line_starts[mid] <= char_pos:
+                lo = mid
+            else:
+                hi = mid - 1
+        return lo
+
+    tables = []
+    found_titles = set()
+
+    for target in table_targets:
+        toc_title = target["toc_title"]
+        if toc_title in found_titles:
             continue
 
-        # Track gap since label
-        if pending_table_num is not None:
-            lines_since_label += 1
-            # If no pipes within 15 lines, capture as text table
-            if lines_since_label > 15:
-                # Grab text from the label line forward until next heading/table label
-                label_line = i - lines_since_label
-                text_rows = []
-                for j in range(label_line, len(lines)):
-                    s = lines[j].strip()
-                    # Stop at next "Table N:" label for a DIFFERENT table
-                    if j > label_line + 1:
-                        next_label = _try_table_label(s)
-                        if next_label is not None and next_label != pending_table_num:
-                            break
-                    # Stop at chapter headings (## or #)
-                    if s.startswith("##") and j > label_line + 2:
-                        break
-                    if s:
-                        text_rows.append([s])
-                if len(text_rows) >= 2:
+        # Find char range for this table's page
+        char_start, char_end = _page_char_range(target["page"])
+        line_start = _char_to_line(char_start)
+        line_end = min(_char_to_line(char_end) + 50, len(lines))  # extend a bit
+
+        # Strategy 1: find title match near expected page
+        best_line = None
+        best_score = 0
+        clean_title = target["table_title"].lower()
+        toc_title_lower = toc_title.lower()
+
+        for li in range(line_start, line_end):
+            s = lines[li].strip()
+            clean = s.lstrip("#").lstrip().lstrip("*").strip().rstrip("*").strip()
+            if len(clean) < 3:
+                continue
+            clean_lower = clean.lower()
+            # Check for exact or fuzzy title match
+            score = max(
+                fuzz.ratio(clean_lower, clean_title),
+                fuzz.ratio(clean_lower, toc_title_lower),
+            )
+            if score > best_score and score >= 75:
+                best_score = score
+                best_line = li
+
+        # Strategy 2: if title match found, look for pipe block nearby
+        if best_line is not None:
+            # Search for pipes within 10 lines after the title
+            pipe_blocks = _find_pipe_blocks_in_range(lines, best_line, min(best_line + 15, len(lines)))
+            if pipe_blocks:
+                block_start, rows = pipe_blocks[0]
+                if len(rows) <= 100:  # reject suspiciously large blocks
                     tables.append({
-                        "table_number": pending_table_num,
-                        "table_title": toc_lookup.get(pending_table_num, ""),
-                        "format": "text",
-                        "rows": text_rows,
+                        "table_number": target["table_number"],
+                        "table_title": target["table_title"],
+                        "toc_title": toc_title,
+                        "format": "pipe",
+                        "rows": rows,
                     })
-                    found_nums.add(pending_table_num)
-                    while (next_expected_idx < len(toc_nums_sorted)
-                           and toc_nums_sorted[next_expected_idx] <= pending_table_num):
-                        next_expected_idx += 1
-                pending_table_num = None
+                    found_titles.add(toc_title)
+                    continue
 
-        i += 1
-
-    # Second pass: use config missing_tables to find remaining tables
-    missing_cfg = (config or {}).get("missing_tables", [])
-    for mt in missing_cfg:
-        tnum = mt["table_number"]
-        if tnum in found_nums:
-            continue
-        heading = mt.get("heading", "").lower()
-        content_marker = mt.get("content_marker", "")
-
-        # Strategy 1: find by content_marker (literal string in a line)
-        if content_marker:
-            for li in range(len(lines)):
-                if content_marker in lines[li]:
-                    # Capture this pipe block or text block
-                    start = li
-                    # Walk back to find start of pipe block
-                    while start > 0 and lines[start - 1].strip().startswith("|"):
-                        start -= 1
-                    block_rows = []
-                    for j in range(start, len(lines)):
-                        s = lines[j].strip()
-                        if s.startswith("|") and s.count("|") >= 2:
-                            cells = [c.strip() for c in s.split("|")]
-                            if cells and cells[0] == "":
-                                cells = cells[1:]
-                            if cells and cells[-1] == "":
-                                cells = cells[:-1]
-                            if not all(re.match(r'^[\s\-:]+$', c) or c == "" for c in cells):
-                                block_rows.append(cells)
-                        elif not s:
-                            if j + 1 < len(lines) and lines[j + 1].strip().startswith("|"):
-                                continue
-                            break
-                        else:
-                            break
-                    if block_rows:
-                        tables.append({
-                            "table_number": tnum,
-                            "table_title": toc_lookup.get(tnum, mt.get("heading", "")),
-                            "format": "pipe",
-                            "rows": block_rows,
-                        })
-                        found_nums.add(tnum)
-                        _log(f"  Tables: T{tnum} recovered via content marker")
+            # No pipes — capture text block instead
+            text_rows = []
+            for j in range(best_line, min(best_line + 40, len(lines))):
+                s = lines[j].strip()
+                if s.startswith("#") and j > best_line + 1:
                     break
-            if tnum in found_nums:
+                if s:
+                    text_rows.append([s])
+            if len(text_rows) >= 2:
+                tables.append({
+                    "table_number": target["table_number"],
+                    "table_title": target["table_title"],
+                    "toc_title": toc_title,
+                    "format": "text",
+                    "rows": text_rows,
+                })
+                found_titles.add(toc_title)
                 continue
 
-        # Strategy 2: find by heading text (fuzzy match)
-        if heading:
-            for li in range(len(lines)):
-                clean = lines[li].strip().lstrip("#").lstrip().lstrip("*").strip().rstrip("*").strip()
-                if fuzz.ratio(clean.lower(), heading) >= 85:
-                    text_rows = []
-                    for j in range(li, min(li + 40, len(lines))):
-                        s = lines[j].strip()
-                        if s.startswith("#") and j > li + 1:
-                            break
-                        if j > li + 1:
-                            nl = _try_table_label(s)
-                            if nl is not None and nl != tnum:
-                                break
-                        if s:
-                            text_rows.append([s])
-                    if len(text_rows) >= 2:
-                        tables.append({
-                            "table_number": tnum,
-                            "table_title": toc_lookup.get(tnum, mt.get("heading", "")),
-                            "format": "text",
-                            "rows": text_rows,
-                        })
-                        found_nums.add(tnum)
-                        _log(f"  Tables: T{tnum} recovered via config heading match")
-                    break
+        # Strategy 3: scan entire page range for any unmatched pipe block
+        pipe_blocks = _find_pipe_blocks_in_range(lines, line_start, line_end)
+        for block_start, rows in pipe_blocks:
+            if 2 <= len(rows) <= 100:
+                tables.append({
+                    "table_number": target["table_number"],
+                    "table_title": target["table_title"],
+                    "toc_title": toc_title,
+                    "format": "pipe",
+                    "rows": rows,
+                })
+                found_titles.add(toc_title)
+                break
 
-    missed = sorted(toc_nums - found_nums)
+    missed = [t for t in table_targets if t["toc_title"] not in found_titles]
     if missed:
-        _log(f"  Tables: missed {len(missed)} — T{', T'.join(str(n) for n in missed)}")
-    _log(f"  Tables: matched {len(found_nums)}/{len(toc_tables)} from ToC")
+        _log(f"  Tables: missed {len(missed)} — {', '.join(t['toc_title'][:30] for t in missed)}")
+    _log(f"  Tables: matched {len(found_titles)}/{len(table_targets)} from ToC")
     return tables
 
 
@@ -1470,7 +1400,8 @@ def store_bronze(filepath: Path, config: dict, run_id: str,
         for row_idx, cells in enumerate(tbl["rows"]):
             table_rows.append({
                 "source_file": sf, "table_number": tbl["table_number"],
-                "table_title": tbl["table_title"], "format": tbl.get("format", "pipe"),
+                "table_title": tbl["table_title"], "toc_title": tbl.get("toc_title", ""),
+                "format": tbl.get("format", "pipe"),
                 "row_index": row_idx, "cells": json.dumps(cells), "run_id": run_id,
             })
     if table_rows:
@@ -1583,9 +1514,10 @@ def extract_pdf(filepath: Path) -> None:
         spell_list = extract_spell_list_entries(filepath, page_printed, toc_sections, config)
         step(f"Spell list: {len(spell_list)} entries")
 
-        # 6. Parse ALL tables from markdown (matched to ToC via page positions)
-        all_tables = extract_all_tables(markdown, toc_tables, page_texts, page_printed, config)
+        # 6. Extract tables using ToC as driver, then strip from markdown
+        all_tables = extract_all_tables(markdown, toc_sections, page_texts, page_printed, config)
         step(f"Tables: {len(all_tables)} parsed")
+        markdown = strip_tables_from_markdown(markdown)
 
         # 7. Authority entries from config-specified tables
         authority_entries = extract_authority_entries(all_tables, config)
