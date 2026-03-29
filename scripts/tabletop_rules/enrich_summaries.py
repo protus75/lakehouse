@@ -24,7 +24,7 @@ CONFIGS_DIR = Path("/workspace/documents/tabletop_rules/configs")
 def call_ollama(prompt: str, url: str, model: str,
                 options: dict | None = None) -> str | None:
     try:
-        body = {"model": model, "prompt": prompt, "stream": False}
+        body = {"model": model, "prompt": prompt, "stream": False, "keep_alive": "4h"}
         if options:
             body["options"] = options
         resp = requests.post(

@@ -120,8 +120,28 @@ def _get_tables(source_file):
 def _get_summaries():
     """Return {entry_id: summary}. Empty dict if table doesn't exist yet."""
     try:
-        rows = _query("SELECT entry_id, summary FROM gold_tabletop.gold_ai_summaries")
+        rows = _query(
+            "SELECT entry_id, content as summary FROM gold_tabletop.gold_entry_descriptions "
+            "WHERE description_type = 'summary'"
+        )
         return {r["entry_id"]: r["summary"] for r in rows}
+    except Exception:
+        # Fall back to legacy table
+        try:
+            rows = _query("SELECT entry_id, summary FROM gold_tabletop.gold_ai_summaries")
+            return {r["entry_id"]: r["summary"] for r in rows}
+        except Exception:
+            return {}
+
+
+def _get_descriptions():
+    """Return {entry_id: content} for original clean descriptions."""
+    try:
+        rows = _query(
+            "SELECT entry_id, content FROM gold_tabletop.gold_entry_descriptions "
+            "WHERE description_type = 'original'"
+        )
+        return {r["entry_id"]: r["content"] for r in rows}
     except Exception:
         return {}
 
@@ -236,7 +256,7 @@ def _render_table(table_data):
     ], className="table-container")
 
 
-def build_book_content(book_data, toc_rows, entry_index, summaries, annotations):
+def build_book_content(book_data, toc_rows, entry_index, summaries, annotations, descriptions=None):
     """Returns (elements, anchor_map) where anchor_map = {toc_id: anchor_id}."""
     import re
     elements = []
@@ -332,29 +352,36 @@ def build_book_content(book_data, toc_rows, entry_index, summaries, annotations)
             if badges:
                 entry_els.append(html.Div(" · ".join(badges), className="entry-badges"))
 
-        # Summary
-        if entry_id:
+        # Summary (shown when AI Summary toggle is on — spells only)
+        is_spell = toc_title and "level spells" in toc_title.lower()
+        if entry_id and is_spell:
             summary = summaries.get(entry_id)
-            if summary:
-                entry_els.append(html.Div(summary, className="entry-summary"))
+            summary_text = summary if summary else "(AI summary not yet generated)"
+            summary_cls = "entry-summary" if summary else "entry-summary entry-summary-empty"
+            entry_els.append(html.Div(summary_text, className=summary_cls))
 
         if entry_els:
             elements.append(html.Div(entry_els, className=f"entry-block {cat}"))
 
-        # Full entry content — split out material component text
+        # Full entry content — for spells with descriptions, use clean description
+        content_cls = "entry-content has-summary" if (entry_id and is_spell) else "entry-content"
         if row["content"]:
-            content_text = row["content"]
+            # Use clean description for spells if available (metadata stripped)
+            if entry_id and is_spell and descriptions and entry_id in descriptions:
+                content_text = descriptions[entry_id]
+            else:
+                content_text = row["content"]
             main_content, component_text = _split_material_components(content_text)
             linked_main = _linkify_table_refs(main_content, toc_table_num_to_id)
             elements.append(html.Div(
                 dcc.Markdown(linked_main, dangerously_allow_html=True),
-                className=f"entry-content {cat}",
+                className=f"{content_cls} {cat}",
             ))
             if component_text:
                 linked_comp = _linkify_table_refs(component_text, toc_table_num_to_id)
                 elements.append(html.Div(
                     dcc.Markdown(linked_comp, dangerously_allow_html=True),
-                    className=f"entry-content cat-spell-components {cat}",
+                    className=f"{content_cls} cat-spell-components {cat}",
                 ))
 
     return elements, anchor_map
@@ -444,9 +471,10 @@ def update_book(source_file):
     entry_index = _get_entry_index(source_file)
     summaries = _get_summaries()
     annotations = _get_annotations()
+    descriptions = _get_descriptions()
     t1 = time.time()
 
-    content, anchor_map = build_book_content(book_data, toc, entry_index, summaries, annotations)
+    content, anchor_map = build_book_content(book_data, toc, entry_index, summaries, annotations, descriptions)
     sidebar = build_toc_sidebar(toc, anchor_map)
     t2 = time.time()
 
@@ -464,14 +492,8 @@ def update_book(source_file):
 app.clientside_callback(
     """
     function(toggles) {
-        var showSummary = (toggles || []).indexOf('summary') >= 0;
-        var showMeta = (toggles || []).indexOf('meta') >= 0;
-        document.querySelectorAll('.entry-summary').forEach(function(el) {
-            el.style.display = showSummary ? '' : 'none';
-        });
-        document.querySelectorAll('.entry-badges').forEach(function(el) {
-            el.style.display = showMeta ? '' : 'none';
-        });
+        window._displayToggles = toggles || [];
+        window._applyDisplayToggles();
         return '';
     }
     """,
@@ -530,8 +552,14 @@ app.index_string = '''
         #app-container { display: flex; height: 100vh; }
         #sidebar { width: 320px; min-width: 320px; background: #161b22; padding: 1rem;
                    overflow-y: auto; border-right: 1px solid #30363d;
-                   display: flex; flex-direction: column; }
-        #main-content { flex: 1; overflow-y: auto; padding: 2rem 3rem; }
+                   display: flex; flex-direction: column;
+                   position: fixed; top: 0; left: 0; height: 100vh; z-index: 100;
+                   transform: translateX(-308px); transition: transform 0.2s ease; }
+        #sidebar:hover { transform: translateX(0); }
+        #sidebar::after { content: ''; position: absolute; top: 0; right: 0; width: 12px;
+                          height: 100%; background: linear-gradient(to right, transparent, #30363d);
+                          cursor: pointer; }
+        #main-content { flex: 1; overflow-y: auto; padding: 2rem 3rem; margin-left: 12px; }
 
         /* ToC */
         .toc-chapter { font-weight: 600; font-size: 0.95rem; margin-top: 0.2rem; }
@@ -551,10 +579,14 @@ app.index_string = '''
         .entry-badges { font-size: 0.8rem; color: #8b949e; margin: 0.1rem 0; }
         .entry-summary { background: #1a1a2e; border-left: 3px solid #4a9eff;
                          padding: 0.5rem 0.8rem; margin: 0.4rem 0; font-size: 0.9rem; }
+        .entry-summary-empty { color: #484f58; font-style: italic; }
         .entry-content { margin-top: 0.3rem; line-height: 1.6; }
         .entry-content p { margin: 0.4rem 0; }
         .table-ref { color: #4a9eff; text-decoration: none; }
         .table-ref:hover { text-decoration: underline; }
+
+        /* Default: AI Summary toggle is ON — hide spell content, show summary */
+        .entry-content.has-summary { display: none; }
 
         /* Dropdown styling */
         .Select-control { background: #21262d !important; border-color: #30363d !important; }
@@ -573,6 +605,29 @@ app.index_string = '''
         {%renderer%}
     </footer>
     <script>
+        // Shared toggle logic — called by clientside callback AND after content renders
+        window._displayToggles = ['summary', 'meta'];
+        window._applyDisplayToggles = function() {
+            var toggles = window._displayToggles;
+            var showSummary = toggles.indexOf('summary') >= 0;
+            var showMeta = toggles.indexOf('meta') >= 0;
+            document.querySelectorAll('.entry-summary').forEach(function(el) {
+                el.style.display = showSummary ? 'block' : 'none';
+            });
+            document.querySelectorAll('.entry-content.has-summary').forEach(function(el) {
+                el.style.display = showSummary ? 'none' : 'block';
+            });
+            document.querySelectorAll('.entry-badges').forEach(function(el) {
+                el.style.display = showMeta ? 'block' : 'none';
+            });
+        };
+        // Re-apply toggles whenever book content changes
+        var obs = new MutationObserver(function() { window._applyDisplayToggles(); });
+        document.addEventListener('DOMContentLoaded', function() {
+            var mc = document.getElementById('book-content');
+            if (mc) obs.observe(mc, {childList: true, subtree: true});
+        });
+
         // Intercept anchor clicks and scroll within #main-content div
         document.addEventListener('click', function(e) {
             var link = e.target.closest('a[href^="#"]');
