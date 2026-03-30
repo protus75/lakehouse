@@ -13,21 +13,21 @@
   - [Component Breakdown](#component-breakdown)
     - [1. Storage Layer: SeaweedFS](#1-storage-layer-seaweedfs)
     - [2. Table Format: Apache Iceberg](#2-table-format-apache-iceberg)
-    - [3. Catalog Layer: Apache Polaris](#3-catalog-layer-apache-polaris)
+    - [3. Catalog Layer: PyIceberg SQL on PostgreSQL](#3-catalog-layer-pyiceberg-sql-on-postgresql)
     - [4. Query Engine: DuckDB](#4-query-engine-duckdb)
-    - [5. Ingestion Layer: dlt + Airflow](#5-ingestion-layer-dlt--airflow)
+    - [5. Ingestion Layer: dlt + Dagster](#5-ingestion-layer-dlt--dagster)
     - [6. Transformation Layer: dbt + dbt-duckdb](#6-transformation-layer-dbt--dbt-duckdb)
-    - [7. Visualization Layer: Streamlit + Plotly Dash](#7-visualization-layer-streamlit--plotly-dash)
+    - [7. Visualization Layer: Plotly Dash + Streamlit](#7-visualization-layer-plotly-dash--streamlit)
+      - [**Plotly Dash** (Production Browser)](#plotly-dash-production-browser)
       - [**Streamlit** (Rapid Prototyping \& Internal Tools)](#streamlit-rapid-prototyping--internal-tools)
-      - [**Plotly Dash** (Production Dashboards)](#plotly-dash-production-dashboards)
     - [8. AI/RAG Integration Layer](#8-airag-integration-layer)
-    - [9. Orchestration Layer: Apache Airflow](#9-orchestration-layer-apache-airflow)
+    - [9. Orchestration Layer: Dagster](#9-orchestration-layer-dagster)
   - [Simplified Governance Strategy](#simplified-governance-strategy)
-    - [Layer 1: Catalog (Polaris RBAC)](#layer-1-catalog-polaris-rbac)
+    - [Layer 1: Catalog (PyIceberg SQL)](#layer-1-catalog-pyiceberg-sql)
     - [Layer 2: Query (DuckDB Users)](#layer-2-query-duckdb-users)
     - [Layer 3: Application (Python Code)](#layer-3-application-python-code)
     - [Layer 4: Data Quality (dbt Tests)](#layer-4-data-quality-dbt-tests)
-    - [Layer 5: Lineage (dbt + Airflow)](#layer-5-lineage-dbt--airflow)
+    - [Layer 5: Lineage (dbt + Dagster)](#layer-5-lineage-dbt--dagster)
     - [What We're NOT Using:](#what-were-not-using)
     - [OpenMetadata (Optional Discovery Tool)](#openmetadata-optional-discovery-tool)
   - [Data Flow](#data-flow)
@@ -35,9 +35,8 @@
     - [Transformation Flow](#transformation-flow)
     - [Query Flow](#query-flow)
     - [RAG Flow](#rag-flow)
-    - [RAG Maintenance: Re-indexing After Changes](#rag-maintenance-re-indexing-after-changes)
   - [Development Workflow](#development-workflow)
-    - [Environment Isolation (Polaris Namespaces)](#environment-isolation-polaris-namespaces)
+    - [Environment Isolation (Iceberg Namespaces)](#environment-isolation-iceberg-namespaces)
     - [Local Development](#local-development)
     - [Staging Deployment](#staging-deployment)
     - [Production Deployment](#production-deployment)
@@ -46,7 +45,7 @@
     - [Docker Compose (Development \& Small Production)](#docker-compose-development--small-production)
     - [Kubernetes (Larger Scale)](#kubernetes-larger-scale)
   - [Technology Summary](#technology-summary)
-    - [Pure Python Components (90% of stack)](#pure-python-components-90-of-stack)
+    - [Pure Python Components (95% of stack)](#pure-python-components-95-of-stack)
     - [Non-Python (with justification)](#non-python-with-justification)
     - [Why This Works](#why-this-works)
   - [Scaling Considerations](#scaling-considerations)
@@ -149,12 +148,12 @@ A radically simplified lakehouse architecture optimized for small teams (2-5 peo
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                    Data Sources                                  │
-│              APIs │ Databases │ Files │ SaaS                     │
+│              PDFs │ APIs │ Databases │ Files                     │
 └─────────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
 │                 Ingestion Layer (Python)                         │
-│                   dlt + Apache Airflow                           │
+│           dlt + Marker/pymupdf (PDF) + Dagster                  │
 └─────────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
@@ -163,8 +162,8 @@ A radically simplified lakehouse architecture optimized for small teams (2-5 peo
 └─────────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│                 Table Format (Python)                            │
-│            Apache Iceberg (via PyIceberg)                        │
+│          Table Format + Catalog (Pure Python)                    │
+│       Apache Iceberg (PyIceberg SQL → PostgreSQL)                │
 └─────────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
@@ -173,21 +172,16 @@ A radically simplified lakehouse architecture optimized for small teams (2-5 peo
 └─────────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│              Catalog Layer (REST API)                            │
-│                  Apache Polaris                                  │
-└─────────────────────────────────────────────────────────────────┘
-                              ↓
-┌─────────────────────────────────────────────────────────────────┐
 │              Query & Analytics (Python)                          │
-│                       DuckDB                                     │
+│            DuckDB (views over Iceberg on S3)                     │
 └─────────────────────────────────────────────────────────────────┘
                               ↓
         ┌────────────────────┬─────────────────────┐
         ↓                    ↓                     ↓
 ┌──────────────────┐ ┌──────────────────┐ ┌────────────────────┐
-│  Visualization   │ │  AI/RAG Layer    │ │  Local LLM        │
-│  Streamlit+Dash  │ │  Docling+Langch  │ │  Ollama@GPU       │
-└──────────────────┘ │  ChromaDB        │ │  (RTX 4090)       │
+│  Visualization   │ │  AI Enrichment   │ │  Local LLM         │
+│  Dash + Streamlit│ │  Marker+pymupdf  │ │  Ollama@GPU        │
+└──────────────────┘ │  Ollama (direct) │ │  (RTX 4090)        │
                      └──────────────────┘ └────────────────────┘
 ```
 
@@ -254,39 +248,50 @@ A radically simplified lakehouse architecture optimized for small teams (2-5 peo
 
 ---
 
-### 3. Catalog Layer: Apache Polaris
+### 3. Catalog Layer: PyIceberg SQL on PostgreSQL
 
-**What It Is**: REST catalog for Apache Iceberg tables
+**What It Is**: Pure Python Iceberg catalog backed by PostgreSQL — no Java required
 
-**Why Polaris** (only JVM component):
-- Official Iceberg catalog from Snowflake (donated to Apache)
-- Production-ready, purpose-built for Iceberg
-- REST API (language-agnostic access)
-- Built-in RBAC (role-based access control)
-- Multi-namespace support (dev/staging/prod isolation)
-- Small footprint (single Java service)
+**Why PyIceberg SQL** (replaces Apache Polaris):
+- Pure Python — eliminates the only JVM dependency in the stack
+- Uses PostgreSQL (already needed for Dagster) as the catalog backend
+- Full Iceberg catalog operations: create/drop/list tables and namespaces
+- Direct integration with PyIceberg and DuckDB
+- Multi-namespace support (bronze/silver/gold isolation)
+- Zero additional services to deploy or monitor
 
-**Language**: Java/Quarkus (but accessed via REST API)
+**Language**: Pure Python (PyIceberg library + psycopg2 driver)
 
-**Why We Accept One Java Service**:
-- No mature Python-native alternative exists
-- It's a stateless API service (low operational burden)
-- PyIceberg and DuckDB talk to it via REST
-- Small resource footprint
-- Critical for production Iceberg deployments
+**Why We Removed Polaris**:
+- Polaris was the only Java/JVM service in the stack
+- PyIceberg SQL catalog reached maturity and provides all needed functionality
+- Reuses the PostgreSQL instance already required for Dagster run storage
+- Simpler deployment — one fewer container, one fewer health check
+- No REST API overhead — direct Python calls to PostgreSQL
 
 **Role in Stack**:
-- Tracks all Iceberg tables and their locations
-- Manages table metadata pointers
-- Provides RBAC for table access
-- Enables atomic catalog operations
-- Supports multiple namespaces for environment isolation
+- Tracks all Iceberg tables and their locations on S3
+- Manages table metadata pointers and snapshots
+- Supports namespaces: `bronze_tabletop`, `silver_tabletop`, `gold_tabletop`
+- Enables atomic catalog operations (create, overwrite, drop)
+- All catalog operations via `dlt/lib/iceberg_catalog.py`
+
+**Configuration** (in `config/lakehouse.yaml`):
+```yaml
+catalog:
+  name: lakehouse
+  type: sql
+  uri: postgresql+psycopg2://iceberg:iceberg_secret@postgres:5432/iceberg
+  warehouse: s3://lakehouse/warehouse
+  s3.endpoint: http://seaweedfs-s3:8333
+  s3.access-key-id: lakehouse_key
+  s3.secret-access-key: lakehouse_secret
+```
 
 **Governance Approach** (Built-in):
-- **RBAC**: Users, roles, and permissions at catalog level
-- **Namespace isolation**: dev/staging/prod separation
-- **Audit logging**: All catalog operations logged
-- **Table-level permissions**: Grant/revoke on specific tables
+- **Namespace isolation**: bronze/silver/gold separation
+- **PostgreSQL access control**: Database-level user permissions
+- **Immutable snapshots**: Iceberg tracks all changes
 - No additional governance tools needed
 
 ---
@@ -331,9 +336,9 @@ A radically simplified lakehouse architecture optimized for small teams (2-5 peo
 
 **Integration Pattern**:
 - dbt connects via dbt-duckdb adapter
-- Dash/Streamlit connect via DuckDB Python API
+- Dash connects via `get_reader()` (DuckDB views over Iceberg on S3)
 - Reads Iceberg tables directly from SeaweedFS
-- Uses Polaris catalog via REST API (through PyIceberg)
+- Uses PyIceberg SQL catalog (direct PostgreSQL connection, no REST API)
 
 **Governance Approach** (Built-in):
 - **Database-level users**: CREATE USER, password management
@@ -344,59 +349,54 @@ A radically simplified lakehouse architecture optimized for small teams (2-5 peo
 
 ---
 
-### 5. Ingestion Layer: dlt + Airflow
+### 5. Ingestion Layer: dlt + Dagster
 
-**What It Is**: Python-native data ingestion framework orchestrated by Airflow
+**What It Is**: Python-native data ingestion framework orchestrated by Dagster
 
-**Why dlt Only (No NiFi)**:
+**Why dlt**:
 - ✅ **Pure Python**: No Java dependency
-- ✅ **Covers 90% of use cases**: APIs, databases, files, SaaS
+- ✅ **Covers 90% of use cases**: APIs, databases, files, SaaS, PDFs
 - ✅ **Schema inference**: Automatically detects schemas
 - ✅ **Incremental loading**: Built-in state management
-- ✅ **Iceberg integration**: Can write directly to Iceberg tables
 - ✅ **Simple deployment**: Just Python packages
 - ✅ **Developer-friendly**: Code-first, easy to test
 
-**NiFi Removed Because**:
-- Heavy JVM application
-- Visual UI is overkill for batch pipelines
-- dlt handles file processing with Python
-- Extra operational complexity
-- Not needed for small teams
-
 **dlt Capabilities**:
+- **PDF ingestion**: Marker (layout-aware OCR) + pymupdf (raw text extraction)
 - **REST APIs**: Built-in connectors + custom sources
 - **Databases**: PostgreSQL, MySQL, SQL Server replication
 - **Files**: CSV, JSON, Parquet processing with Python
 - **SaaS Platforms**: 50+ verified sources (Salesforce, HubSpot, etc.)
 - **Custom logic**: Full Python for complex transformations
 
-**Apache Airflow Role**:
-- **Orchestration**: Schedule dlt pipelines
-- **Dependency management**: Define task order
-- **Monitoring**: Pipeline status and alerts
-- **Retry logic**: Automatic retries on failures
-- **Backfills**: Historical data loading
+**Dagster Role** (replaced Apache Airflow):
+- **Asset-based orchestration**: Define data assets with dependencies
+- **Monitoring**: Pipeline status via web UI (port 3000)
+- **Dependency graph**: Automatic asset lineage
+- **Retry logic**: Per-asset retry and error handling
+- **Backfills**: Re-materialize specific assets
 
 **Language**: Both pure Python
 
 **Integration Pattern**:
 ```
-Airflow DAG triggers dlt pipeline
+Dagster job triggers dlt pipeline (bronze_tabletop asset)
   ↓
-dlt extracts data from source
+dlt extracts data from PDFs via Marker + pymupdf
   ↓
-dlt writes to Iceberg tables (via DuckDB or PyIceberg)
+dlt writes to Iceberg tables (via PyIceberg SQL catalog)
   ↓
-Tables registered in Polaris catalog
+Tables stored on S3, metadata in PostgreSQL
   ↓
-dbt transformations run (also in Airflow)
+dbt transformations run (dbt_build asset)
+  ↓
+Silver/gold published to Iceberg (publish_to_iceberg asset)
 ```
 
 **Governance Approach**:
-- **Source credentials**: Stored in Airflow secrets
+- **Source credentials**: Stored in environment variables
 - **dlt validation**: Data contracts at ingestion
-- **Airflow RBAC**: Control who can trigger pipelines
+- **Dagster UI**: Control who can trigger pipelines
 - No additional governance tools needed
 
 ---
@@ -442,44 +442,15 @@ dbt transformations run (also in Airflow)
 
 ---
 
-### 7. Visualization Layer: Streamlit + Plotly Dash
+### 7. Visualization Layer: Plotly Dash + Streamlit
 
 **Two Tools, Different Purposes**:
 
-#### **Streamlit** (Rapid Prototyping & Internal Tools)
-
-**What It Is**: Python library for building data apps quickly
-
-**When to Use Streamlit**:
-- ✅ Rapid prototyping (build in hours)
-- ✅ Internal data exploration tools
-- ✅ ML model demos and experiments
-- ✅ Ad-hoc analysis interfaces
-- ✅ Quick wins for stakeholders
-- ✅ Developer tools and admin panels
-
-**Strengths**:
-- Extremely fast development (pure Python)
-- No HTML/CSS/JavaScript needed
-- Auto-reloading on code changes
-- Built-in widgets (sliders, dropdowns, file uploads)
-- Easy deployment
-
-**Limitations**:
-- Less customizable than Dash
-- Not ideal for complex multi-page apps
-- Performance limits with many users
-- Less control over styling
-
-**Language**: Pure Python
-
-**Integration**: Connect directly to DuckDB via Python API
-
----
-
-#### **Plotly Dash** (Production Dashboards)
+#### **Plotly Dash** (Production Browser)
 
 **What It Is**: Framework for production-grade analytical web applications
+
+**Current Implementation**: The Tabletop Rules Browser (`dashapp/tabletop_browser.py`) is the primary user-facing application — a full scrollable book view with ToC sidebar navigation. It reads exclusively from gold Iceberg tables via DuckDB and serves on port 8000. Publicly accessible at `gamerules.ai` via Cloudflare Tunnel.
 
 **When to Use Dash**:
 - ✅ Production dashboards (customer-facing)
@@ -496,26 +467,37 @@ dbt transformations run (also in Airflow)
 - Sophisticated layouts
 - Enterprise deployment
 
-**Trade-off**:
-- Slower development than Streamlit
-- More code required
-- Steeper learning curve
-
 **Language**: Pure Python (wraps React components)
+
+**Integration**: Reads gold Iceberg tables via `get_reader()` (DuckDB views over S3)
+
+---
+
+#### **Streamlit** (Rapid Prototyping & Internal Tools)
+
+**What It Is**: Python library for building data apps quickly
+
+**When to Use Streamlit**:
+- ✅ Rapid prototyping (build in hours)
+- ✅ Internal data exploration tools
+- ✅ Ad-hoc analysis interfaces
+- ✅ Developer tools and admin panels
+
+**Strengths**:
+- Extremely fast development (pure Python)
+- No HTML/CSS/JavaScript needed
+- Auto-reloading on code changes
+- Built-in widgets (sliders, dropdowns, file uploads)
+
+**Language**: Pure Python
 
 **Integration**: Connect directly to DuckDB via Python API
 
 ---
 
-**Recommended Workflow**:
-1. **Prototype in Streamlit** (fast iteration)
-2. **Validate with stakeholders** (get feedback)
-3. **Rebuild in Dash for production** (if needed)
-4. **Deploy both** (Streamlit for internal, Dash for external)
-
 **Governance Approach**:
 - **DuckDB read-only users**: Dashboards use limited permissions
-- **Application-level auth**: Streamlit/Dash built-in auth
+- **Cloudflare Access**: For public-facing Dash apps (free for up to 50 users)
 - **Query timeout limits**: Prevent runaway queries
 - No additional governance tools needed
 
@@ -523,105 +505,73 @@ dbt transformations run (also in Airflow)
 
 ### 8. AI/RAG Integration Layer
 
-**What It Is**: Natural language query interface to lakehouse data, powered by document ingestion and contextual retrieval
+**What It Is**: AI-powered document ingestion pipeline and enrichment layer for lakehouse data
 
 **Components** (All Python):
-- **Marker**: Layout-aware PDF to markdown conversion with multi-column support (Datalab, GPL license)
-- **PyMuPDF**: Raw PDF text extraction for page rendering and VLM input
+- **Marker**: Layout-aware PDF to markdown conversion with multi-column support, GPU-accelerated (Datalab, GPL license)
+- **PyMuPDF**: Raw PDF text extraction — primary content source (pymupdf page_texts), also provides ToC parsing and page rendering
 - **VLM via Ollama**: Vision language model (MiniCPM-V) for structured content extraction from rendered page images
-- **LangChain**: RAG orchestration framework
-- **ChromaDB**: Vector database for document and metadata embeddings
-- **Sentence Transformers**: Generate embeddings locally (all-mpnet-base-v2, 768 dimensions)
+- **Ollama (direct API)**: LLM inference for AI summaries (qwen3:30b-a3b) and annotations (llama3:70b) — called directly, no LangChain wrapper
+- **Sentence Transformers**: Generate embeddings locally (all-MiniLM-L6-v2)
 
-**Architecture Pattern — Document-Based RAG (Primary Use Case)**:
+**Architecture Pattern — Document Ingestion (Current Implementation)**:
 ```
-PDF/document ingestion (two-pass hybrid):
-  Source PDFs (rules, policies, specifications)
+PDF ingestion (two-pass hybrid, orchestrated by Dagster):
+  Source PDFs (tabletop RPG rulebooks)
     ↓
   Pass 1: Marker parses PDF → layout-aware markdown (multi-column, tables, reading order)
+    Cached at documents/tabletop_rules/processed/marker/<book>.md
     ↓
-  Pass 2: PyMuPDF detects pages with incomplete structured content (stat blocks, key:value fields)
-    → Renders problem pages as images at 300 DPI
-    → VLM (MiniCPM-V via Ollama) extracts missing structured fields from page images
-    → Merges VLM-extracted fields back into Marker markdown
+  Pass 2: pymupdf extracts raw page text (primary content source)
+    Marker drops pages; pymupdf is authoritative for content
     ↓
-  Chapter-aligned chunking: chapter > section > entry (never crosses boundaries)
+  Bronze extraction: ToC parsing, entry building, table extraction, spell lists
+    Config-driven via YAML (documents/tabletop_rules/configs/)
+    All raw data → Iceberg tables in bronze_tabletop namespace
     ↓
-  Embedded via Sentence Transformers (all-mpnet-base-v2) → stored in ChromaDB
+  dbt transforms: silver models (cleanup, dedup, joins) → gold models (entries, index, descriptions)
     ↓
-  Chunks + chapter/section metadata stored in DuckDB for keyword search
-
-Query time:
-  User asks question about rules/policies
+  Publish to Iceberg: silver + gold tables on S3
     ↓
-  ChromaDB retrieves relevant document chunks (semantic search, 3x over-fetch)
-    + DuckDB keyword search with OR logic ranked by match count
+  AI enrichment (Ollama, ~70min total):
+    - gold_ai_summaries: qwen3:30b-a3b generates 1-3 sentence summaries per entry
+    - gold_ai_annotations: llama3:70b classifies entries as combat/popular
     ↓
-  Hybrid deduplication, top N results selected
-    ↓
-  LLM generates answer with retrieved context + chapter/section citations
-    ↓
-  Response returned with source citations (document, chapter, section, game system)
+  Dash browser reads gold tables at gamerules.ai
 ```
 
-**Architecture Pattern — Data Query RAG**:
+**VLM Pass (Optional)**:
 ```
-User asks: "What were sales last month?"
-  ↓
-LangChain retrieves relevant table metadata from ChromaDB
-  ↓
-LLM generates SQL query with context
-  ↓
-DuckDB executes query on Iceberg tables
-  ↓
-LangChain formats response
-  ↓
-Answer returned to user
+Pages with incomplete structured content (stat blocks, key:value fields)
+  → Rendered as images via pymupdf at 300 DPI
+  → MiniCPM-V via Ollama extracts missing structured fields
+  → Merged back into entry metadata
 ```
 
-**What Gets Indexed in ChromaDB**:
-- Parsed document chunks (rules, policies, specifications) with section metadata
-- Table schemas (from Polaris catalog)
-- Column descriptions and data types
-- Business glossary terms
-- Example queries and their SQL
-- Common metrics definitions (ARR, MRR, CAC, etc.)
+**LLM Models** (all local via Ollama on RTX 4090, zero API costs):
+- **qwen3:30b-a3b**: AI summaries — fast, good quality for reference text (num_ctx: 4096, num_predict: 2048)
+- **llama3:70b**: AI annotations (combat/popular classification), OCR silver pass
+- **llama3:8b**: OCR bronze pass (fast scanning)
+- **minicpm-v:latest**: Vision model for structured content extraction from page images
+- **glm-4.7-flash**: Available for future use
 
-**Docling Capabilities**:
-- Parses PDF, DOCX, PPTX, HTML, and image-based documents
-- Layout-aware: preserves tables, headers, lists, and section hierarchy
-- Outputs structured markdown suitable for chunking and embedding
-- Runs locally with no API costs (optional GPU acceleration on RTX 4090)
-- Handles large documents efficiently with streaming/page-level processing
+**Enrichment Prompts** (config-driven, in `_default.yaml` under `gold:`):
+- `summary_prompt`: Generates 1-3 sentence mechanic summaries per entry
+- `annotation_prompt`: Classifies entries as combat/popular with JSON output
+- Prompts are parameterized with `{entry_type}`, `{entry_title}`, `{content}`
 
-**LLM Options**:
-- **Cloud-based**: OpenAI GPT-4, Anthropic Claude (API costs)
-- **Local**: Llama 2, Mistral, CodeLlama (zero API costs, runs on CPU)
-- **Local GPU**: Llama 3 70B, Mixtral 8×7B via Ollama (RTX 4090 24 GB VRAM can run 70B models at Q4 quantization with no API costs — strongly preferred for this machine)
-- **Specialized**: SQLCoder (fine-tuned for text-to-SQL)
+**Future RAG Layer** (ChromaDB + Sentence Transformers installed but not yet active):
+- ChromaDB for semantic search over document chunks
+- Sentence Transformers (all-MiniLM-L6-v2) for embedding generation
+- LangChain for RAG orchestration
+- FastAPI service for REST query endpoint
 
-**Use Cases**:
-- Slack/Teams chatbot for data questions
-- Voice assistants ("Alexa, what were yesterday's sales?")
-- Automated report generation
-- Data discovery ("What tables contain customer info?")
-- Anomaly detection queries
-
-**Integration Pattern**:
-- FastAPI service exposes REST endpoint
-- Airflow DAG runs Docling to parse new/updated documents and index into ChromaDB
-- Airflow DAG updates ChromaDB schema metadata daily (when schemas change)
-- Dash/Streamlit apps can call RAG API
-- External tools query via HTTP
-
-**Language**: Pure Python (Docling, LangChain, ChromaDB, FastAPI)
+**Language**: Pure Python (Marker, pymupdf, ollama, sentence-transformers)
 
 **Governance Approach**:
-- **Read-only DuckDB user**: RAG queries can't modify data
-- **Query validation**: Sanitize generated SQL before execution
-- **Rate limiting**: Prevent API abuse
-- **Audit logging**: Log all AI-generated queries
-- **Respect Polaris permissions**: Only query tables user can access
+- **Read-only DuckDB user**: Browser queries can't modify data
+- **Gold-only access**: Browser reads only from gold_tabletop namespace
+- **Audit logging**: All LLM queries logged via Dagster
 - No additional governance tools needed
 
 ---
@@ -632,7 +582,7 @@ Answer returned to user
 
 **Why Ollama as Core Infrastructure**:
 - ✅ **Zero API costs**: Run large models locally on RTX 4090
-- ✅ **Production-grade**: 70B parameter models (Llama 3, Mixtral) in enterprise deployments
+- ✅ **Production-grade**: 70B parameter models in enterprise deployments
 - ✅ **Fast inference**: 50-80 tokens/second on RTX 4090 for 70B models
 - ✅ **Data privacy**: Models and queries never leave your infrastructure
 - ✅ **Simple deployment**: Single executable for Windows, works seamlessly with Docker
@@ -641,53 +591,47 @@ Answer returned to user
 **Language**: Go (but provides standard REST API)
 
 **Hardware Requirements**:
-- **CPU-only mode**: Runs on CPU (slow) or requires GPU for practical inference
-- **RTX 4090 (24 GB VRAM)**: Supports Llama 3 70B at Q4 quantization (state-of-the-art open model)
+- **RTX 4090 (24 GB VRAM)**: Supports Llama 3 70B at Q4 quantization
 - **RTX 4080 / RTX 4070**: Supports smaller models (13B-30B parameters)
-- **MacBook Pro with M3 Max**: Supports 70B models efficiently (Apple Silicon optimization)
 
-**Models Available**:
-- **Llama 3 70B** (Q4): ~16 GB VRAM, highest quality reasoning
-- **Mistral 8x7B**: ~20 GB VRAM, high speed, good quality
-- **Llama 2 70B**: Older, slightly lower quality than Llama 3
-- **CodeLlama**: Specialized for code generation and understanding
-- **Orca**: Optimized for instruction-following
+**Models in Use** (configured in `config/lakehouse.yaml`):
+- **qwen3:30b-a3b**: AI summaries — fast, good quality for reference text
+- **llama3:70b**: AI annotations (combat/popular), OCR silver pass
+- **llama3:8b**: OCR bronze pass (fast scanning)
+- **minicpm-v:latest**: Vision model for structured content extraction
+- **glm-4.7-flash**: Available for future use
 
 **Role in Stack**:
-- Generate answers for document-based RAG queries (rules, policies, specifications)
-- Generate SQL for data-based RAG queries (text-to-SQL)
-- Power chatbots and voice assistants
-- Provide fallback to cloud LLM if needed (but not required)
+- Generate AI summaries for gold entries (qwen3:30b-a3b)
+- Classify entries as combat/popular (llama3:70b)
+- OCR validation — two-pass: fast scan (llama3:8b) then review (llama3:70b)
+- Vision-based content extraction from PDF page images (minicpm-v)
 
 **Why Native Windows (Not Containerized)**:
 - Running Ollama natively on Windows is simpler than containerizing it
 - Docker on Windows (via WSL2) GPU passthrough adds complexity with marginal benefit
 - **Native approach**: Windows NVIDIA driver → GPU directly, no WSL2 passthrough layer
 - **Containerized approach**: Docker → WSL2 → NVIDIA Container Toolkit → GPU passthrough (more failure points)
-- Models stored in Windows (easier to manage large files, no Docker volume overhead)
-- Docker containers reach native Ollama via `http://host.docker.internal:11434` (built-in Windows feature)
-- This separation of concerns (containerized analytics + native LLM) is cleaner and more maintainable
+- Models stored on D drive (`D:\ollama\models` via `OLLAMA_MODELS` env var)
+- Docker containers reach native Ollama via `http://host.docker.internal:11434`
 
 **Installation (Windows)**:
-1. Download from https://ollama.ai
-2. Run installer
-3. Pull a model: `ollama pull llama3:70b`
-4. Run: `ollama serve` with `OLLAMA_HOST=0.0.0.0:11434`
-5. Accessible from Docker at `http://host.docker.internal:11434`
+1. `winget install Ollama.Ollama`
+2. Set model storage: `[System.Environment]::SetEnvironmentVariable("OLLAMA_MODELS", "D:\ollama\models", "Machine")`
+3. Models pulled automatically by `seed_models` Dagster job
+4. Accessible from Docker at `http://host.docker.internal:11434`
 
 **Integration Pattern**:
 ```
-User Question (in Streamlit/FastAPI)
+Dagster triggers enrichment asset (gold_ai_summaries or gold_ai_annotations)
   ↓
-RAG retrieval (ChromaDB + DuckDB)
+Python script reads gold entries from Iceberg via get_reader()
   ↓
-LangChain calls Ollama via POST to /api/generate
+Direct HTTP POST to Ollama /api/generate (streaming)
   ↓
 Ollama runs inference on GPU (RTX 4090)
   ↓
-Response streamed back to user
-  ↓
-Total latency: 2-5 seconds for RAG-augmented answer
+Results written back to Iceberg via write_iceberg()
 ```
 
 **Cost Comparison**:
@@ -697,42 +641,59 @@ Total latency: 2-5 seconds for RAG-augmented answer
 **Governance Approach**:
 - **No telemetry**: Ollama sends no usage data
 - **No data leak risk**: All inference stays on GPU
-- **Rate limiting**: Implement in FastAPI wrapper if needed
-- **Audit logging**: Log all LLM queries for compliance
+- **Audit logging**: All LLM calls logged via Dagster asset runs
+- No additional tools needed
 
 ---
 
-### 10. Orchestration Layer: Apache Airflow
+### 10. Orchestration Layer: Dagster
 
-**What It Is**: Workflow orchestration platform
+**What It Is**: Asset-based data orchestration platform (replaced Apache Airflow)
 
-**Why Airflow**:
-- Industry standard for data pipelines
-- Pure Python DAG definitions
-- Rich ecosystem of integrations
-- Built-in monitoring and alerting
-- Cosmos plugin for dbt integration
+**Why Dagster** (replaced Airflow):
+- ✅ **Asset-based**: Define data assets with dependencies, not task DAGs
+- ✅ **Pure Python**: Asset definitions are decorated Python functions
+- ✅ **Built-in UI**: Web interface at port 3000 for monitoring and launching
+- ✅ **Lightweight**: Two containers (webserver + daemon) vs Airflow's four (webserver + scheduler + worker + triggerer)
+- ✅ **dbt integration**: Native dagster-dbt adapter
+- ✅ **Run storage**: Uses PostgreSQL (shared with Iceberg catalog)
+
+**Why Not Airflow**:
+- Airflow requires more infrastructure (4+ containers, Redis/Celery or Kubernetes executor)
+- DAG-based model is task-centric, not data-centric
+- Heavier operational burden for a solo developer
+- Dagster's asset model matches the lakehouse pattern (data → transforms → consumers)
 
 **Language**: Pure Python
 
 **Role in Stack**:
-- Schedule dlt ingestion pipelines
-- Orchestrate dbt transformations (via Cosmos)
-- Run Docling document parsing on new/updated PDFs
-- Update RAG metadata (ChromaDB indexing)
-- Data quality checks
-- Alert on failures
+- Orchestrate the full pipeline: bronze → silver/gold → publish → enrichment
+- Run dbt models and tests as assets
+- Publish dbt results to Iceberg
+- Trigger AI enrichment (summaries + annotations)
+- Seed model dependencies (Ollama, HuggingFace, Marker cache)
 
-**Airflow Cosmos**:
-- Automatically generate Airflow tasks from dbt models
-- Run dbt tests as Airflow tasks
-- Visualize dbt lineage in Airflow UI
-- Incremental model runs
+**Asset Graph** (defined in `dagster/lakehouse_assets/assets.py`):
+```
+seed_ollama_models    seed_huggingface_models    seed_marker_cache
+                              (independent)
+
+bronze_tabletop → toc_review → bronze_ocr_check → dbt_build
+  → publish_to_iceberg → dbt_test → gold_ai_summaries → gold_ai_annotations
+```
+
+**Jobs**:
+- `tabletop_full_pipeline`: All assets bronze through enrichment (~70min)
+- `tabletop_without_enrichment`: Bronze through dbt_test (~30s)
+- `bronze_and_review`: Bronze extraction + ToC review only
+- `silver_and_publish`: dbt_build + publish + test only
+- `enrichment_only`: AI summaries + annotations only
+- `seed_models`: Pull/validate all model dependencies
 
 **Governance Approach**:
-- **Airflow RBAC**: Control DAG access by user
-- **Secret management**: Secure credential storage
-- **Audit logs**: All DAG runs logged
+- **Dagster UI**: Control who can launch jobs
+- **Run history**: All pipeline runs logged with timestamps and status
+- **Asset lineage**: Automatic dependency tracking
 - No additional governance tools needed
 
 ---
@@ -741,11 +702,10 @@ Total latency: 2-5 seconds for RAG-augmented answer
 
 **Philosophy**: Use built-in features, avoid dedicated governance tools
 
-### Layer 1: Catalog (Polaris RBAC)
-- Create roles (analyst, engineer, admin)
-- Grant table-level permissions
-- Namespace isolation (dev can't touch prod)
-- Audit all catalog operations
+### Layer 1: Catalog (PyIceberg SQL)
+- Namespace isolation (bronze/silver/gold separation)
+- PostgreSQL access control (database-level user permissions)
+- Immutable Iceberg snapshots (audit trail of all changes)
 
 ### Layer 2: Query (DuckDB Users)
 - CREATE USER with passwords
@@ -766,13 +726,15 @@ Total latency: 2-5 seconds for RAG-augmented answer
 - Custom business logic tests
 - Freshness checks
 
-### Layer 5: Lineage (dbt + Airflow)
+### Layer 5: Lineage (dbt + Dagster)
 - dbt automatically tracks lineage
-- Airflow shows dependencies
+- Dagster asset graph shows dependencies
 - Git history for change tracking
 - No separate tool needed
 
 ### What We're NOT Using:
+- ❌ Apache Polaris (replaced with PyIceberg SQL — no JVM needed)
+- ❌ Apache Airflow (replaced with Dagster — lighter, asset-based)
 - ❌ Apache Ranger (too complex for small scale)
 - ❌ Apache Atlas (heavyweight metadata management)
 - ❌ Dedicated data catalog tools
@@ -790,174 +752,83 @@ Total latency: 2-5 seconds for RAG-augmented answer
 
 ### Ingestion Flow
 ```
-Source System
+Source PDFs in documents/tabletop_rules/raw/
   ↓
-dlt Pipeline (Python) extracts data
+Dagster triggers bronze_tabletop asset
   ↓
-Writes to Iceberg table (via DuckDB or PyIceberg)
+dlt pipeline extracts via Marker (OCR) + pymupdf (text)
   ↓
-Registers in Polaris catalog
+Writes to Iceberg tables (via PyIceberg SQL → PostgreSQL)
+  ↓
+Tables stored on S3 (SeaweedFS), metadata in PostgreSQL
   ↓
 Available for transformation
 ```
 
 ### Transformation Flow
 ```
-Raw Iceberg tables
+Bronze Iceberg tables (bronze_tabletop namespace)
   ↓
-dbt models read from staging schema
+dbt creates DuckDB views over bronze tables (via macro)
   ↓
-SQL transformations execute in DuckDB
+SQL transformations execute in DuckDB (silver + gold models)
   ↓
-Write to marts schema (Iceberg tables)
+publish_to_iceberg asset writes results to S3
   ↓
-Registered in Polaris catalog
-  ↓
-Available for analytics
+Silver/gold tables in Iceberg (silver_tabletop, gold_tabletop namespaces)
 ```
 
 ### Query Flow
 ```
-User opens Streamlit/Dash app
+User opens Dash browser at gamerules.ai
   ↓
-App queries DuckDB
+App calls get_reader(namespaces=["gold_tabletop"])
   ↓
-DuckDB reads Iceberg tables from SeaweedFS
+DuckDB creates views over Iceberg tables on S3
   ↓
-DuckDB uses Polaris catalog for metadata
-  ↓
-Results displayed in app
+Results displayed in Dash app
 ```
 
-### RAG Flow — Document Queries
+### AI Enrichment Flow
 ```
-User asks question about rules/policies
+Dagster triggers gold_ai_summaries asset
   ↓
-ChromaDB semantic search + DuckDB full-text search
+Script reads gold entries via get_reader()
   ↓
-Relevant document chunks retrieved with source metadata
+Sends content to Ollama (qwen3:30b-a3b) via direct HTTP
   ↓
-LLM generates answer with context
+Summaries written to Iceberg via write_iceberg()
   ↓
-Response returned with citations (document, page, section)
+gold_ai_annotations asset runs next (llama3:70b)
+  ↓
+Annotations written to Iceberg
 ```
-
-### RAG Flow — Data Queries
-```
-User asks question in natural language
-  ↓
-LangChain retrieves metadata from ChromaDB
-  ↓
-LLM generates SQL with context
-  ↓
-DuckDB executes query
-  ↓
-LangChain formats answer
-  ↓
-Response returned
-```
-
-### Document Ingestion Flow
-```
-New PDF/document added to ingestion path
-  ↓
-Airflow triggers Docling parsing pipeline
-  ↓
-Docling converts document → structured markdown
-  ↓
-Markdown chunked by section hierarchy
-  ↓
-Chunks embedded via Sentence Transformers → ChromaDB
-  ↓
-Parsed markdown + metadata stored in DuckDB documents table
-  ↓
-Available for RAG queries
-```
-
-### RAG Maintenance: Re-indexing After Changes
-
-When chunking parameters, embedding models, or ingestion logic change, you must re-run the full pipeline. This section covers installing dependencies and resetting the vector store.
-
-#### Install Sentence Transformers
-
-The RAG pipeline uses `all-mpnet-base-v2` for embeddings (768 dimensions, significantly more accurate than the default `all-MiniLM-L6-v2`). Install inside your workspace container or virtual environment:
-
-```bash
-pip install sentence-transformers
-```
-
-This pulls in PyTorch and Hugging Face Transformers. The model (~420 MB) is downloaded automatically on first use. If running on GPU, ensure `torch` is installed with CUDA support:
-
-```bash
-# GPU-accelerated embeddings (optional, speeds up large batch embedding)
-pip install torch --index-url https://download.pytorch.org/whl/cu121
-pip install sentence-transformers
-```
-
-#### Re-extract, Re-embed, and Rebuild the Vector Store
-
-When you change chunk sizes, overlap, or the embedding model, existing vectors become incompatible. Run these steps in order:
-
-```bash
-# Step 1: Re-ingest PDFs with new chunking parameters
-#   This re-parses all PDFs and overwrites chunks in DuckDB
-python -c "from dlt.load_tabletop_rules_docs import run; run(game_system='D&D 2e', content_type='rules')"
-
-# Step 2: Delete the old ChromaDB collection
-#   Required when the embedding model or dimensions change — old vectors
-#   are incompatible with the new model and will produce garbage results
-python -c "
-import chromadb
-from chromadb.config import Settings
-client = chromadb.PersistentClient(path='/workspace/chroma_db', settings=Settings(anonymized_telemetry=False))
-client.delete_collection('tabletop_rules_chunks')
-print('Collection deleted.')
-"
-
-# Step 3: Re-embed all chunks into a fresh collection
-#   Uses the new embedding model (all-mpnet-base-v2) and creates a new collection
-python -c "from rag.embed_tabletop_rules import embed_all; embed_all()"
-```
-
-After these steps, the RAG engine is ready for queries with the updated pipeline.
 
 ---
 
 ## Development Workflow
 
-### Environment Isolation (Polaris Namespaces)
+### Environment Isolation (Iceberg Namespaces)
 
-**Git Branches Map to Polaris Namespaces**:
-- `main` branch → `prod_analytics` namespace
-- `develop` branch → `staging_analytics` namespace
-- `feature/*` branches → `dev_analytics` namespace
+**Namespaces map to medallion layers** (configured in `config/lakehouse.yaml`):
+- `bronze_tabletop`: Raw extracted data from PDFs
+- `silver_tabletop`: Cleaned, deduplicated, joined data (dbt transforms)
+- `gold_tabletop`: Business-ready tables (entries, index, descriptions, AI enrichment)
+- `meta`: Pipeline metadata (dbt test results, test failures)
 
-**No Separate Catalogs Needed**: Single Polaris instance, multiple namespaces
+**Single catalog, multiple namespaces**: PyIceberg SQL catalog on PostgreSQL
 
 ### Local Development
-1. Developer works in `dev_analytics` namespace
-2. Uses DuckDB locally (embedded mode)
-3. Tests dbt models on subset of data
-4. Commits code to Git feature branch
-
-### Staging Deployment
-1. Merge to `develop` branch
-2. Airflow runs dlt + dbt in `staging_analytics` namespace
-3. Validate with realistic data volumes
-4. Test dashboards against staging
-
-### Production Deployment
-1. Merge to `main` branch (with approval)
-2. Airflow runs dlt + dbt in `prod_analytics` namespace
-3. Production tables updated
-4. Dashboards switch to prod namespace
+1. Edit code on host (VSCode) — Docker volume mounts sync to containers
+2. Clear `__pycache__` + restart Dagster containers after code changes
+3. Launch pipeline via Dagster UI at http://localhost:3000
+4. Verify results in Dash browser at http://localhost:8000
 
 ### Schema Changes
-1. Test in `dev_analytics` namespace
-2. Use Iceberg schema evolution (add/drop columns)
-3. Validate in `staging_analytics`
-4. Deploy to `prod_analytics` via CI/CD
-5. Roll back via Iceberg snapshots if needed
+1. Modify dbt model SQL
+2. Run `tabletop_without_enrichment` job to rebuild silver/gold
+3. Verify in Dash browser
+4. Iceberg handles schema evolution — old snapshots still readable
 
 ---
 
@@ -965,17 +836,14 @@ After these steps, the RAG engine is ready for queries with the updated pipeline
 
 ### Docker Compose (Development & Small Production)
 
-**Services**:
-- SeaweedFS (object storage)
-- Polaris (Iceberg catalog)
-- PostgreSQL (Polaris backend + Airflow metadata)
-- Airflow (webserver, scheduler, workers)
+**Services** (defined in `docker/docker-compose.yml`):
+- SeaweedFS (master + volume + filer + S3 gateway — object storage)
+- PostgreSQL (Iceberg catalog backend + Dagster run storage)
+- Dagster webserver (port 3000) + daemon (pipeline execution)
+- Workspace container (Jupyter, Dash browser, GPU access)
 - DuckDB (embedded in applications, no service needed)
-- Streamlit apps (Python processes)
-- Dash apps (Python processes)
-- RAG API (FastAPI service)
-- ChromaDB (embedded or standalone)
-- Cloudflare Tunnel (`cloudflared`) for exposing Dash/Streamlit to the internet without port forwarding
+- Ollama (native Windows, not containerized)
+- Cloudflare Tunnel (`cloudflared`) for exposing Dash at gamerules.ai
 
 **Single Machine Requirements**:
 - 32-64 GB RAM (for DuckDB in-memory processing) — *this machine: 64 GB DDR5 @ 6000 MT/s*
@@ -987,9 +855,8 @@ After these steps, the RAG engine is ready for queries with the updated pipeline
 
 **Deployments**:
 - SeaweedFS Operator
-- Polaris Catalog (stateless, horizontal scaling)
-- Airflow Helm Chart
-- Streamlit apps (multiple replicas)
+- PostgreSQL (for Iceberg catalog + Dagster)
+- Dagster Helm Chart (dagster-cloud or self-hosted)
 - Dash apps (multiple replicas)
 - RAG API (multiple replicas with ChromaDB PVC)
 
@@ -999,30 +866,29 @@ After these steps, the RAG engine is ready for queries with the updated pipeline
 
 ## Technology Summary
 
-### Pure Python Components (85% of stack)
+### Pure Python Components (95% of stack)
 - dlt (ingestion)
 - dbt (transformation)
 - DuckDB (queries)
-- PyIceberg (Iceberg operations)
-- Airflow (orchestration)
-- Streamlit (rapid viz)
-- Plotly Dash (production viz)
-- Docling (PDF/document parsing)
-- LangChain (RAG orchestration)
-- ChromaDB (vector DB)
+- PyIceberg (Iceberg catalog + table format)
+- Dagster (orchestration)
+- Plotly Dash (production browser)
+- Streamlit (rapid prototyping)
+- Marker (PDF OCR, GPU-accelerated)
+- pymupdf (PDF text extraction)
 - Sentence Transformers (embeddings)
-- FastAPI (RAG service)
+- ollama Python client (LLM calls)
 
 ### Non-Python (with justification)
-- **Polaris** (Java/Quarkus): Only mature Iceberg catalog, REST API
 - **SeaweedFS** (Go): S3-compatible storage, language-agnostic API
+- **PostgreSQL** (C): Catalog backend + Dagster run storage, standard infrastructure
 - **DuckDB core** (C++): Embedded database, feels native to Python
 - **Ollama** (Go): Self-hosted LLM inference, REST API, zero API costs, GPU acceleration
 - **Cloudflare Tunnel** (Go): Expose local services to internet without port forwarding, free tier
 
 ### Why This Works
 - Single language for development (Python)
-- Minimal JVM operational burden (1 service only)
+- **Zero JVM dependencies** — Polaris (Java) was replaced with PyIceberg SQL, Airflow replaced with Dagster
 - Ollama runs natively on Windows (not in Docker), accessible to all services
 - Simpler debugging and monitoring
 - Unified toolchain (pytest, black, ruff, mypy)
@@ -1051,6 +917,8 @@ After these steps, the RAG engine is ready for queries with the updated pipeline
 This stack is designed to scale up gradually:
 - DuckDB → Trino (change dbt adapter, keep Iceberg tables)
 - dlt only → dlt + streaming tools (add Kafka/Flink)
+- PyIceberg SQL → Polaris REST catalog (if multi-engine access needed)
+- Dagster → Dagster Cloud (hosted orchestration)
 - Built-in governance → Ranger (add centralized policies)
 - All layers remain compatible (Iceberg abstraction)
 
@@ -1059,7 +927,7 @@ This stack is designed to scale up gradually:
 ## Why Python-First Matters
 
 ### Operational Benefits
-- **Single runtime**: Python everywhere (except Polaris REST API)
+- **Single runtime**: Python everywhere (no JVM services)
 - **Unified debugging**: All code in one language
 - **Consistent tooling**: pytest, black, mypy, ruff across all components
 - **Easier onboarding**: New team members learn Python only
@@ -1073,7 +941,7 @@ This stack is designed to scale up gradually:
 
 ### Cost Efficiency
 - **Fewer servers**: DuckDB embedded, no query cluster
-- **Lower memory**: No JVM overhead (except Polaris)
+- **Lower memory**: No JVM overhead at all
 - **Smaller VMs**: Python apps have lower baseline resource needs
 - **Simplified licensing**: All open source, no enterprise editions
 
@@ -1081,7 +949,7 @@ This stack is designed to scale up gradually:
 - **DuckDB limits**: Single-node only, but sufficient for scale
 - **No real-time**: Batch only, but 90% of analytics is batch
 - **DIY governance**: No Ranger, but built-in tools sufficient
-- **One JVM service**: Polaris necessary, minimal operational burden
+- **Zero JVM**: Achieved by replacing Polaris with PyIceberg SQL
 
 ---
 
@@ -1102,19 +970,18 @@ This stack is designed to scale up gradually:
 - Monitor query patterns, optimize hot paths
 
 ### Security
-- Use Polaris RBAC for table access
+- Use PostgreSQL access control for catalog
 - Create read-only DuckDB users for dashboards
-- Store secrets in Airflow connections
-- Enable audit logging in Polaris and DuckDB
-- Use namespace isolation for environments
+- Store secrets in environment variables and config files
+- Enable audit logging in Dagster
+- Use namespace isolation for data layers (bronze/silver/gold)
 
 ### Monitoring
-- Airflow for pipeline health
-- dbt test results for data quality
+- Dagster UI for pipeline health and run history
+- dbt test results for data quality (stored in Iceberg)
 - DuckDB query logs for performance
-- Streamlit/Dash app metrics
-- Docling document parsing success/failure rates
-- RAG API success rates
+- Dash app at gamerules.ai for content verification
+- Ollama model status via API (`/api/ps`)
 
 ### Cost Management
 - Use local LLMs for RAG (avoid API costs)
@@ -1132,27 +999,28 @@ This Python-first lakehouse architecture provides:
 **Simplicity**:
 - Minimal components (10 vs. 20+ in traditional stacks)
 - Single primary language (Python)
+- **Zero JVM dependencies** — PyIceberg SQL replaced Polaris, Dagster replaced Airflow
 - Built-in governance (no dedicated tools)
 - Embedded query engine (no cluster management)
 
 **Appropriate for Small Scale**:
 - DuckDB handles 100GB-2TB efficiently
 - dlt covers all ingestion needs
-- Polaris provides production-ready catalog
-- Streamlit enables rapid prototyping
-- Dash delivers production dashboards
+- PyIceberg SQL on PostgreSQL provides production-ready catalog
+- Dash delivers production browser (gamerules.ai)
+- Dagster orchestrates the full pipeline
 
 **Future-Proof**:
 - Iceberg tables work with any query engine
 - Can add Trino later without data migration
-- Standard tools (dbt, Airflow) scale to enterprise
-- RAG layer enables AI-powered analytics
+- Standard tools (dbt, Dagster) scale to enterprise
+- RAG layer (ChromaDB + LangChain) ready to activate
 
 **Cost-Effective**:
 - Fewer servers (DuckDB embedded)
 - Lower operational burden (fewer tools)
 - Open source (no licensing costs)
-- Local LLMs (no API fees)
+- Local LLMs via Ollama (no API fees)
 
 **Developer-Friendly**:
 - Python skills only
@@ -1160,7 +1028,7 @@ This Python-first lakehouse architecture provides:
 - Version-controlled everything
 - Easy debugging and testing
 
-This stack proves you can build a production lakehouse with modern capabilities (ACID transactions, time travel, AI queries) without the complexity and cost of traditional big data architectures.
+This stack proves you can build a production lakehouse with modern capabilities (ACID transactions, time travel, AI enrichment) without the complexity and cost of traditional big data architectures.
 
 Start simple, scale when needed, and keep Python at the core.
 
@@ -1419,10 +1287,12 @@ nvidia-smi
 Expected output includes your driver version and GPU name:
 ```
 +-----------------------------------------------------------------------------+
-| NVIDIA-SMI 561.xx    Driver Version: 561.xx    CUDA Version: 12.x          |
+| NVIDIA-SMI 595.xx    Driver Version: 595.xx    CUDA Version: 13.x          |
 |-------------------------------+----------------------+----------------------+
 | GPU 0: NVIDIA GeForce RTX 4090 ...
 ```
+
+**Current driver:** 595.97, CUDA 13.2, PyTorch 2.11+cu130.
 
 **Minimum driver version required:** 527.41 (supports CUDA 12.x in WSL2).
 
@@ -1565,35 +1435,38 @@ Close and reopen PowerShell after install.
 
 Close and reopen PowerShell after setting this.
 
-**Start Ollama and bind to all interfaces** so Docker containers can reach it (PowerShell):
+**Start Ollama** — it runs as a Windows service automatically after install. If you need to restart:
 
 ```powershell
 $env:OLLAMA_HOST = "0.0.0.0:11434"
 ollama serve
 ```
 
-**Pull the model** (open a second PowerShell tab):
+**Pull models** (or use the `seed_models` Dagster job after setup):
 
 ```powershell
+ollama pull qwen3:30b-a3b
 ollama pull llama3:70b
+ollama pull llama3:8b
+ollama pull minicpm-v:latest
 ```
 
-**Verify GPU is being used** (same PowerShell tab):
+**Verify GPU is being used**:
 
 ```powershell
-ollama run llama3:70b "Say hello"
+curl http://localhost:11434/api/ps
+# Expected: size_vram > 0 for loaded model
 ```
 
-> **RTX 4090 performance:** Llama 3 70B at Q4 runs at ~50–80 tokens/second — fast enough for interactive RAG queries with no per-call API costs.
+> **RTX 4090 performance:** qwen3:30b-a3b runs at ~80+ tokens/second; llama3:70b at ~50–80 tokens/second.
 
 **Test from inside a Docker container** (after Phase 2 setup):
 
 ```bash
-# From Jupyter terminal
 curl http://host.docker.internal:11434/api/tags
 ```
 
-Should return a JSON list including `llama3:70b`.
+Should return a JSON list including all four models.
 
 ---
 
@@ -1676,20 +1549,21 @@ Create `D:\source\lakehouse\lakehouse\docker\docker-compose.yml`:
 services:
 
   # ── PostgreSQL ──────────────────────────────────────────────
-  # Backend database for the Polaris Iceberg catalog
+  # Backend for PyIceberg SQL catalog + Dagster run storage
   postgres:
     image: postgres:15
     container_name: lakehouse-postgres
     environment:
-      POSTGRES_DB: polaris
-      POSTGRES_USER: polaris
-      POSTGRES_PASSWORD: polaris_secret
+      POSTGRES_DB: iceberg
+      POSTGRES_USER: iceberg
+      POSTGRES_PASSWORD: iceberg_secret
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ../db/postgres:/var/lib/postgresql/data
+      - ./init-postgres.sh:/docker-entrypoint-initdb.d/init-postgres.sh
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U polaris"]
+      test: ["CMD-SHELL", "pg_isready -U iceberg"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -1741,53 +1615,70 @@ services:
     volumes:
       - ./s3.json:/etc/seaweedfs/s3.json
 
-  # ── Polaris Bootstrap ───────────────────────────────────────
-  # Initializes database schema and root credentials (runs once then exits)
-  polaris-bootstrap:
-    image: apache/polaris-admin-tool:latest
-    container_name: lakehouse-polaris-bootstrap
+  # ── Dagster ────────────────────────────────────────────────
+  # Asset-based orchestration for the lakehouse pipeline
+  # All three Python services share the same image (base + workspace).
+  dagster-webserver:
+    image: lakehouse-workspace:latest
+    container_name: lakehouse-dagster-webserver
+    ports:
+      - "3000:3000"
+    volumes:
+      - ../config:/workspace/config
+      - ../dagster:/workspace/dagster
+      - ../dlt:/workspace/dlt
+      - ../dbt:/workspace/dbt
+      - ../scripts:/workspace/scripts
+      - ../documents:/workspace/documents
+      - ../db/duckdb:/workspace/db
+      - ../cache:/workspace/cache
     environment:
-      QUARKUS_DATASOURCE_DB_KIND: postgresql
-      QUARKUS_DATASOURCE_USERNAME: polaris
-      QUARKUS_DATASOURCE_PASSWORD: polaris_secret
-      QUARKUS_DATASOURCE_JDBC_URL: jdbc:postgresql://postgres:5432/polaris
-      POLARIS_PERSISTENCE_TYPE: relational-jdbc
-    entrypoint: ["sh", "-c", "java -jar /deployments/quarkus-run.jar bootstrap -r POLARIS -c POLARIS,root,s3cr3t || true"]
+      DAGSTER_HOME: /workspace/dagster
+      PYTHONPATH: /workspace
+      S3_ENDPOINT: http://seaweedfs-s3:8333
+      S3_ACCESS_KEY: lakehouse_key
+      S3_SECRET_KEY: lakehouse_secret
+    command: dagster-webserver -h 0.0.0.0 -p 3000 -w /workspace/dagster/workspace.yaml
     depends_on:
       postgres:
         condition: service_healthy
 
-  # ── Apache Polaris ──────────────────────────────────────────
-  # REST catalog for Apache Iceberg tables
-  # Note: verify the image tag at https://github.com/apache/polaris
-  polaris:
-    image: apache/polaris:latest
-    container_name: lakehouse-polaris
-    ports:
-      - "8181:8181"
+  dagster-daemon:
+    image: lakehouse-workspace:latest
+    container_name: lakehouse-dagster-daemon
+    volumes:
+      - ../config:/workspace/config
+      - ../dagster:/workspace/dagster
+      - ../dlt:/workspace/dlt
+      - ../dbt:/workspace/dbt
+      - ../scripts:/workspace/scripts
+      - ../documents:/workspace/documents
+      - ../db/duckdb:/workspace/db
+      - ../cache:/workspace/cache
+      - ../cache/datalab:/root/.cache/datalab
     environment:
-      QUARKUS_DATASOURCE_DB_KIND: postgresql
-      QUARKUS_DATASOURCE_USERNAME: polaris
-      QUARKUS_DATASOURCE_PASSWORD: polaris_secret
-      QUARKUS_DATASOURCE_JDBC_URL: jdbc:postgresql://postgres:5432/polaris
-      POLARIS_PERSISTENCE_TYPE: relational-jdbc
+      DAGSTER_HOME: /workspace/dagster
+      PYTHONPATH: /workspace
+      HF_HOME: /workspace/cache/huggingface
+      TRANSFORMERS_OFFLINE: "1"
+      HF_HUB_OFFLINE: "1"
+      S3_ENDPOINT: http://seaweedfs-s3:8333
+      S3_ACCESS_KEY: lakehouse_key
+      S3_SECRET_KEY: lakehouse_secret
+    command: dagster-daemon run -w /workspace/dagster/workspace.yaml
     depends_on:
+      dagster-webserver:
+        condition: service_started
       postgres:
         condition: service_healthy
-      polaris-bootstrap:
-        condition: service_completed_successfully
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8182/q/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 20
 
   # ── Python Workspace ────────────────────────────────────────
-  # Jupyter Lab + all Python tools (dlt, dbt, Streamlit, etc.)
+  # Interactive: Jupyter Lab, Dash browser, Streamlit, manual scripts
   workspace:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.workspace
+    image: lakehouse-workspace:latest
     container_name: lakehouse-workspace
     deploy:
       resources:
@@ -1799,21 +1690,27 @@ services:
     ports:
       - "8889:8889"    # Jupyter Lab
       - "8501:8501"    # Streamlit
-      - "8000:8000"    # Dash browser / RAG API
+      - "8000:8000"    # Dash browser
     volumes:
+      - ../config:/workspace/config
       - ../data:/workspace/data
       - ../dlt:/workspace/dlt
       - ../dbt:/workspace/dbt
       - ../streamlit:/workspace/streamlit
+      - ../dashapp:/workspace/dashapp
       - ../rag:/workspace/rag
       - ../documents:/workspace/documents
+      - ../scripts:/workspace/scripts
       - ../chroma_db:/workspace/chroma_db
-      - workspace_db:/workspace/db    # DuckDB persistent storage
+      - ../db/duckdb:/workspace/db
+      - ../dagster:/workspace/dagster
+      - ../cache:/workspace/cache
+      - ../cache/datalab:/root/.cache/datalab
     environment:
+      HF_HOME: /workspace/cache/huggingface
       S3_ENDPOINT: http://seaweedfs-s3:8333
       S3_ACCESS_KEY: lakehouse_key
       S3_SECRET_KEY: lakehouse_secret
-      POLARIS_URI: http://polaris:8181/api/catalog
     command: >
       jupyter lab
       --ip=0.0.0.0
@@ -1824,12 +1721,8 @@ services:
       --NotebookApp.password=''
       --notebook-dir=/workspace
     depends_on:
-      polaris:
+      postgres:
         condition: service_healthy
-
-volumes:
-  postgres_data:
-  workspace_db:
 
 networks:
   default:
@@ -1861,14 +1754,18 @@ Create `D:\source\lakehouse\lakehouse\docker\s3.json`:
 
 ---
 
-#### Step 2.3: Create Dockerfile
+#### Step 2.3: Create Dockerfiles (two-image setup)
 
-Create `D:\source\lakehouse\lakehouse\docker\Dockerfile`:
+The Docker setup uses two images: a **base** image with shared packages that rarely change, and a **workspace** image that adds Dagster, dbt, PDF parsing, and AI tools.
+
+Create `D:\source\lakehouse\lakehouse\docker\Dockerfile.base`:
 
 ```dockerfile
 FROM python:3.11-slim
 
 WORKDIR /workspace
+
+RUN mkdir -p /workspace/cache
 
 RUN apt-get update && apt-get install -y \
     curl \
@@ -1876,22 +1773,36 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-EXPOSE 8889 8501
+COPY requirements-base.txt .
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install -r requirements-base.txt
 ```
+
+Create `D:\source\lakehouse\lakehouse\docker\Dockerfile.workspace`:
+
+```dockerfile
+FROM lakehouse-base:latest
+
+WORKDIR /workspace
+
+COPY requirements-workspace.txt .
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install -r requirements-workspace.txt
+
+EXPOSE 3000 8889 8501 8000
+```
+
+All three services (dagster-webserver, dagster-daemon, workspace) use `lakehouse-workspace:latest`.
 
 ---
 
-#### Step 2.4: Create requirements.txt
+#### Step 2.4: Create requirements files
 
-Create `D:\source\lakehouse\lakehouse\docker\requirements.txt`:
+Create `D:\source\lakehouse\lakehouse\docker\requirements-base.txt`:
 
 ```
-# Jupyter
-jupyterlab==4.5.4
-ipykernel==7.2.0
+# Base packages — shared by daemon and workspace images.
+# Heavy dependencies that rarely change.
 
 # Data ingestion
 dlt[duckdb,filesystem]==1.21.0
@@ -1899,16 +1810,8 @@ dlt[duckdb,filesystem]==1.21.0
 # Query engine
 duckdb==1.4.4
 
-# Table format
-pyiceberg[s3fs,duckdb]==0.11.1
-
-# Transformation
-dbt-core==1.11.5
-dbt-duckdb==1.10.0
-
-# Visualization
-streamlit==1.54.0
-plotly==6.5.2
+# Table format (with SQL catalog on PostgreSQL)
+pyiceberg[s3fs,duckdb,sql-postgres]==0.11.1
 
 # Data processing
 polars==1.30.0
@@ -1918,9 +1821,58 @@ pyarrow==23.0.1
 boto3==1.42.50
 s3fs==2026.2.0
 
+# Database drivers
+psycopg2-binary==2.9.10
+
 # Utilities
 requests==2.32.5
 python-dotenv==1.2.1
+pyyaml==6.0.2
+
+# OCR validation
+pyspellchecker==0.8.1
+```
+
+Create `D:\source\lakehouse\lakehouse\docker\requirements-workspace.txt`:
+
+```
+# Workspace packages — installed on top of base image.
+# Used by all services: dagster webserver, daemon, and workspace.
+
+# Orchestration
+dagster==1.12.20
+dagster-webserver==1.12.20
+dagster-dbt==0.28.20
+dagster-duckdb==0.28.20
+dagster-docker==0.28.20
+dagster-postgres==0.28.20
+
+# Transformation
+dbt-core==1.11.5
+dbt-duckdb==1.10.0
+
+# Jupyter
+jupyterlab==4.5.4
+ipykernel==7.2.0
+
+# PDF parsing
+docling==2.31.0
+pymupdf==1.25.4
+marker-pdf==1.10.2
+
+# Visualization
+streamlit==1.54.0
+dash==3.0.4
+plotly==6.5.2
+
+# RAG layer (installed, not yet active)
+langchain==1.2.10
+langchain-community==0.4.1
+chromadb==1.0.0
+sentence-transformers==5.2.2
+fastapi==0.115.9
+uvicorn==0.34.0
+ollama==0.6.1
 ```
 
 ---
@@ -2024,86 +1976,27 @@ print(f"Created {out} with {len(rows)} rows")
 
 ---
 
-#### Step 3.4: Initialize Polaris Catalog and Namespaces
+#### Step 3.4: Initialize PyIceberg SQL Catalog and Namespaces
 
-Polaris 1.3 requires OAuth authentication and an explicit catalog before creating namespaces.
-
-**Step 3.4a: Create the Polaris catalog** (run in Jupyter):
+The PyIceberg SQL catalog stores metadata directly in PostgreSQL — no Java service needed. Namespaces are created automatically by the pipeline, but you can verify manually:
 
 ```python
-import requests
+from pyiceberg.catalog.sql import SqlCatalog
 
-# Get OAuth token
-token_resp = requests.post(
-    "http://polaris:8181/api/catalog/v1/oauth/tokens",
-    data={
-        "grant_type": "client_credentials",
-        "client_id": "root",
-        "client_secret": "s3cr3t",
-        "scope": "PRINCIPAL_ROLE:ALL",
-    },
-)
-token_resp.raise_for_status()
-token = token_resp.json()["access_token"]
-headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-
-# Create the 'lakehouse' catalog
-catalog_resp = requests.post(
-    "http://polaris:8181/api/management/v1/catalogs",
-    headers=headers,
-    json={
-        "catalog": {
-            "name": "lakehouse",
-            "type": "INTERNAL",
-            "storageConfigInfo": {
-                "storageType": "S3",
-                "allowedLocations": ["s3://lakehouse/"],
-            },
-            "properties": {
-                "default-base-location": "s3://lakehouse/",
-                "s3.endpoint": "http://seaweedfs-s3:8333",
-                "s3.access-key-id": "lakehouse_key",
-                "s3.secret-access-key": "lakehouse_secret",
-                "s3.path-style-access": "true",
-            },
-        }
-    },
-)
-print(f"Create catalog: {catalog_resp.status_code}")
-
-# Grant the root principal access to the catalog
-grant_resp = requests.put(
-    "http://polaris:8181/api/management/v1/catalogs/lakehouse/catalog-roles/catalog_admin",
-    headers=headers,
-    json={
-        "catalogRole": {
-            "name": "catalog_admin",
-        }
-    },
-)
-print(f"Catalog role: {grant_resp.status_code}")
-```
-
-**Step 3.4b: Create namespaces** (run in Jupyter):
-
-```python
-from pyiceberg.catalog.rest import RestCatalog
-
-catalog = RestCatalog(
-    name="polaris",
-    uri="http://polaris:8181/api/catalog",
-    warehouse="lakehouse",
-    credential="root:s3cr3t",
-    scope="PRINCIPAL_ROLE:ALL",
+catalog = SqlCatalog(
+    "lakehouse",
     **{
+        "uri": "postgresql+psycopg2://iceberg:iceberg_secret@postgres:5432/iceberg",
+        "warehouse": "s3://lakehouse/warehouse",
         "s3.endpoint": "http://seaweedfs-s3:8333",
         "s3.access-key-id": "lakehouse_key",
         "s3.secret-access-key": "lakehouse_secret",
-        "s3.path-style-access": "true",
+        "s3.region": "us-east-1",
     }
 )
 
-for ns in ["raw", "staging", "marts"]:
+# Create namespaces for the medallion architecture
+for ns in ["bronze_tabletop", "silver_tabletop", "gold_tabletop", "meta"]:
     try:
         catalog.create_namespace(ns)
         print(f"Created namespace: {ns}")
@@ -2113,355 +2006,112 @@ for ns in ["raw", "staging", "marts"]:
 print("All namespaces:", catalog.list_namespaces())
 ```
 
+> **Note**: In practice, `dlt/lib/iceberg_catalog.py` handles all catalog operations. The `write_iceberg()` function creates namespaces and tables automatically. This manual step is only needed for initial verification.
+
 ---
 
 ### Phase 4: Data Pipeline Implementation
 
-#### Step 4.1: dlt Ingestion Pipeline
+#### Step 4.1: Bronze Ingestion Pipeline
 
-Create `D:\source\lakehouse\lakehouse\dlt\load_sales.py`:
+The bronze pipeline (`dlt/bronze_tabletop_rules.py`) extracts content from PDFs using two passes:
 
-```python
-"""
-dlt pipeline: loads sales.csv into DuckDB (raw.sales table).
-Run from Jupyter: from load_sales import run; run()
-"""
-import csv
-from pathlib import Path
-import dlt
+1. **Marker**: Layout-aware OCR → markdown (cached at `documents/tabletop_rules/processed/marker/`)
+2. **pymupdf**: Raw page text extraction (primary content source)
 
+The pipeline produces these bronze Iceberg tables:
+- `files` — source file metadata and config hash (used for skip logic)
+- `marker_extractions` — Marker markdown output
+- `page_texts` — pymupdf raw page text (authoritative content)
+- `toc_raw` — parsed table of contents
+- `known_entries_raw` — entries from authority tables and indexes
+- `spell_list_entries` — spell lists from PDF layout analysis
+- `tables_raw` — extracted tables
+- `authority_table_entries` — ground-truth entry names from tables
+- `watermarks` — detected watermark text
+- `ocr_issues` — spellcheck-flagged OCR errors
+- `validation_results` — bronze validation checks
 
-@dlt.resource(name="sales", write_disposition="replace")
-def sales_data(csv_path: str = "/workspace/data/sales.csv"):
-    with open(csv_path, "r") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            row["quantity"] = int(row["quantity"])
-            row["amount"]   = float(row["amount"])
-            yield row
+**Run via Dagster** (never manually):
+1. Open http://localhost:3000
+2. Launch `tabletop_without_enrichment` job
+3. Monitor asset materialization in the UI
 
-
-def run():
-    pipeline = dlt.pipeline(
-        pipeline_name="sales_pipeline",
-        destination=dlt.destinations.duckdb("/workspace/db/lakehouse.duckdb"),
-        dataset_name="raw",
-    )
-    info = pipeline.run(sales_data())
-    print(info)
-    return pipeline
-
-
-if __name__ == "__main__":
-    run()
-```
-
-**Run it in Jupyter:**
-
-```python
-import sys
-sys.path.insert(0, "/workspace/dlt")
-
-from load_sales import run
-pipeline = run()
-
-# Verify
-import duckdb
-conn = duckdb.connect("/workspace/db/lakehouse.duckdb")
-count = conn.execute("SELECT COUNT(*) FROM raw.sales").fetchone()[0]
-print(f"Loaded {count} rows into raw.sales")
-print(conn.execute("SELECT * FROM raw.sales LIMIT 3").fetchdf())
-conn.close()
-```
-
-Expected output:
-```
-Loaded 1000 rows into raw.sales
-  order_id customer_id  order_date   product  quantity    amount  region
-0  ORD-0001   CUST-0072  2024-01-15    Laptop         2  1423.50   North
-1  ORD-0002   CUST-0118  2024-02-03   Monitor         1   849.99    East
-2  ORD-0003   CUST-0055  2024-01-27  Keyboard         3    74.97   South
-```
+> **IMPORTANT**: Clear `__pycache__` and restart Dagster containers before every pipeline run. See `CLAUDE.md` for the full reset sequence.
 
 ---
 
 #### Step 4.2: dbt Transformation Project
 
-**Initialize the dbt project** in a Jupyter terminal (Terminal → New Terminal):
+The dbt project (`dbt/lakehouse_mvp/`) transforms bronze data into silver and gold layers:
 
-```bash
-cd /workspace/dbt
-dbt init lakehouse_mvp --skip-profile-setup
+**Model structure**:
+```
+dbt/lakehouse_mvp/models/tabletop/
+├── silver/          # Cleaned, deduplicated, joined tables
+│   ├── silver_toc.sql
+│   ├── silver_entries.sql
+│   ├── silver_chunks.sql
+│   ├── silver_spell_meta.sql
+│   └── silver_entry_descriptions.sql
+└── gold/            # Business-ready tables for consumers
+    ├── gold_toc.sql
+    ├── gold_entries.sql
+    ├── gold_entry_index.sql
+    └── gold_entry_descriptions.sql
 ```
 
-**Create `D:\source\lakehouse\lakehouse\dbt\lakehouse_mvp\profiles.yml`:**
+**Key design decisions**:
+- A `create_bronze_views.sql` macro creates DuckDB views over bronze Iceberg tables on S3
+- Silver models clean, dedup, and join bronze data
+- Gold models produce the final shape consumed by the Dash browser
+- All thresholds and patterns are config-driven (YAML), never hardcoded
+- 41+ dbt tests validate data quality
 
-```yaml
-lakehouse_mvp:
-  target: dev
-  outputs:
-    dev:
-      type: duckdb
-      path: /workspace/db/lakehouse.duckdb
-      schema: staging
-      threads: 4
+**dbt runs as a Dagster asset** (`dbt_build`), not manually. After dbt builds to DuckDB, `publish_to_iceberg` writes silver/gold tables to Iceberg on S3. Then `dbt_test` runs tests and stores results in `meta.dbt_test_results` on S3.
+
+**Pipeline** (all via Dagster):
 ```
-
-**Replace the entire contents of `D:\source\lakehouse\lakehouse\dbt\lakehouse_mvp\dbt_project.yml`:**
-
-```yaml
-name: lakehouse_mvp
-version: '1.0.0'
-config-version: 2
-
-profile: lakehouse_mvp
-
-model-paths: ["models"]
-test-paths:  ["tests"]
-
-models:
-  lakehouse_mvp:
-    staging:
-      +materialized: table
-      +schema: staging
-    marts:
-      +materialized: table
-      +schema: marts
-```
-
-**Create the models and macros directory structure:**
-
-```bash
-mkdir -p /workspace/dbt/lakehouse_mvp/models/staging
-mkdir -p /workspace/dbt/lakehouse_mvp/models/marts
-mkdir -p /workspace/dbt/lakehouse_mvp/macros
-```
-
-**Create `macros/generate_schema_name.sql`** (prevents dbt from prefixing schema names with the target schema):
-
-```sql
-{% macro generate_schema_name(custom_schema_name, node) -%}
-    {%- if custom_schema_name is none -%}
-        {{ target.schema }}
-    {%- else -%}
-        {{ custom_schema_name | trim }}
-    {%- endif -%}
-{%- endmacro %}
-```
-
-Without this macro, dbt-duckdb would create schemas like `staging_marts` instead of `marts`.
-
-**Create `models/staging/stg_sales.sql`:**
-
-```sql
-with source as (
-    select * from raw.sales
-),
-
-cleaned as (
-    select
-        order_id,
-        customer_id,
-        cast(order_date as date)                              as order_date,
-        product,
-        quantity,
-        amount,
-        region,
-        date_part('year',    cast(order_date as date))::int  as order_year,
-        date_part('month',   cast(order_date as date))::int  as order_month,
-        date_part('quarter', cast(order_date as date))::int  as order_quarter,
-        quantity * amount                                     as line_total
-    from source
-    where quantity > 0
-      and amount   > 0
-)
-
-select * from cleaned
-```
-
-**Create `models/marts/daily_revenue.sql`:**
-
-```sql
-with stg as (
-    select * from {{ ref('stg_sales') }}
-)
-
-select
-    order_date,
-    region,
-    product,
-    count(distinct order_id)    as order_count,
-    count(distinct customer_id) as customer_count,
-    sum(quantity)               as total_units,
-    round(sum(line_total), 2)   as revenue,
-    round(avg(amount), 2)       as avg_order_value
-from stg
-group by order_date, region, product
-order by order_date, region, product
-```
-
-**Create `models/staging/schema.yml`** (data quality tests):
-
-```yaml
-version: 2
-
-models:
-  - name: stg_sales
-    description: "Cleaned and standardized sales data"
-    columns:
-      - name: order_id
-        tests:
-          - unique
-          - not_null
-      - name: customer_id
-        tests:
-          - not_null
-      - name: order_date
-        tests:
-          - not_null
-      - name: quantity
-        tests:
-          - not_null
-      - name: amount
-        tests:
-          - not_null
-```
-
-**Run dbt** from the Jupyter terminal:
-
-```bash
-cd /workspace/dbt/lakehouse_mvp
-
-# Verify connection
-dbt debug
-
-# Build models
-dbt run
-
-# Run data quality tests
-dbt test
-```
-
-Expected output:
-```
-Running with dbt=1.8.x
-Found 2 models, 5 tests
-
-1 of 2 START sql table model staging.stg_sales ......... [RUN]
-1 of 2 OK created sql table model staging.stg_sales .... [OK in 0.5s]
-2 of 2 START sql table model marts.daily_revenue ....... [RUN]
-2 of 2 OK created sql table model marts.daily_revenue .. [OK in 0.4s]
-
-Finished running 2 table models.
-5 of 5 PASS tests. All tests passed.
+bronze_tabletop → toc_review → bronze_ocr_check → dbt_build
+  → publish_to_iceberg → dbt_test → (optional) gold_ai_summaries → gold_ai_annotations
 ```
 
 ---
 
 ### Phase 5: Visualization Layer
 
-#### Step 5.1: Streamlit Dashboard
+#### Step 5.1: Dash Tabletop Rules Browser
 
-Create `D:\source\lakehouse\lakehouse\streamlit\dashboard.py`:
+The primary user-facing application is the Tabletop Rules Browser (`dashapp/tabletop_browser.py`), a Plotly Dash app that renders the full Player's Handbook as a scrollable web page with ToC sidebar navigation.
 
-```python
-import streamlit as st
-import duckdb
-import polars as pl
-import plotly.express as px
+**Key features**:
+- Reads exclusively from `gold_tabletop` namespace via `get_reader()`
+- Full scrollable book view with entries ordered by `sort_order`
+- ToC sidebar with anchor links to each section
+- AI summary toggle (swap between AI summary and full content)
+- No-cache HTTP headers for development
+- Publicly accessible at http://gamerules.ai via Cloudflare Tunnel
 
-st.set_page_config(page_title="Lakehouse Sales Dashboard", layout="wide")
-st.title("Sales Dashboard")
-
-DB_PATH = "/workspace/db/lakehouse.duckdb"
-
-
-@st.cache_data(ttl=60)
-def load_data() -> pl.DataFrame:
-    conn = duckdb.connect(DB_PATH, read_only=True)
-    df = conn.execute("SELECT * FROM marts.daily_revenue").pl()
-    conn.close()
-    df = df.with_columns(pl.col("order_date").cast(pl.Date))
-    return df
-
-
-df = load_data()
-
-# ── Sidebar Filters ───────────────────────────────────────────
-st.sidebar.header("Filters")
-
-regions = ["All"] + sorted(df["region"].unique().to_list())
-selected_region = st.sidebar.selectbox("Region", regions)
-
-date_min = df["order_date"].min()
-date_max = df["order_date"].max()
-date_range = st.sidebar.date_input("Date Range", [date_min, date_max])
-
-# Apply filters
-filtered = df
-if selected_region != "All":
-    filtered = filtered.filter(pl.col("region") == selected_region)
-if len(date_range) == 2:
-    start, end = date_range
-    filtered = filtered.filter(
-        (pl.col("order_date") >= start) & (pl.col("order_date") <= end)
-    )
-
-# ── KPI Metrics ───────────────────────────────────────────────
-c1, c2, c3, c4 = st.columns(4)
-c1.metric("Total Revenue",    f"${filtered['revenue'].sum():,.2f}")
-c2.metric("Total Orders",     f"{filtered['order_count'].sum():,}")
-c3.metric("Unique Customers", f"{filtered['customer_count'].sum():,}")
-c4.metric("Avg Order Value",  f"${filtered['avg_order_value'].mean():,.2f}")
-
-st.divider()
-
-# ── Charts ────────────────────────────────────────────────────
-col_left, col_right = st.columns(2)
-
-with col_left:
-    daily = filtered.group_by("order_date").agg(pl.col("revenue").sum()).sort("order_date")
-    st.plotly_chart(
-        px.line(daily, x="order_date", y="revenue", title="Daily Revenue Trend"),
-        use_container_width=True,
-    )
-
-with col_right:
-    by_region = filtered.group_by("region").agg(pl.col("revenue").sum()).sort("region")
-    st.plotly_chart(
-        px.bar(by_region, x="region", y="revenue", title="Revenue by Region", color="region"),
-        use_container_width=True,
-    )
-
-by_product = (
-    filtered.group_by("product")
-    .agg(pl.col("revenue").sum())
-    .sort("revenue", descending=True)
-)
-st.plotly_chart(
-    px.bar(by_product, x="product", y="revenue", title="Revenue by Product", color="product"),
-    use_container_width=True,
-)
-
-st.subheader("Detailed Data")
-st.dataframe(filtered.sort("order_date", descending=True), use_container_width=True)
-```
-
-**Run Streamlit** from the Jupyter terminal:
-
+**Running the Dash app**:
 ```bash
-streamlit run /workspace/streamlit/dashboard.py \
-  --server.port 8501 \
-  --server.address 0.0.0.0
+# Inside lakehouse-workspace container
+python /workspace/dashapp/tabletop_browser.py
+# Serves on http://localhost:8000
 ```
 
-Open `http://localhost:8501` in your browser.
+**Exposing to the internet**:
+```powershell
+# On Windows host — managed via scripts/tunnel.py
+python scripts/tunnel.py
+```
+
+> **IMPORTANT**: The browser must NEVER access silver tables — gold only. Any browser code change must use `get_reader(namespaces=["gold_tabletop"])`.
 
 ---
 
 ### Phase 6: Smoke Tests
 
-Run each test in a Jupyter notebook to verify every layer works.
+Run each test inside the `lakehouse-workspace` container to verify every layer works.
 
 #### Test 1: SeaweedFS Storage
 
@@ -2483,97 +2133,76 @@ s3.delete_object(Bucket="lakehouse", Key="smoke_test.txt")
 print("PASS: SeaweedFS S3 read/write working")
 ```
 
-#### Test 2: Polaris Catalog
+#### Test 2: PyIceberg SQL Catalog
 
 ```python
-import requests
+from pyiceberg.catalog.sql import SqlCatalog
 
-r = requests.get("http://polaris:8182/q/health")
-assert r.status_code == 200, f"FAIL: HTTP {r.status_code}"
-print("PASS: Polaris catalog healthy")
+catalog = SqlCatalog(
+    "lakehouse",
+    **{
+        "uri": "postgresql+psycopg2://iceberg:iceberg_secret@postgres:5432/iceberg",
+        "warehouse": "s3://lakehouse/warehouse",
+        "s3.endpoint": "http://seaweedfs-s3:8333",
+        "s3.access-key-id": "lakehouse_key",
+        "s3.secret-access-key": "lakehouse_secret",
+        "s3.region": "us-east-1",
+    }
+)
+
+namespaces = catalog.list_namespaces()
+print(f"PASS: PyIceberg SQL catalog connected, namespaces: {namespaces}")
 ```
 
-#### Test 3: DuckDB Raw Data
+#### Test 3: Dagster UI
+
+```powershell
+# From Windows host
+curl http://localhost:3000/health
+# Expected: 200 OK
+```
+
+Open http://localhost:3000 in your browser. You should see the Dagster asset graph.
+
+#### Test 4: DuckDB Reads Iceberg Tables
 
 ```python
-import duckdb
+# After running the pipeline at least once
+from dlt.lib.duckdb_reader import get_reader
 
-conn = duckdb.connect("/workspace/db/lakehouse.duckdb", read_only=True)
-count = conn.execute("SELECT COUNT(*) FROM raw.sales").fetchone()[0]
-assert count == 1000, f"FAIL: expected 1000, got {count}"
-print(f"PASS: raw.sales has {count} rows")
-conn.close()
+reader = get_reader(namespaces=["gold_tabletop"])
+result = reader.execute("SELECT COUNT(*) as cnt FROM gold_entries").fetchone()
+print(f"PASS: gold_entries has {result[0]} rows")
+reader.close()
 ```
 
-#### Test 4: dbt Transformations
+#### Test 5: Dash Browser
 
-```python
-import duckdb
-
-conn = duckdb.connect("/workspace/db/lakehouse.duckdb", read_only=True)
-stg   = conn.execute("SELECT COUNT(*) FROM staging.stg_sales").fetchone()[0]
-marts = conn.execute("SELECT COUNT(*) FROM marts.daily_revenue").fetchone()[0]
-assert stg   > 0, "FAIL: staging.stg_sales is empty"
-assert marts > 0, "FAIL: marts.daily_revenue is empty"
-print(f"PASS: staging={stg} rows, marts={marts} rows")
-conn.close()
+```powershell
+# From Windows host — after starting the Dash app in the workspace container
+curl http://localhost:8000
+# Expected: HTML response with the Tabletop Rules Browser
 ```
 
-#### Test 5: Revenue Aggregation
+Open http://localhost:8000 in your browser. You should see the Player's Handbook content.
 
-```python
-import duckdb
-
-conn = duckdb.connect("/workspace/db/lakehouse.duckdb", read_only=True)
-result = conn.execute("""
-    SELECT region, round(sum(revenue), 2) as total_revenue
-    FROM marts.daily_revenue
-    GROUP BY region
-    ORDER BY total_revenue DESC
-""").fetchdf()
-print(result)
-assert len(result) == 5, f"FAIL: expected 5 regions, got {len(result)}"
-print("PASS: Revenue aggregation by region correct")
-conn.close()
-```
-
-#### Test 6: End-to-End Incremental Update
-
-```python
-import csv
-
-# Append a new row to the source CSV
-new_row = {
-    "order_id":    "ORD-9999",
-    "customer_id": "CUST-0001",
-    "order_date":  "2024-03-31",
-    "product":     "Laptop",
-    "quantity":    "1",
-    "amount":      "1500.00",
-    "region":      "North",
-}
-with open("/workspace/data/sales.csv", "a", newline="") as f:
-    writer = csv.DictWriter(f, fieldnames=new_row.keys())
-    writer.writerow(new_row)
-
-print("New row appended. Now re-run the dlt pipeline, then dbt run, then refresh Streamlit.")
-```
-
-After running the above cell:
-1. Re-run the dlt pipeline cell (raw.sales should have 1,001 rows)
-2. Run `dbt run` in the terminal
-3. Refresh `http://localhost:8501` — the new row should appear
-
-#### Test 7: Cloudflare Tunnel
+#### Test 6: Cloudflare Tunnel
 
 ```powershell
 # Verify cloudflared is installed
 cloudflared --version
 
-# Start a temporary tunnel to the Dash app (Ctrl+C to stop)
-cloudflared tunnel --url http://localhost:8000
-# Should print a https://xxx.trycloudflare.com URL
-# Open that URL in a browser — you should see the Dash app
+# Start the named tunnel (configured in config/lakehouse.yaml)
+python scripts/tunnel.py
+# Should connect gamerules.ai to localhost:8000
+```
+
+#### Test 7: Ollama
+
+```powershell
+# From Windows host
+curl http://localhost:11434/api/tags
+# Expected: JSON list of available models including qwen3:30b-a3b, llama3:70b
 ```
 
 ---
@@ -2584,14 +2213,15 @@ cloudflared tunnel --url http://localhost:8000
 
 ```powershell
 # See the error for a specific container
-docker logs lakehouse-polaris --tail 50
+docker logs lakehouse-dagster-daemon --tail 50
 docker logs lakehouse-weed-master --tail 30
 
 # Check for port conflicts
-netstat -ano | findstr "8181"
+netstat -ano | findstr "3000"
 netstat -ano | findstr "9333"
 
-# Rebuild from scratch (keeps volumes)
+# Rebuild from scratch (keeps data)
+cd D:\source\lakehouse\lakehouse\docker
 docker compose down
 docker compose up -d --build
 
@@ -2600,194 +2230,120 @@ docker compose down -v
 docker compose up -d --build
 ```
 
-#### Issue 2: Polaris returns 500 errors
+#### Issue 2: Dagster pipeline uses stale code
+
+After any Python code change, you MUST clear caches and restart:
 
 ```powershell
-# Check if PostgreSQL is healthy first
-docker inspect lakehouse-postgres | findstr "Health"
+# 1. Clear host pycache
+find d:/source/lakehouse/lakehouse -name '__pycache__' -exec rm -rf {} +
 
-# Test Polaris health endpoint
-curl http://localhost:8182/q/health
+# 2. Clear container pycache
+docker exec lakehouse-dagster-daemon bash -c 'find /workspace -name __pycache__ -type d -exec rm -rf {} + 2>/dev/null'
 
-# Restart just Polaris after verifying postgres is up
-docker compose restart polaris
+# 3. Restart BOTH Dagster containers
+docker restart lakehouse-dagster-daemon lakehouse-dagster-webserver
+
+# 4. Wait 15 seconds for gRPC servers to start
+# 5. Then launch pipeline via http://localhost:3000
 ```
 
-Common causes:
-- PostgreSQL not ready yet — wait 30 seconds and retry
-- Wrong credentials — `POSTGRES_PASSWORD` must match in both services
-- Port 8181 already in use on host — check with `netstat`
-
-#### Issue 3: DuckDB tables not found
+#### Issue 3: Iceberg tables not found
 
 ```python
-# List all tables in the database to debug
-import duckdb
-conn = duckdb.connect("/workspace/db/lakehouse.duckdb")
-print(conn.execute("SHOW ALL TABLES").fetchdf())
-conn.close()
+# List all tables in the catalog
+from dlt.lib.iceberg_catalog import get_catalog
+catalog = get_catalog()
+for ns in catalog.list_namespaces():
+    tables = catalog.list_tables(ns[0])
+    print(f"{ns[0]}: {[t[1] for t in tables]}")
 ```
 
-- `raw.sales` missing → re-run the dlt pipeline
-- `staging.*` or `marts.*` missing → run `dbt run` in the Jupyter terminal
+- Bronze tables missing → re-run `tabletop_without_enrichment` job in Dagster
+- Silver/gold tables missing → check if `publish_to_iceberg` asset succeeded
 
 #### Issue 4: dbt models fail to build
 
 ```bash
-# In Jupyter terminal
+# Inside container
 cd /workspace/dbt/lakehouse_mvp
 
 # Check connection first
 dbt debug
 
 # See the compiled SQL that failed
-cat target/compiled/lakehouse_mvp/models/staging/stg_sales.sql
+cat target/compiled/lakehouse_mvp/models/tabletop/silver/silver_toc.sql
 
 # Run only one model with verbose output
-dbt run --select stg_sales --debug
+dbt run --select silver_toc --debug
 ```
 
-#### Issue 5: Streamlit shows empty charts
+#### Issue 5: GPU not available for Marker/AI enrichment
 
-```python
-# Test the exact query Streamlit runs
-import duckdb
-conn = duckdb.connect("/workspace/db/lakehouse.duckdb", read_only=True)
-print(conn.execute("SELECT COUNT(*) FROM marts.daily_revenue").fetchone())
-# If (0,) or an error: re-run dbt
+```powershell
+# Verify GPU works in workspace container
+docker exec lakehouse-workspace python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name(0))"
+# Expected: True NVIDIA GeForce RTX 4090
+
+# If False, try WSL GPU fix:
+wsl --shutdown
+# Then restart Docker Desktop
 ```
 
-If Streamlit port conflicts, change the port:
-```bash
-streamlit run /workspace/streamlit/dashboard.py --server.port 8502 --server.address 0.0.0.0
+#### Issue 6: Ollama not responding
+
+```powershell
+# Check if Ollama is running on Windows host
+curl http://localhost:11434/api/tags
+
+# Check from inside container
+docker exec lakehouse-workspace curl http://host.docker.internal:11434/api/tags
+
+# Restart Ollama if needed
+taskkill /IM ollama.exe /F
+$env:OLLAMA_HOST = "0.0.0.0:11434"
+ollama serve
 ```
 
 ---
 
 ### Phase 8: Next Steps After MVP
 
-#### Enhancement 1: Add Airflow Orchestration
+#### ~~Enhancement 1: Orchestration~~ — DONE
 
-Add to `docker-compose.yml`:
+Dagster replaced Airflow. Asset-based orchestration with webserver (port 3000) and daemon. All pipeline steps are Dagster assets. See [Section 10](#10-orchestration-layer-dagster).
 
-```yaml
-airflow:
-  image: apache/airflow:2.9.0
-  environment:
-    AIRFLOW__CORE__EXECUTOR: LocalExecutor
-    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://polaris:polaris_secret@postgres/airflow
-  ports:
-    - "8080:8080"
-  volumes:
-    - ../dlt:/opt/airflow/dlt
-    - ../dbt:/opt/airflow/dbt
-  command: airflow standalone
-  depends_on:
-    postgres:
-      condition: service_healthy
-```
+#### ~~Enhancement 2: Document Ingestion~~ — DONE
 
-Add to `requirements.txt`:
-```
-astronomer-cosmos==1.13.0
-duckdb-engine==0.17.0
-```
+Marker + pymupdf replaced Docling. Two-pass PDF extraction with config-driven entry building. Full bronze pipeline with 11 Iceberg tables. See [Section 8](#8-airag-integration-layer).
 
-`astronomer-cosmos` auto-generates Airflow DAG tasks from dbt models. `duckdb-engine` provides the SQLAlchemy dialect Airflow needs to create DuckDB connections.
+#### ~~Enhancement 3: Production Dash Dashboard~~ — DONE
 
-Create a DAG file that calls `load_sales.run()` then shells out to `dbt run`, scheduled with `schedule_interval="0 6 * * *"` (daily at 6 AM).
+Tabletop Rules Browser at `dashapp/tabletop_browser.py`, served at http://localhost:8000, publicly accessible at http://gamerules.ai via Cloudflare Tunnel. Reads exclusively from gold_tabletop namespace.
 
-#### Enhancement 2: Document Ingestion with Docling
+#### ~~Enhancement 4: AI Enrichment~~ — DONE
 
-Docling (`docling==2.31.0`) is already in `requirements.txt`. Create a document ingestion pipeline:
+AI summaries (qwen3:30b-a3b) and annotations (llama3:70b) via direct Ollama API calls. Orchestrated as Dagster assets (`gold_ai_summaries`, `gold_ai_annotations`). ~70 minutes for full enrichment run.
 
-1. Place source PDFs in `D:\source\lakehouse\lakehouse\documents\`
-2. Create a Docling parsing script that converts PDFs to structured markdown
-3. Chunk markdown by section/heading hierarchy
-4. Store parsed content in a DuckDB `documents` table (source_file, page, section_title, content, parsed_at)
-5. Optionally embed chunks into ChromaDB for semantic search
+#### ~~Enhancement 5: Stable Integer Keys~~ — DONE
 
-```python
-from docling.document_converter import DocumentConverter
+Hash-based stable int64 IDs (entry_id, toc_id, chunk_id) via `dlt/lib/stable_keys.py`. Same entity gets the same ID across rebuilds. SHA-256 based.
 
-converter = DocumentConverter()
-result = converter.convert("path/to/rules.pdf")
-markdown = result.document.export_to_markdown()
-```
+#### Enhancement 6: RAG Layer (Future)
 
-This is the foundation for the RAG layer — parse documents first, then build retrieval on top.
-
-#### Enhancement 2b: Implement RAG Layer
-
-Add to `requirements.txt`:
-```
-langchain==1.2.10
-langchain-community==0.4.1
-chromadb==1.0.0
-sentence-transformers==5.2.2
-fastapi==0.115.9
-uvicorn==0.34.0
-docling==2.31.0
-```
-
-Build the retrieval layer on top of Docling-parsed documents:
-- Embed document chunks into ChromaDB for semantic search
-- Use DuckDB full-text search for exact clause/keyword matching
+ChromaDB, LangChain, Sentence Transformers, and FastAPI are installed but not yet active. When ready:
+- Embed gold entry chunks into ChromaDB for semantic search
+- Use DuckDB full-text search for exact keyword matching
 - Combine both retrieval methods for rules-context AI queries
-- Call Ollama at `http://host.docker.internal:11434` for LLM inference (already running on Windows host)
-- Index DuckDB table schemas into ChromaDB for data query RAG
+- Expose via FastAPI REST endpoint
 
-#### Enhancement 3: Add Production Dash Dashboard
+#### Enhancement 7: Multi-Project Support (Future)
 
-Add to `requirements.txt`:
-```
-dash==4.0.0
-dash-bootstrap-components==2.0.4
-```
+Refactor `lakehouse.yaml` to a `projects:` dict keyed by project name. Each project gets its own namespaces, paths, configs, bronze pipeline, dbt models, and Dagster asset group. See `.claude-memory/project_multi_project_plan.md`.
 
-The Tabletop Rules Browser (`dashapp/tabletop_browser.py`) is the first Dash app — a full scrollable book view with ToC sidebar navigation. It reads from silver/gold Iceberg tables via DuckDB and serves on port 8000 inside the workspace container.
-
-**Running the Dash app**:
-```bash
-# Inside lakehouse-workspace container
-python /workspace/dashapp/tabletop_browser.py
-# Serves on http://localhost:8000
-```
-
-**Exposing to the internet via Cloudflare Tunnel** (free, no domain required):
-```powershell
-# One-time install on Windows host
-winget install Cloudflare.cloudflared
-
-# Start a temporary public tunnel (prints a https://xxx.trycloudflare.com URL)
-cloudflared tunnel --url http://localhost:8000
-```
-
-For a stable URL with a custom domain:
-```powershell
-cloudflared tunnel login
-cloudflared tunnel create tabletop
-cloudflared tunnel route dns tabletop browser.yourdomain.com
-cloudflared tunnel run --url http://localhost:8000 tabletop
-```
-
-> **Note**: Dash has no built-in auth. For public access, add Cloudflare Access (free for up to 50 users) to restrict who can view the app.
-
-#### Enhancement 4: Implement CI/CD
+#### Enhancement 8: CI/CD (Future)
 
 Create `.github/workflows/dbt_test.yml` to run `dbt test` on every pull request, catching data quality regressions before they reach production.
-
-#### Enhancement 5: Multi-Environment Setup
-
-Create `docker-compose.staging.yml` with different port mappings, volume names, and `POLARIS_NAMESPACE=staging_analytics`, so staging and production run independently on the same machine.
-
-#### Enhancement 6: Advanced RAG Features (Optional)
-
-Ollama is already core infrastructure as of Phase 1 ([Step 1.7](#step-17-install-ollama-rtx-4090-local-llm--no-api-costs)). Optional enhancements include:
-- Fine-tune specific models for your domain (rules extraction, SQL generation)
-- Implement model quantization strategies (Q5/Q6 for higher quality, Q3 for speed)
-- Add multi-model setup (Llama 3 for reasoning, CodeLlama for SQL)
-- Implement model routing (use fastest model for simple queries)
 
 ---
 
@@ -2859,76 +2415,80 @@ This makes dbt only reprocess new dates instead of rebuilding the entire table o
 ### Phase 10: MVP Success Checklist
 
 **GPU Setup**:
-- [ ] `nvidia-smi` in PowerShell shows RTX 4090 with driver ≥ 527.41
-- [ ] `nvcc --version` in WSL2 shows CUDA 12.6
-- [ ] `nvidia-smi` in WSL2 shows RTX 4090 (GPU passthrough working)
+- [ ] `nvidia-smi` in PowerShell shows RTX 4090 with driver ≥ 595 (CUDA 13.2)
+- [ ] `nvcc --version` in WSL2 shows CUDA toolkit
 - [ ] `docker run --rm --gpus all nvidia/cuda:12.6.0-runtime-ubuntu22.04 nvidia-smi` shows RTX 4090
-- [ ] Ollama running on Windows with `OLLAMA_HOST=0.0.0.0:11434`
-- [ ] `ollama pull llama3:70b` completed and model responds
+- [ ] Ollama running on Windows, models at `D:\ollama\models`
+- [ ] `curl http://localhost:11434/api/tags` lists all models
 
 **Infrastructure**:
-- [ ] All 7 containers show `running` in `docker compose ps`
-- [ ] `http://localhost:8889` opens Jupyter Lab
+- [ ] All containers show `running` in `docker compose ps` (postgres, 4x seaweedfs, dagster-webserver, dagster-daemon, workspace)
+- [ ] `http://localhost:3000` opens Dagster UI
 - [ ] `http://localhost:9333` shows SeaweedFS master status
-- [ ] `http://localhost:8182/q/health` returns 200
+- [ ] PostgreSQL healthy: `docker exec lakehouse-postgres pg_isready -U iceberg`
 
 **Data Layer**:
 - [ ] S3 bucket `lakehouse` exists in SeaweedFS
-- [ ] Polaris namespaces `raw`, `staging`, `marts` created
-- [ ] `sales.csv` generated with 1,000 rows
-- [ ] `raw.sales` in DuckDB has 1,000 rows
+- [ ] PyIceberg SQL catalog connects to PostgreSQL
+- [ ] Namespaces `bronze_tabletop`, `silver_tabletop`, `gold_tabletop` exist
+- [ ] Source PDFs in `documents/tabletop_rules/raw/`
+- [ ] Marker cache in `documents/tabletop_rules/processed/marker/`
 
-**Pipeline**:
-- [ ] dlt pipeline runs without errors
-- [ ] `dbt debug` shows all green
-- [ ] `dbt run` builds both `stg_sales` and `daily_revenue`
-- [ ] `dbt test` — all 5 tests pass
+**Pipeline** (all via Dagster at http://localhost:3000):
+- [ ] `seed_models` job passes (Ollama, HuggingFace, Marker cache)
+- [ ] `tabletop_without_enrichment` job completes successfully
+- [ ] Bronze Iceberg tables populated (page_texts, toc_raw, etc.)
+- [ ] dbt models build (silver + gold)
+- [ ] All dbt tests pass (41+)
+- [ ] Silver/gold tables published to Iceberg on S3
 
 **Visualization**:
-- [ ] `http://localhost:8501` loads dashboard
-- [ ] All 4 KPI metrics show non-zero values
-- [ ] Revenue trend, region, and product charts render
-- [ ] Date range and region filters update charts
+- [ ] `http://localhost:8000` loads Dash Tabletop Rules Browser
+- [ ] ToC sidebar shows chapters and sections
+- [ ] Content renders with entries in correct order
+- [ ] AI summaries display when toggle is enabled
 
-**End-to-End**:
-- [ ] Added a new row to `sales.csv`
-- [ ] Re-ran dlt pipeline — row count increased to 1,001
-- [ ] Re-ran `dbt run` — marts updated
-- [ ] Streamlit dashboard reflects the new data
+**AI Enrichment** (optional, ~70 minutes):
+- [ ] `enrichment_only` job completes
+- [ ] AI summaries in `gold_entry_descriptions` table
+- [ ] AI annotations (combat/popular) in `gold_ai_annotations` table
+
+**Public Access**:
+- [ ] Cloudflare Tunnel connects gamerules.ai to localhost:8000
+- [ ] http://gamerules.ai loads the browser
 
 ---
 
-## Conclusion: MVP to Production Path
+## Conclusion: Current State and Next Steps
 
-This MVP provides a foundation for a production lakehouse:
+This is no longer an MVP — it's a working production system:
 
-**What You've Built**:
-- Fully functional lakehouse in Docker
-- Complete data pipeline (ingest → transform → visualize)
-- Modern table format (Iceberg) with ACID guarantees
-- Catalog-based metadata management (Apache Polaris)
-- Interactive dashboard for analytics
+**What's Running**:
+- Full lakehouse pipeline: PDF → Bronze → Silver → Gold → AI Enrichment
+- Dagster orchestration with asset-based pipeline management
+- PyIceberg SQL catalog on PostgreSQL (zero JVM)
+- Iceberg tables on SeaweedFS S3 with DuckDB query views
+- 41+ dbt tests passing
+- Dash browser publicly accessible at gamerules.ai
+- AI summaries and annotations via local Ollama (qwen3:30b-a3b, llama3:70b)
+- Stable hash-based integer keys across all layers
 
-**Production Readiness Path**:
-1. **Weeks 1-2**: Run MVP, load real data, learn the system
-2. **Weeks 3-4**: Add real data sources (APIs, databases)
-3. **Weeks 5-6**: Expand dbt transformations and tests
-4. **Weeks 7-8**: Deploy Airflow for automated scheduling
-5. **Weeks 9-10**: Add monitoring and alerting
-6. **Weeks 11-12**: Move to cloud or dedicated servers
+**Current Focus**:
+- Player's Handbook (PHB) — one book until all validation passes
+- Content quality spot-checks in the browser
+- Re-run AI enrichment after entry builder fixes
 
-**When to Graduate from MVP**:
-- Data exceeds 500 GB
-- Need high availability
-- Multiple teams using the system
-- Require automated scaling
-- Compliance requirements increase
+**Next Steps**:
+1. Activate RAG layer (ChromaDB + Sentence Transformers + FastAPI)
+2. Multi-project support (refactor config for second book)
+3. Improve Dagster DX (reduce cache/restart friction)
+4. CI/CD for dbt test regressions
 
-**Migration Strategy**:
+**Migration Strategy** (when scaling is needed):
 - Keep Iceberg tables (portable to any engine)
 - Keep dbt models (engine-agnostic SQL)
 - Add distributed query engine (Trino) if needed
 - Scale storage horizontally (more SeaweedFS nodes)
 - Maintain Python-first approach
 
-The MVP proves the architecture works. Now scale confidently knowing your foundation is solid.
+The architecture works. Scale confidently knowing the foundation is solid.

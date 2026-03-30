@@ -1,6 +1,6 @@
 ---
 name: Pipeline and system operations
-description: Kill stale processes before runs, stop means immediately, kill-all sequence, save debug state to memory
+description: Kill stale processes before runs, stop means immediately, kill-all sequence, save debug state, no cd prefix in Bash tool
 type: feedback
 ---
 
@@ -24,6 +24,12 @@ NEVER run pipeline scripts via `docker exec`. ALL pipeline steps go through Dags
 
 **Why:** Manual commands bypass orchestration, lose logging, and can't be monitored via Dagster.
 **How to apply:** Use `python scripts/dagster.py launch <job>` and monitor with `python scripts/dagster.py status <id>`.
+
+## Bash tool: NEVER use cd prefix — CRITICAL
+Run commands directly in the Bash tool without any `cd /path &&` prefix. The working directory is already set to the project root. Just run `git status`, not `cd d:/source/lakehouse/lakehouse && git status`.
+
+**Why:** CLAUDE.md explicitly says this. User has corrected this multiple times. The cd prefix also triggers unnecessary permission prompts.
+**How to apply:** Every Bash tool call — git commands, python scripts, docker commands — run directly without cd.
 
 ## Save working state aggressively
 During debugging sessions, immediately save bugs, root causes, fixes, and verification status to memory. Include specific entry names, error counts, which validations are real vs false positives. Prevents re-discovery across fresh chats.

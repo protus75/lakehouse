@@ -13,7 +13,7 @@ An open-source, Python-centric lakehouse stack with AI enrichment. Built on Iceb
 | **dbt** | Silver/gold transforms + tests | `dbt/lakehouse_mvp/` |
 | **Dagster** | Orchestration | http://localhost:3000 |
 | **Ollama** | LLM enrichment (host GPU) | `qwen3:30b-a3b`, `llama3:70b` |
-| **Streamlit** | Browser UI | http://localhost:8000 |
+| **Dash** | Browser UI ([gamerules.ai](https://gamerules.ai)) | `dashapp/tabletop_browser.py` (port 8000) |
 
 ## Projects
 

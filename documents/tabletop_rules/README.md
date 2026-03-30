@@ -51,7 +51,7 @@ Enrichment is resumable — skips already-processed entries.
 
 ## Browser
 
-Streamlit app at http://localhost:8000 (exposed via Cloudflare Tunnel at gamerules.ai).
+Dash app at http://localhost:8000 (exposed via Cloudflare Tunnel at [gamerules.ai](https://gamerules.ai)).
 
 - Full scrollable book with ToC sidebar navigation
 - AI Summary toggle: swaps spell descriptions between original prose and AI summary
