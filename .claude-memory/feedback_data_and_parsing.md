@@ -1,6 +1,6 @@
 ---
 name: Data handling, parsing, and content matching rules
-description: Fix at ingestion, fuzzy matching, preserve casing, page-guided search, rejoin hyphens, chapter intros, ToC table ordering, browser gold-only
+description: Fix at ingestion, fuzzy matching, preserve casing, page-guided search, rejoin hyphens, chapter intros, ToC table ordering, browser gold-only, no regex for parsing
 type: feedback
 ---
 
@@ -35,6 +35,12 @@ Content between chapter start and first sub-section is the chapter intro. Don't 
 Store original casing from source (PDF, config, tables). Only use `.lower()` for comparisons, dedup keys, lookups, sorting — never on stored data.
 
 **Why:** Lowercasing destroys information. "Animal Lore" and "Fireball" are proper names. Browser and downstream consumers need correct casing.
+
+## Prefer simple string ops over regex and old Unix text tools
+Don't default to regex, grep patterns, sed, or awk for content parsing. Use simple string methods (`split`, `startswith`, `find`, `in`, `strip`) first — they're more readable, maintainable, and less brittle. Regex is only acceptable for truly atomic patterns (extracting a single number, matching a fixed format like a date). For anything semantic, use fuzzy matching, ML, or LLM classification.
+
+**Why:** AI training data is saturated with regex/grep/sed solutions, creating a bias toward them even when simpler approaches work better. Regex encodes format assumptions that break on real data, is unreadable months later, and is the wrong abstraction level for content understanding. The CLAUDE.md rule exists because this is a known failure mode.
+**How to apply:** When writing any text processing code, start with string methods. Only escalate to regex if the pattern is truly fixed-format and atomic. If you catch yourself writing a regex longer than ~20 chars, stop and use string ops or a parser instead.
 
 ## ToC sort order: sections only, not tables
 Tables should not be interleaved between a section and its sub-sections in ToC ordering. Group tables after their parent section's sub-sections.
