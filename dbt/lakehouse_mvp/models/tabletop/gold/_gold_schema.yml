@@ -59,7 +59,7 @@ models:
         tests:
           - not_null
           - accepted_values:
-              values: ['spell', 'proficiency', 'class', 'race', 'equipment', 'rule']
+              values: ['spell', 'proficiency', 'class', 'rule']
 
   - name: gold_entry_descriptions
     description: "Clean entry descriptions from silver + AI summaries from enrichment"

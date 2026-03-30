@@ -229,6 +229,24 @@ authority_names:
     - "Halfling"
     - "Human"
 
+# Class names — entries with these toc_titles (and their sub-sections) get entry_type=class
+class_names:
+  - "Warrior"
+  - "Fighter"
+  - "Paladin"
+  - "Ranger"
+  - "Wizard"
+  - "Mage"
+  - "Specialist Wizards"
+  - "Illusionist"
+  - "Priest"
+  - "Cleric"
+  - "Priests of Specific Mythoi"
+  - "Druid"
+  - "Rogue"
+  - "Thief"
+  - "Bard"
+
 # Authority tables — parsed from bronze markdown as ground truth for entry names
 authority_tables:
   - table: "Table 13"

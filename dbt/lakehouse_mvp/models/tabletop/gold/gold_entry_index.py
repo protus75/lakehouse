@@ -1,8 +1,8 @@
 """Gold: cross-reference index for structured queries.
 
 Spell data comes from silver_spell_crosscheck (authoritative, fuzzy-matched across all appendixes).
-Non-spell entry_type comes from entry_type_mapping config.
-Other metadata fields parsed from content for non-spell entries.
+Non-spell entry_type from config: class_names (with sub-section inheritance),
+proficiency from authority whitelist. Default is rule.
 """
 import sys
 sys.path.insert(0, "/workspace")
@@ -18,13 +18,29 @@ def _extract_field(content: str, field_name: str) -> str | None:
     return None
 
 
-def _get_entry_type(toc_title: str, mapping: dict) -> str:
-    """Determine entry_type from ToC title using config mapping."""
-    toc_lower = toc_title.lower()
-    for pattern, entry_type in mapping.items():
-        if pattern.lower() in toc_lower:
-            return entry_type
-    return "rule"
+def _build_class_toc_ids(toc_df, class_names_lower: set) -> set:
+    """Walk ToC by sort_order. When a class name is hit, mark it and all
+    deeper entries after it as class, until next entry at same or shallower depth."""
+    toc_sorted = toc_df.sort_values("sort_order")
+    class_toc_ids = set()
+    current_class_depth = None
+
+    for _, row in toc_sorted.iterrows():
+        title = row["title"]
+        depth = int(row["depth"])
+
+        if current_class_depth is not None:
+            if depth > current_class_depth:
+                class_toc_ids.add(int(row["toc_id"]))
+                continue
+            else:
+                current_class_depth = None
+
+        if title.lower().strip() in class_names_lower:
+            class_toc_ids.add(int(row["toc_id"]))
+            current_class_depth = depth
+
+    return class_toc_ids
 
 
 def model(dbt, session):
@@ -36,12 +52,12 @@ def model(dbt, session):
 
     configs_dir = Path("/workspace/documents/tabletop_rules/configs")
     entries_df = dbt.ref("silver_entries").df()
+    toc_df = dbt.ref("silver_toc_sections").df()
     crosscheck_df = dbt.ref("silver_spell_crosscheck").df()
 
     # Build spell lookup from crosscheck (authoritative)
     spell_lookup = {}
     for _, row in crosscheck_df.iterrows():
-        key = (row["source_file"], row["entry_name"])
         # Store by (name, class) — some spells are both wizard and priest
         spell_lookup[(row["source_file"], row["entry_name"], row["entry_class"])] = {
             "spell_class": row["entry_class"],
@@ -52,11 +68,10 @@ def model(dbt, session):
             "ref_page": int(row["ref_page"]) if pd.notna(row["ref_page"]) else None,
         }
 
-    # Load authority table entries for whitelist validation
+    # Load authority table entries for proficiency whitelist
     authority_df = session.execute(
         "SELECT source_file, entry_name, entry_type FROM bronze_tabletop.authority_table_entries"
     ).df()
-    # Build per-file, per-type whitelist: {(source_file, entry_type)} → set of lowercase names
     authority_whitelist = {}
     for _, arow in authority_df.iterrows():
         key = (arow["source_file"], arow["entry_type"])
@@ -68,33 +83,42 @@ def model(dbt, session):
 
     for sf in entries_df["source_file"].unique():
         config = load_config(Path(sf), configs_dir)
-        type_mapping = config.get("entry_type_mapping", {})
+
+        # Build class toc_ids from config class_names
+        class_names = config.get("class_names", [])
+        class_names_lower = {n.lower().strip() for n in class_names}
+        sf_toc = toc_df[toc_df["source_file"] == sf]
+        class_toc_ids = _build_class_toc_ids(sf_toc, class_names_lower)
+
+        # Proficiency whitelist for this file
+        prof_whitelist = authority_whitelist.get((sf, "proficiency"), set())
 
         sf_entries = entries_df[entries_df["source_file"] == sf]
 
         for _, row in sf_entries.iterrows():
             content = row["content"]
-            toc_title = row["toc_title"]
             entry_title = row["entry_title"]
             entry_name = entry_title.lower().strip() if entry_title else ""
+            toc_id = int(row["toc_id"])
 
-            entry_type = _get_entry_type(toc_title, type_mapping)
+            # Determine entry_type
+            entry_type = "rule"
+
+            if row.get("spell_class"):
+                entry_type = "spell"
+            elif toc_id in class_toc_ids:
+                entry_type = "class"
+            elif entry_name and entry_name in prof_whitelist:
+                entry_type = "proficiency"
 
             # Entries with no title are always rules
             if not entry_name:
                 entry_type = "rule"
 
-            # Validate non-spell entries against authority whitelist
-            # If a whitelist exists for this type, only matching names keep the type
-            if entry_type not in ("spell", "rule") and entry_name:
-                whitelist = authority_whitelist.get((sf, entry_type))
-                if whitelist and entry_name not in whitelist:
-                    entry_type = "rule"
-
             spell_class = None
             spell_level = None
-            school = row.get("school")   # from silver (extracted before strip)
-            sphere = row.get("sphere")   # from silver
+            school = row.get("school")
+            sphere = row.get("sphere")
             is_reversible = None
             ref_page = None
 
@@ -105,7 +129,6 @@ def model(dbt, session):
                 if parsed_class:
                     xcheck = spell_lookup.get((sf, entry_name, parsed_class))
                 if not xcheck:
-                    # Try wizard then priest
                     xcheck = spell_lookup.get((sf, entry_name, "wizard"))
                 if not xcheck:
                     xcheck = spell_lookup.get((sf, entry_name, "priest"))
@@ -118,10 +141,8 @@ def model(dbt, session):
                     is_reversible = xcheck["is_reversible"]
                     ref_page = xcheck["ref_page"]
                 else:
-                    # Not in crosscheck — use parsed values from silver
                     spell_class = parsed_class
                     spell_level = int(row["spell_level"]) if pd.notna(row.get("spell_level")) else None
-                    # Spell not in any index — likely junk, demote to rule
                     if not spell_class:
                         entry_type = "rule"
 

@@ -338,15 +338,6 @@ chunking:
   max_chars: 800
   overlap: 200
 
-# Maps ToC title substrings to entry_type for the gold index
-entry_type_mapping:
-  "Wizard Spells": "spell"
-  "Priest Spells": "spell"
-  "Proficiencies": "proficiency"
-  "Player Character Classes": "class"
-  "Player Character Races": "race"
-  "Money and Equipment": "equipment"
-  "Combat": "rule"
 
 # Maps ordinal words to spell levels
 spell_level_mapping:
@@ -369,6 +360,8 @@ gold:
     num_ctx: 4096
     num_predict: 2048
   min_summary_chars: 200
+  summary_entry_types:
+    - "spell"
   summary_prompt: "Summarize this D&D 2e {entry_type} entry in 1-3 sentences for a player's quick reference. Be specific about mechanics, numbers, and effects. For spells with a saving throw, always state what happens on a successful save and what happens on a failed save.\n\nEntry: {entry_title}\n\n{content}"
   annotation_prompt: "You are classifying a D&D 2e {entry_type}.\n\nEntry: {entry_title}\n{content}\n\nAnswer ONLY with JSON, no other text:\n{{\"combat\": true/false, \"popular\": true/false}}\n\nRules:\n- combat = true if the main purpose is to aid in an encounter or combat situation\n- popular = true if this is commonly found in typical player character builds"
   annotation_entry_types:
