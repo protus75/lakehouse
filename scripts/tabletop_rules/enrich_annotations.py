@@ -27,7 +27,10 @@ def call_ollama_json(prompt: str, url: str, model: str,
             f"{url}/api/generate", json=body, timeout=300,
         )
         if resp.status_code == 200:
-            text = resp.json().get("response", "").strip()
+            # Parse first JSON object from response (Ollama may concatenate multiple)
+            raw = resp.text.strip()
+            outer = json.loads(raw[:raw.index("}\n") + 1] if "}\n" in raw else raw)
+            text = outer.get("response", "").strip()
             if "{" in text:
                 json_str = text[text.index("{"):text.rindex("}") + 1]
                 return json.loads(json_str)

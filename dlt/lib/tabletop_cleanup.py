@@ -512,6 +512,107 @@ def _is_valid_section_heading(heading: str, toc_sections: list[dict], config: di
 # ── Page-based entry building ────────────────────────────────────
 
 
+def _clean_table_pages_vlm(clean_pages: dict, table_pages: set,
+                           filepath, page_index_map: dict, config: dict):
+    """Remove table lines from page text using VLM to identify which lines are tabular.
+
+    Tables in PDFs are formatted text, not structured objects — no string matching
+    can reliably find their boundaries. The VLM sees the rendered page alongside the
+    numbered text lines and identifies which lines are table content. We remove only
+    those lines, preserving all section headings and narrative text exactly.
+    """
+    import base64
+    import json as _json
+    import requests
+    import fitz
+
+    te_cfg = config.get("table_extraction", {})
+    vlm_model = te_cfg.get("vlm_model", "minicpm-v:latest")
+    vlm_url = te_cfg.get("vlm_url", "http://host.docker.internal:11434")
+    vlm_timeout = te_cfg.get("vlm_timeout", 120)
+    vlm_strip_prompt = te_cfg.get("vlm_strip_prompt",
+        "Look at this page from a tabletop RPG rulebook. "
+        "I will give you the extracted text lines numbered 1 to N. "
+        "Identify which lines are part of TABLE content — table titles, "
+        "column headers, data rows, and numeric grids. "
+        "Return ONLY a JSON array of line numbers to remove. "
+        "Do NOT include lines that are narrative paragraphs, section headings, or prose. "
+        "Example: [3, 4, 5, 6, 7, 12, 13, 14]")
+
+    printed_to_idx = page_index_map
+    doc = fitz.open(str(filepath))
+    cleaned_count = 0
+
+    for printed_page in sorted(table_pages):
+        if printed_page not in clean_pages:
+            continue
+        page_idx = printed_to_idx.get(printed_page)
+        if page_idx is None or page_idx >= len(doc):
+            continue
+
+        text = clean_pages[printed_page]
+        lines = text.split("\n")
+
+        # Build numbered line list for the prompt
+        numbered = "\n".join(f"{i+1}: {line}" for i, line in enumerate(lines))
+
+        # Render page as PNG
+        page = doc[page_idx]
+        pix = page.get_pixmap(dpi=200)
+        img_bytes = pix.tobytes("png")
+        img_b64 = base64.b64encode(img_bytes).decode("utf-8")
+
+        prompt = vlm_strip_prompt + "\n\nNumbered lines:\n" + numbered
+
+        try:
+            resp = requests.post(
+                f"{vlm_url}/api/generate",
+                json={
+                    "model": vlm_model,
+                    "prompt": prompt,
+                    "images": [img_b64],
+                    "stream": False,
+                    "options": {"temperature": 0.0, "num_predict": 2048},
+                },
+                timeout=vlm_timeout,
+            )
+            resp.raise_for_status()
+            response_text = resp.json().get("response", "").strip()
+        except Exception as e:
+            _log(f"    VLM strip failed page {printed_page}: {e}")
+            continue
+
+        # Parse line numbers from response — VLM may return JSON array, ranges, or mixed
+        remove_lines = set()
+        try:
+            start_pos = response_text.find("[")
+            end_pos = response_text.rfind("]") + 1
+            if start_pos >= 0 and end_pos > start_pos:
+                parsed = _json.loads(response_text[start_pos:end_pos])
+                for item in parsed:
+                    if isinstance(item, int):
+                        remove_lines.add(item)
+                    elif isinstance(item, float):
+                        remove_lines.add(int(item))
+                    # Skip dicts, strings, None etc.
+        except (_json.JSONDecodeError, ValueError, TypeError):
+            pass
+
+        if not remove_lines:
+            _log(f"    VLM strip parse failed page {printed_page}: {response_text[:80]}")
+            continue
+
+        # Remove identified table lines (1-indexed from VLM)
+        kept = [line for i, line in enumerate(lines) if (i + 1) not in remove_lines]
+        clean_pages[printed_page] = "\n".join(kept)
+        removed = len(lines) - len(kept)
+        if removed > 0:
+            cleaned_count += 1
+
+    doc.close()
+    _log(f"  VLM table page cleaning: {cleaned_count}/{len(table_pages)} pages processed")
+
+
 def build_entries_from_pages(
     toc_all: list[dict],
     page_texts: dict[int, str],
@@ -520,6 +621,8 @@ def build_entries_from_pages(
     config: dict,
     watermarks: set[str] = None,
     tables_raw: list[dict] | None = None,
+    filepath=None,
+    page_index_map: dict[int, int] | None = None,
 ) -> list[dict]:
     """Build entries by slicing pymupdf page_texts using ToC page ranges.
 
@@ -616,37 +719,16 @@ def build_entries_from_pages(
             cleaned.append(l)
         clean_pages[pnum] = _rejoin_page_text("\n".join(cleaned))
 
-    # Strip table content from page texts to prevent leaking into entries
-    # Match table title lines using fuzzy matching, restricted to the table's page
-    for t in toc_all:
-        if not t.get("is_table") or t.get("is_excluded"):
-            continue
-        title = t.get("title", "")
-        page = t.get("page_start", 0)
-        if page not in clean_pages:
-            continue
-        text = clean_pages[page]
-        lines = text.split("\n")
-        title_lower = title.lower()
-        # Find the line that best matches the full table title (fuzzy, >=80)
-        # Only consider lines containing "table" to avoid matching section headings
-        best_line = -1
-        best_score = 0
-        for i, line in enumerate(lines):
-            stripped = line.strip().lower()
-            if len(stripped) < 5 or "table" not in stripped:
-                continue
-            score = fuzz.ratio(stripped, title_lower)
-            if score > best_score and score >= 80:
-                best_score = score
-                best_line = i
-        if best_line < 0:
-            continue
-        # Remove from matched line to next blank line (table block boundary)
-        end_line = best_line + 1
-        while end_line < len(lines) and lines[end_line].strip():
-            end_line += 1
-        clean_pages[page] = "\n".join(lines[:best_line] + lines[end_line:])
+    # Strip table content from pages using VLM (tables in PDFs are just formatted
+    # text — no string matching can reliably find boundaries)
+    if filepath and page_index_map:
+        table_pages = set()
+        for t in toc_all:
+            if t.get("is_table") and not t.get("is_excluded"):
+                for p in range(t.get("page_start", 0), t.get("page_end", t.get("page_start", 0)) + 1):
+                    table_pages.add(p)
+        if table_pages:
+            _clean_table_pages_vlm(clean_pages, table_pages, filepath, page_index_map, config)
 
     def _get_page_range_text(page_start: int, page_end: int) -> tuple:
         """Concatenate page texts for a range of printed page numbers.

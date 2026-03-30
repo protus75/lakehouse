@@ -30,7 +30,10 @@ def call_ollama(prompt: str, url: str, model: str,
             f"{url}/api/generate", json=body, timeout=300,
         )
         if resp.status_code == 200:
-            return resp.json().get("response", "").strip()
+            # Parse first JSON object from response (Ollama may concatenate multiple)
+            raw = resp.text.strip()
+            outer = json.loads(raw[:raw.index("}\n") + 1] if "}\n" in raw else raw)
+            return outer.get("response", "").strip()
     except Exception as e:
         _log(f"  Ollama error: {e}")
     return None

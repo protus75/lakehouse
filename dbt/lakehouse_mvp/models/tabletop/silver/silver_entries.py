@@ -126,9 +126,17 @@ def model(dbt, session):
         except Exception:
             pass
 
+        # Build page_index_map: printed_page_num → 0-based page index (for VLM page rendering)
+        page_index_map = dict(zip(
+            pages_df["printed_page_num"].astype(int).tolist(),
+            pages_df["page_index"].astype(int).tolist(),
+        ))
+        pdf_path = Path("/workspace/documents/tabletop_rules/raw") / sf
+
         # Build entries from page texts
         entries = build_entries_from_pages(
-            toc_all, page_texts, spell_list, authority_entries, config, watermarks, tables_raw
+            toc_all, page_texts, spell_list, authority_entries, config, watermarks,
+            tables_raw, pdf_path, page_index_map
         )
 
         # Collect sub-headings

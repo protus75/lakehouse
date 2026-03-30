@@ -244,6 +244,15 @@ table_extraction:
     - Use | to separate columns
     - If the table spans multiple sections, extract only the table rows
     - Output NOTHING except the markdown table
+  # VLM line-level table stripping — identifies which text lines are table content
+  vlm_strip_prompt: |
+    Look at this page from a tabletop RPG rulebook.
+    I will give you the extracted text lines numbered 1 to N.
+    Identify which lines are part of TABLE content — table titles,
+    column headers, data rows, and numeric grids.
+    Return ONLY a JSON array of line numbers to remove.
+    Do NOT include lines that are narrative paragraphs, section headings, or prose.
+    Example: [3, 4, 5, 6, 7, 12, 13, 14]
 
 prompts:
   section_summary: |

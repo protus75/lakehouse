@@ -85,7 +85,8 @@ def _get_entry_index(source_file):
     """Return {entry_id: {entry_id, entry_title, entry_type, ...}} for all entries."""
     rows = _query(
         "SELECT entry_id, entry_title, entry_type, spell_level, spell_class, "
-        "school, sphere "
+        "school, sphere, is_reversible, range_text, duration_text, "
+        "casting_time, components, saving_throw "
         "FROM gold_tabletop.gold_entry_index WHERE source_file = ?",
         [source_file],
     )
@@ -324,25 +325,45 @@ def build_book_content(book_data, toc_rows, entry_index, summaries, annotations,
         if entry_title and entry_title != toc_title:
             entry_els.append(html.Div(entry_title, className="entry-title", id=entry_anchor))
 
-        # Badges — only show meaningful spell/annotation info
+        # Badges — skip level/class for spells (redundant with section heading)
         if idx:
             badges = []
-            sl = idx.get("spell_level")
-            if sl is not None and not (isinstance(sl, float) and math.isnan(sl)):
-                badges.append(f"Level {int(sl)}")
-            for field in ("spell_class", "school", "sphere"):
+            is_spell_entry = idx.get("entry_type") == "spell"
+            if not is_spell_entry:
+                sl = idx.get("spell_level")
+                if sl is not None and not (isinstance(sl, float) and math.isnan(sl)):
+                    badges.append(f"Level {int(sl)}")
+            for field in ("school", "sphere") if is_spell_entry else ("spell_class", "school", "sphere"):
                 val = idx.get(field)
                 if val and not (isinstance(val, float) and math.isnan(val)):
                     badges.append(str(val))
-            if entry_id:
-                ann = annotations.get(entry_id)
-                if ann:
-                    if ann.get("is_combat"):
-                        badges.append("Combat")
-                    if ann.get("is_popular"):
-                        badges.append("Popular")
             if badges:
                 entry_els.append(html.Div(" · ".join(badges), className="entry-badges"))
+
+        # Spell metadata stat block
+        if idx and idx.get("entry_type") == "spell":
+            def _val(field):
+                v = idx.get(field)
+                if v is None or (isinstance(v, float) and math.isnan(v)):
+                    return None
+                return str(v)
+
+            meta_items = []
+            for label, field in [("Range", "range_text"), ("Duration", "duration_text"),
+                                 ("Casting Time", "casting_time"), ("Saving Throw", "saving_throw")]:
+                v = _val(field)
+                if v:
+                    meta_items.append(html.Span([html.B(f"{label}: "), v], className="spell-meta-item"))
+            comp_val = _val("components")
+            if comp_val:
+                meta_items.append(html.Span(
+                    [html.B("Components: "), comp_val],
+                    className="spell-meta-item cat-spell-components",
+                ))
+            if _val("is_reversible") and str(idx.get("is_reversible")).lower() == "true":
+                meta_items.append(html.Span("(Reversible)", className="spell-meta-item spell-reversible"))
+            if meta_items:
+                entry_els.append(html.Div(meta_items, className="spell-meta"))
 
         # Summary (shown when AI Summary toggle is on — spells only)
         is_spell = toc_title and "level spells" in toc_title.lower()
@@ -352,8 +373,10 @@ def build_book_content(book_data, toc_rows, entry_index, summaries, annotations,
             summary_cls = "entry-summary" if summary else "entry-summary entry-summary-empty"
             entry_els.append(html.Div(summary_text, className=summary_cls))
 
+        # Collect entry parts into a wrapper for annotation filtering
+        entry_parts = []
         if entry_els:
-            elements.append(html.Div(entry_els, className=f"entry-block {cat}"))
+            entry_parts.append(html.Div(entry_els, className=f"entry-block {cat}"))
 
         # Full entry content — for spells with descriptions, use clean description
         content_cls = "entry-content has-summary" if (entry_id and is_spell) else "entry-content"
@@ -365,16 +388,28 @@ def build_book_content(book_data, toc_rows, entry_index, summaries, annotations,
                 content_text = row["content"]
             main_content, component_text = _split_material_components(content_text)
             linked_main = _linkify_table_refs(main_content, toc_table_num_to_id)
-            elements.append(html.Div(
+            entry_parts.append(html.Div(
                 dcc.Markdown(linked_main, dangerously_allow_html=True),
                 className=f"{content_cls} {cat}",
             ))
             if component_text:
                 linked_comp = _linkify_table_refs(component_text, toc_table_num_to_id)
-                elements.append(html.Div(
+                entry_parts.append(html.Div(
                     dcc.Markdown(linked_comp, dangerously_allow_html=True),
                     className=f"{content_cls} cat-spell-components {cat}",
                 ))
+
+        if entry_parts:
+            wrapper_cls = "entry-wrapper"
+            if entry_id:
+                ann = annotations.get(entry_id)
+                if ann:
+                    wrapper_cls += " ann-annotated"
+                    if ann.get("is_combat"):
+                        wrapper_cls += " ann-combat"
+                    if ann.get("is_popular"):
+                        wrapper_cls += " ann-popular"
+            elements.append(html.Div(entry_parts, className=wrapper_cls))
 
     return elements, anchor_map
 
@@ -422,6 +457,19 @@ app.layout = html.Div([
                 style={"fontSize": "0.85rem"},
             ),
         ], style={"marginBottom": "0.5rem"}),
+        html.Div([
+            html.Div("Filters", style={"fontWeight": "600", "fontSize": "0.85rem",
+                                        "marginBottom": "0.2rem"}),
+            dcc.Checklist(
+                id="filter-toggles",
+                options=[
+                    {"label": " Combat Only", "value": "combat"},
+                    {"label": " Popular Only", "value": "popular"},
+                ],
+                value=[],
+                style={"fontSize": "0.85rem"},
+            ),
+        ], style={"marginBottom": "0.5rem"}),
         html.Hr(),
         html.Div(id="toc-nav", style={"overflowY": "auto", "flex": "1"}),
         html.Hr(),
@@ -441,6 +489,7 @@ app.layout = html.Div([
 
     html.Div(id="toggle-dummy", style={"display": "none"}),
     html.Div(id="optional-dummy", style={"display": "none"}),
+    html.Div(id="filter-dummy", style={"display": "none"}),
 ], id="app-container")
 
 
@@ -520,6 +569,20 @@ app.clientside_callback(
 )
 
 
+# Clientside callback — combat/popular filters
+app.clientside_callback(
+    """
+    function(filters) {
+        window._activeFilters = filters || [];
+        window._applyFilters();
+        return '';
+    }
+    """,
+    Output("filter-dummy", "children"),
+    Input("filter-toggles", "value"),
+)
+
+
 @callback(
     Output("refresh-status", "children"),
     Output("book-selector", "options"),
@@ -584,6 +647,10 @@ app.index_string = '''
         .entry-title { font-weight: 600; font-size: 1.1rem; color: #4a9eff;
                        padding-top: 0.5rem; }
         .entry-badges { font-size: 0.8rem; color: #8b949e; margin: 0.1rem 0; }
+        .spell-meta { font-size: 0.82rem; color: #a0a8b4; margin: 0.3rem 0;
+                      display: flex; flex-wrap: wrap; gap: 0.1rem 0.8rem; }
+        .spell-meta-item b { color: #8b949e; }
+        .spell-reversible { font-style: italic; color: #4a9eff; }
         .entry-summary { background: #1a1a2e; border-left: 3px solid #4a9eff;
                          padding: 0.5rem 0.8rem; margin: 0.4rem 0; font-size: 0.9rem; }
         .entry-summary-empty { color: #484f58; font-style: italic; }
@@ -612,6 +679,23 @@ app.index_string = '''
         {%renderer%}
     </footer>
     <script>
+        // Combat/popular filter logic
+        window._activeFilters = [];
+        window._applyFilters = function() {
+            var filters = window._activeFilters;
+            var hasCombat = filters.indexOf('combat') >= 0;
+            var hasPopular = filters.indexOf('popular') >= 0;
+            var anyFilter = hasCombat || hasPopular;
+            document.querySelectorAll('.entry-wrapper').forEach(function(el) {
+                if (!anyFilter) { el.style.display = ''; return; }
+                if (!el.classList.contains('ann-annotated')) { el.style.display = ''; return; }
+                var show = false;
+                if (hasCombat && el.classList.contains('ann-combat')) show = true;
+                if (hasPopular && el.classList.contains('ann-popular')) show = true;
+                el.style.display = show ? '' : 'none';
+            });
+        };
+
         // Shared toggle logic — called by clientside callback AND after content renders
         window._displayToggles = ['summary', 'meta'];
         window._applyDisplayToggles = function() {
@@ -627,9 +711,12 @@ app.index_string = '''
             document.querySelectorAll('.entry-badges').forEach(function(el) {
                 el.style.display = showMeta ? 'block' : 'none';
             });
+            document.querySelectorAll('.spell-meta').forEach(function(el) {
+                el.style.display = showMeta ? 'flex' : 'none';
+            });
         };
         // Re-apply toggles whenever book content changes
-        var obs = new MutationObserver(function() { window._applyDisplayToggles(); });
+        var obs = new MutationObserver(function() { window._applyDisplayToggles(); window._applyFilters(); });
         document.addEventListener('DOMContentLoaded', function() {
             var mc = document.getElementById('book-content');
             if (mc) obs.observe(mc, {childList: true, subtree: true});
