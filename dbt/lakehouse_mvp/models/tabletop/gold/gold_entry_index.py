@@ -84,11 +84,15 @@ def model(dbt, session):
     for sf in entries_df["source_file"].unique():
         config = load_config(Path(sf), configs_dir)
 
+        sf_toc = toc_df[toc_df["source_file"] == sf]
+
         # Build class toc_ids from config class_names
         class_names = config.get("class_names", [])
         class_names_lower = {n.lower().strip() for n in class_names}
-        sf_toc = toc_df[toc_df["source_file"] == sf]
         class_toc_ids = _build_class_toc_ids(sf_toc, class_names_lower)
+
+        # Build table toc_ids from is_table flag
+        table_toc_ids = set(int(r["toc_id"]) for _, r in sf_toc.iterrows() if r["is_table"])
 
         # Proficiency whitelist for this file
         prof_whitelist = authority_whitelist.get((sf, "proficiency"), set())
@@ -106,6 +110,8 @@ def model(dbt, session):
 
             if row.get("spell_class"):
                 entry_type = "spell"
+            elif toc_id in table_toc_ids:
+                entry_type = "table"
             elif toc_id in class_toc_ids:
                 entry_type = "class"
             elif entry_name and entry_name in prof_whitelist:

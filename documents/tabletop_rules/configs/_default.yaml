@@ -221,6 +221,30 @@ ocr_check:
     Respond with ONLY a JSON object:
     {{"verdict": "confirmed" or "rejected", "reason": "brief explanation"}}
 
+# Table extraction — two-pass: Marker pipe parsing first, VLM fallback for failures
+table_extraction:
+  # Validation thresholds (tables failing these go to VLM)
+  min_columns: 2
+  min_rows: 2
+  max_smushed_cell_chars: 25
+  # VLM fallback for tables that fail validation
+  vlm_model: "minicpm-v:latest"
+  vlm_url: "http://host.docker.internal:11434"
+  vlm_timeout: 120
+  vlm_prompt: |
+    Extract the table from this image as a markdown pipe-delimited table.
+    Output ONLY the table in this format:
+    | Header1 | Header2 | Header3 |
+    |---------|---------|---------|
+    | cell1   | cell2   | cell3   |
+
+    Rules:
+    - Include ALL rows and columns visible in the table
+    - Preserve exact text from cells
+    - Use | to separate columns
+    - If the table spans multiple sections, extract only the table rows
+    - Output NOTHING except the markdown table
+
 prompts:
   section_summary: |
     You are summarizing a section from {book_title} for a rules reference.

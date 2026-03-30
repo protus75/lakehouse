@@ -18,17 +18,6 @@ toc:
 # Not all PDFs have this — only set if a reliable per-page marker exists.
 page_delimiter: "Richard Protus (Order #46790461)"
 
-index_headings:
-  - "index"
-  - "alphabetical index"
-  - "general index"
-  - "spell index"
-  - "priest spell index"
-  - "wizard spell index"
-  - "spell list"
-  - "priest spell list"
-  - "wizard spell list"
-
 # Lines matching these patterns are stripped from entry content during ingestion.
 # Used to remove school/type annotations, tags, etc. that are metadata not content.
 strip_content_patterns:
@@ -89,18 +78,6 @@ whitelist_sections:
   - "Wizard Spells"
   - "Priest Spells"
 
-# Default parsing rules for all sections
-parsing_defaults:
-  # A heading is a short line that starts an entry
-  heading_rules:
-    min_length: 3
-    max_length: 50
-    must_start_upper: true
-    no_trailing_period: true
-    no_trailing_comma: true
-    no_colon: true
-    min_alpha_ratio: 0.7
-
 # Per-ToC-entry overrides — keyed by exact ToC title, no string matching
 # entry_mode: toc (default), per_list, per_anchor
 toc_overrides:
@@ -108,68 +85,11 @@ toc_overrides:
     entry_mode: per_list
     list_source: spell_list_entries
     sub_section_pattern: '(?:First|Second|Third|Fourth|Fifth|Sixth|Seventh|Eighth|Ninth)-Level Spells'
-    heading_rules:
-      min_length: 3
-      max_length: 40
-      must_start_upper: true
-      no_trailing_period: true
-      no_trailing_comma: true
-      no_colon: true
-      min_alpha_ratio: 0.7
-    metadata_fields:
-      - 'Range\s*:'
-      - 'Components\s*:'
-      - 'Duration\s*:'
-      - 'Casting Time\s*:'
-      - 'Area of Effect\s*:'
-      - 'Saving Throw\s*:'
-      - 'School\s*:'
-      - 'Sphere\s*:'
-      - 'Level\s*:'
-    keep_with_entry:
-      - 'Reversible'
-      - '(Conjuration.*)'
-      - '(Alteration.*)'
-      - '(Abjuration.*)'
-      - '(Divination.*)'
-      - '(Enchantment.*)'
-      - '(Evocation.*)'
-      - '(Illusion.*)'
-      - '(Necromancy.*)'
-      - '(Invocation.*)'
 
   "Appendix 4: Priest Spells":
     entry_mode: per_list
     list_source: spell_list_entries
     sub_section_pattern: '(?:First|Second|Third|Fourth|Fifth|Sixth|Seventh)-Level Spells'
-    heading_rules:
-      min_length: 3
-      max_length: 40
-      must_start_upper: true
-      no_trailing_period: true
-      no_trailing_comma: true
-      no_colon: true
-      min_alpha_ratio: 0.7
-    metadata_fields:
-      - 'Range\s*:'
-      - 'Components\s*:'
-      - 'Duration\s*:'
-      - 'Casting Time\s*:'
-      - 'Area of Effect\s*:'
-      - 'Saving Throw\s*:'
-      - 'Sphere\s*:'
-      - 'Level\s*:'
-    keep_with_entry:
-      - 'Reversible'
-      - '(Conjuration.*)'
-      - '(Alteration.*)'
-      - '(Abjuration.*)'
-      - '(Divination.*)'
-      - '(Enchantment.*)'
-      - '(Evocation.*)'
-      - '(Illusion.*)'
-      - '(Necromancy.*)'
-      - '(Invocation.*)'
 
   "The Real Basics":
     entry_anchors:

@@ -116,9 +116,19 @@ def model(dbt, session):
         except Exception:
             pass
 
+        # Load tables_raw for table entries
+        tables_raw = []
+        try:
+            tr_df = session.execute(
+                f"SELECT toc_title, row_index, cells FROM bronze_tabletop.tables_raw WHERE source_file = '{sf}' ORDER BY toc_title, row_index"
+            ).fetchdf()
+            tables_raw = tr_df.to_dict("records") if not tr_df.empty else []
+        except Exception:
+            pass
+
         # Build entries from page texts
         entries = build_entries_from_pages(
-            toc_all, page_texts, spell_list, authority_entries, config, watermarks
+            toc_all, page_texts, spell_list, authority_entries, config, watermarks, tables_raw
         )
 
         # Collect sub-headings

@@ -1061,15 +1061,119 @@ def strip_tables_from_markdown(markdown: str) -> str:
     return "\n".join(result)
 
 
+def _validate_table(table: dict, config: dict) -> list[str]:
+    """Check a parsed table for quality issues. Returns list of failure reasons."""
+    te_cfg = config.get("table_extraction", {})
+    min_cols = te_cfg.get("min_columns", 2)
+    min_rows = te_cfg.get("min_rows", 2)
+    max_smushed = te_cfg.get("max_smushed_cell_chars", 25)
+
+    rows = table.get("rows", [])
+    issues = []
+
+    if len(rows) < min_rows:
+        issues.append(f"too_few_rows ({len(rows)})")
+
+    for ri, cells in enumerate(rows):
+        if len(cells) < min_cols:
+            issues.append(f"few_columns row {ri} ({len(cells)} cols)")
+            break
+        for cell in cells:
+            if len(cell) > max_smushed and " " not in cell:
+                issues.append(f"smushed cell row {ri}: {cell[:40]}")
+                break
+        if issues and issues[-1].startswith("smushed"):
+            break
+
+    return issues
+
+
+def _extract_table_vlm(filepath: Path, printed_page: int,
+                       page_printed: dict[int, int],
+                       config: dict) -> list[list[str]] | None:
+    """Use a vision model to extract a table from a PDF page image.
+    Returns parsed rows or None on failure."""
+    import base64
+    import requests
+
+    te_cfg = config.get("table_extraction", {})
+    vlm_model = te_cfg.get("vlm_model", "minicpm-v:latest")
+    vlm_url = te_cfg.get("vlm_url", "http://host.docker.internal:11434")
+    vlm_timeout = te_cfg.get("vlm_timeout", 120)
+    vlm_prompt = te_cfg.get("vlm_prompt", "Extract the table from this image as a markdown pipe-delimited table.")
+
+    # Find the 0-based page index for this printed page
+    page_idx = None
+    for idx, pp in page_printed.items():
+        if pp == printed_page:
+            page_idx = idx
+            break
+    if page_idx is None:
+        return None
+
+    # Render page to PNG
+    doc = fitz.open(str(filepath))
+    if page_idx >= len(doc):
+        doc.close()
+        return None
+
+    page = doc[page_idx]
+    pix = page.get_pixmap(dpi=200)
+    img_bytes = pix.tobytes("png")
+    doc.close()
+
+    img_b64 = base64.b64encode(img_bytes).decode("utf-8")
+
+    # Call Ollama vision API
+    try:
+        resp = requests.post(
+            f"{vlm_url}/api/generate",
+            json={
+                "model": vlm_model,
+                "prompt": vlm_prompt,
+                "images": [img_b64],
+                "stream": False,
+                "options": {"temperature": 0.0, "num_predict": 2048},
+            },
+            timeout=vlm_timeout,
+        )
+        resp.raise_for_status()
+        text = resp.json().get("response", "")
+    except Exception as e:
+        _log(f"  VLM table extraction failed: {e}")
+        return None
+
+    # Parse markdown pipe table from response
+    rows = []
+    for line in text.strip().split("\n"):
+        line = line.strip()
+        if not line.startswith("|") or line.count("|") < 2:
+            continue
+        cells = [c.strip() for c in line.split("|")]
+        if cells and cells[0] == "":
+            cells = cells[1:]
+        if cells and cells[-1] == "":
+            cells = cells[:-1]
+        # Skip separator rows
+        if all(re.match(r'^[\s\-:]+$', c) or c == "" for c in cells):
+            continue
+        rows.append(cells)
+
+    return rows if len(rows) >= 2 else None
+
+
 def extract_all_tables(markdown: str, toc_entries: list[dict],
                        page_texts: list[str],
                        page_printed: dict[int, int],
-                       config: dict | None = None) -> list[dict]:
+                       config: dict | None = None,
+                       filepath: Path | None = None) -> list[dict]:
     """Extract tables using validated ToC as the driver.
 
-    Iterates every is_table=True ToC entry, searches the markdown for a matching
-    pipe block near the expected page. Returns the same format as before:
-    [{table_number, table_title, toc_title, format, rows: [[cell, ...], ...]}, ...]
+    Two-pass approach:
+    1. Parse pipe blocks from Marker markdown (fast)
+    2. Validate each table; re-extract failures via VLM (accurate)
+
+    Returns [{table_number, table_title, toc_title, format, rows: [[cell, ...], ...]}, ...]
     """
     from rapidfuzz import fuzz
     from dlt.lib.tabletop_cleanup import _build_page_position_map
@@ -1267,6 +1371,37 @@ def extract_all_tables(markdown: str, toc_entries: list[dict],
     if missed:
         _log(f"  Tables: missed {len(missed)} — {', '.join(t['toc_title'][:30] for t in missed)}")
     _log(f"  Tables: matched {len(found_titles)}/{len(table_targets)} from ToC")
+
+    # Pass 2: validate extracted tables, re-extract failures via VLM
+    if config and filepath:
+        failed = []
+        for t in tables:
+            issues = _validate_table(t, config)
+            if issues:
+                failed.append((t, issues))
+
+        if failed:
+            _log(f"  Tables: {len(failed)} failed validation, attempting VLM re-extraction")
+            # Build page_printed reverse map: 0-based index → printed page
+            for t, issues in failed:
+                # Find the printed page for this table from table_targets
+                target = next((tt for tt in table_targets if tt["toc_title"] == t["toc_title"]), None)
+                if not target:
+                    continue
+                printed_page = target["page"]
+                _log(f"    VLM: {t['toc_title'][:40]} (page {printed_page}) — {issues[0]}")
+                vlm_rows = _extract_table_vlm(filepath, printed_page, page_printed, config)
+                if vlm_rows:
+                    vlm_issues = _validate_table({"rows": vlm_rows}, config)
+                    if not vlm_issues or len(vlm_issues) < len(issues):
+                        t["rows"] = vlm_rows
+                        t["format"] = "vlm"
+                        _log(f"    VLM: replaced with {len(vlm_rows)} rows")
+                    else:
+                        _log(f"    VLM: still failing ({vlm_issues[0]}), keeping original")
+                else:
+                    _log(f"    VLM: no result, keeping original")
+
     return tables
 
 
@@ -1654,7 +1789,7 @@ def extract_pdf(filepath: Path, force: bool = False) -> None:
         step(f"Spell list: {len(spell_list)} entries")
 
         # 6. Extract tables using ToC as driver, then strip from markdown
-        all_tables = extract_all_tables(markdown, toc_sections, page_texts, page_printed, config)
+        all_tables = extract_all_tables(markdown, toc_sections, page_texts, page_printed, config, filepath)
         table_titles = set(t["toc_title"] for t in all_tables)
         _log(f"  Tables found: {len(table_titles)} unique, Weapons={'Weapons' in table_titles}, Armor={'Armor' in table_titles}")
         step(f"Tables: {len(all_tables)} parsed")

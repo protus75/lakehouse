@@ -519,6 +519,7 @@ def build_entries_from_pages(
     authority_entries: list[dict],
     config: dict,
     watermarks: set[str] = None,
+    tables_raw: list[dict] | None = None,
 ) -> list[dict]:
     """Build entries by slicing pymupdf page_texts using ToC page ranges.
 
@@ -539,6 +540,30 @@ def build_entries_from_pages(
     spell_heading_overrides_raw = config.get("spell_heading_overrides", {}) if config else {}
     spell_heading_overrides = {k.lower(): v for k, v in spell_heading_overrides_raw.items()}
     min_content = config.get("ingestion", {}).get("min_entry_content", 10) if config else 10
+
+    # Build table content lookup: toc_title → rendered markdown pipe table
+    _table_content = {}
+    if tables_raw:
+        from collections import defaultdict
+        _table_rows = defaultdict(list)
+        for t in tables_raw:
+            _table_rows[t["toc_title"]].append(t)
+        for toc_title, rows in _table_rows.items():
+            sorted_rows = sorted(rows, key=lambda r: r.get("row_index", 0))
+            lines = []
+            for r in sorted_rows:
+                cells = r.get("cells", [])
+                if isinstance(cells, str):
+                    import json as _json
+                    cells = _json.loads(cells)
+                # Strip HTML tags from cells (Marker leaves <br>, <sup>, etc.)
+                import re as _re
+                clean_cells = [_re.sub(r'<[^>]+>', ' ', str(c)).strip() for c in cells]
+                lines.append("| " + " | ".join(clean_cells) + " |")
+                # Add separator after first row (header)
+                if r.get("row_index", 0) == 0 and len(cells) > 0:
+                    lines.append("| " + " | ".join("---" for _ in cells) + " |")
+            _table_content[toc_title] = "\n".join(lines)
 
     # Unicode → ASCII replacements for pymupdf text
     _unicode_replacements = str.maketrans({
@@ -590,6 +615,37 @@ def build_entries_from_pages(
                     continue
             cleaned.append(l)
         clean_pages[pnum] = _rejoin_page_text("\n".join(cleaned))
+
+    # Strip table content from page texts to prevent leaking into entries
+    # Match table title lines using fuzzy matching, restricted to the table's page
+    for t in toc_all:
+        if not t.get("is_table") or t.get("is_excluded"):
+            continue
+        title = t.get("title", "")
+        page = t.get("page_start", 0)
+        if page not in clean_pages:
+            continue
+        text = clean_pages[page]
+        lines = text.split("\n")
+        title_lower = title.lower()
+        # Find the line that best matches the full table title (fuzzy, >=80)
+        best_line = -1
+        best_score = 0
+        for i, line in enumerate(lines):
+            stripped = line.strip().lower()
+            if len(stripped) < 5:
+                continue
+            score = fuzz.ratio(stripped, title_lower)
+            if score > best_score and score >= 80:
+                best_score = score
+                best_line = i
+        if best_line < 0:
+            continue
+        # Remove from matched line to next blank line (table block boundary)
+        end_line = best_line + 1
+        while end_line < len(lines) and lines[end_line].strip():
+            end_line += 1
+        clean_pages[page] = "\n".join(lines[:best_line] + lines[end_line:])
 
     def _get_page_range_text(page_start: int, page_end: int) -> tuple:
         """Concatenate page texts for a range of printed page numbers.
@@ -887,11 +943,12 @@ def build_entries_from_pages(
             key=lambda t: t.get("sort_order", t.get("page_start", 0)),
         )
 
-        # Collect table titles for this chapter (to exclude from section matching)
-        ch_table_titles = [
-            t["title"] for t in toc_all
+        # Collect table entries for this chapter (to exclude from section matching + create entries)
+        ch_tables = [
+            t for t in toc_all
             if t.get("parent_title") == ch_title and t.get("is_table")
         ]
+        ch_table_titles = [t["title"] for t in ch_tables]
 
         # Also check if any sub has its own toc_overrides config
         sub_cfgs = {}
@@ -1098,7 +1155,27 @@ def build_entries_from_pages(
                         "page_numbers": [ch_start],
                     })
 
-    _log(f"  Entries from pages: {len(entries)}")
+    # Create entries for tables using rendered content from tables_raw
+    table_entry_count = 0
+    for t in toc_all:
+        if not t.get("is_table") or t.get("is_excluded"):
+            continue
+        title = t.get("title", "")
+        content = _table_content.get(title, "")
+        if not content:
+            continue
+        entries.append({
+            "toc_entry": t,
+            "section_title": title,
+            "entry_title": title,
+            "content": content,
+            "school": None, "sphere": None,
+            "spell_class": None, "spell_level": None,
+            "page_numbers": [t.get("page_start", 0)],
+        })
+        table_entry_count += 1
+
+    _log(f"  Entries from pages: {len(entries)} ({table_entry_count} tables)")
     return entries
 
 
