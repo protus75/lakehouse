@@ -629,11 +629,12 @@ def build_entries_from_pages(
         lines = text.split("\n")
         title_lower = title.lower()
         # Find the line that best matches the full table title (fuzzy, >=80)
+        # Only consider lines containing "table" to avoid matching section headings
         best_line = -1
         best_score = 0
         for i, line in enumerate(lines):
             stripped = line.strip().lower()
-            if len(stripped) < 5:
+            if len(stripped) < 5 or "table" not in stripped:
                 continue
             score = fuzz.ratio(stripped, title_lower)
             if score > best_score and score >= 80:
