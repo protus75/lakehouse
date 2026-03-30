@@ -422,6 +422,14 @@ books = _get_books()
 default_book = books[0] if books else None
 
 app.layout = html.Div([
+    # Mobile hamburger
+    html.Button("☰", id="menu-btn",
+                style={"display": "none", "position": "fixed", "top": "0.5rem",
+                       "left": "0.5rem", "zIndex": "200", "background": "#21262d",
+                       "color": "#fafafa", "border": "1px solid #30363d",
+                       "borderRadius": "4px", "fontSize": "1.4rem", "padding": "0.2rem 0.6rem",
+                       "cursor": "pointer"}),
+
     # Sidebar
     html.Div([
         html.H3("Rules Browser"),
@@ -614,6 +622,7 @@ app.index_string = '''
 <html>
 <head>
     {%metas%}
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Tabletop Rules Browser</title>
     {%css%}
     <style>
@@ -669,6 +678,28 @@ app.index_string = '''
 
         /* Instant scroll on anchor click */
         #main-content { scroll-behavior: auto; }
+
+        /* Tables */
+        .data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+        .table-header-cell, .table-cell { padding: 0.3rem 0.5rem; border: 1px solid #30363d; }
+        .table-header-cell { background: #21262d; font-weight: 600; }
+        .table-container { margin: 0.5rem 0; overflow-x: auto; }
+
+        /* Mobile */
+        @media (max-width: 768px) {
+            #menu-btn { display: block !important; }
+            #sidebar { width: 100%; min-width: 100%; transform: translateX(-100%); }
+            #sidebar:hover { transform: translateX(-100%); }
+            #sidebar.open { transform: translateX(0); }
+            #sidebar::after { display: none; }
+            #main-content { margin-left: 0; padding: 1rem; padding-top: 3rem; }
+            .chapter-heading { font-size: 1.3rem; }
+            .section-heading { font-size: 1.1rem; }
+            .entry-title { font-size: 1rem; }
+            .spell-meta { font-size: 0.78rem; gap: 0.1rem 0.5rem; }
+            .data-table { font-size: 0.75rem; }
+            .table-header-cell, .table-cell { padding: 0.2rem 0.3rem; }
+        }
     </style>
 </head>
 <body>
@@ -722,15 +753,28 @@ app.index_string = '''
             if (mc) obs.observe(mc, {childList: true, subtree: true});
         });
 
+        // Mobile sidebar toggle
+        document.addEventListener('DOMContentLoaded', function() {
+            var btn = document.getElementById('menu-btn');
+            var sidebar = document.getElementById('sidebar');
+            if (btn && sidebar) {
+                btn.addEventListener('click', function() {
+                    sidebar.classList.toggle('open');
+                });
+            }
+        });
+
         // Intercept anchor clicks and scroll within #main-content div
         document.addEventListener('click', function(e) {
             var link = e.target.closest('a[href^="#"]');
             if (!link) return;
             var id = link.getAttribute('href').substring(1);
             var target = document.getElementById(id);
-            console.log('[scroll]', id, 'found:', !!target);
             if (!target) return;
             e.preventDefault();
+            // Close sidebar on mobile when navigating
+            var sidebar = document.getElementById('sidebar');
+            if (sidebar) sidebar.classList.remove('open');
             target.scrollIntoView({ behavior: 'instant', block: 'start' });
         });
     </script>
