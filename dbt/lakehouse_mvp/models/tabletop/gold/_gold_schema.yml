@@ -62,7 +62,7 @@ models:
               values: ['spell', 'proficiency', 'class', 'rule']
 
   - name: gold_entry_descriptions
-    description: "Clean entry descriptions from silver + AI summaries from enrichment"
+    description: "Clean entry descriptions from silver (owned by publish)"
     columns:
       - name: entry_id
         tests:
@@ -73,15 +73,13 @@ models:
       - name: source_file
         tests:
           - not_null
-      - name: description_type
+      - name: entry_type
         tests:
           - not_null
-          - accepted_values:
-              values: ['original', 'summary']
       - name: content
         tests:
           - not_null
 
-  # gold_ai_summaries and gold_ai_annotations are populated by
-  # scripts/tabletop_rules/enrich_summaries.py and enrich_annotations.py
-  # (resumable, incremental — not dbt models due to long LLM runtimes)
+  # gold_ai_summaries and gold_ai_annotations are owned by enrichment
+  # (scripts/tabletop_rules/enrich_summaries.py and enrich_annotations.py)
+  # Separate tables — publish never touches them

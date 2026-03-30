@@ -90,11 +90,6 @@ models:
       - name: source_file
         tests:
           - not_null
-      - name: description_type
-        tests:
-          - not_null
-          - accepted_values:
-              values: ['original', 'summary']
       - name: content
         tests:
           - not_null

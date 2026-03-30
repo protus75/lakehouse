@@ -37,6 +37,22 @@ CONFIGS_DIR = Path("/workspace/documents/tabletop_rules/configs")
 
 NAMESPACE = "bronze_tabletop"
 
+BRONZE_TABLES = [
+    "pipeline_runs",
+    "catalog",
+    "files",
+    "marker_extractions",
+    "page_texts",
+    "toc_raw",
+    "known_entries_raw",
+    "tables_raw",
+    "authority_table_entries",
+    "spell_list_entries",
+    "watermarks",
+    "ocr_issues",
+    "validation_results",
+]
+
 _UNICODE_TO_ASCII = str.maketrans({
     "\u2018": "'", "\u2019": "'",
     "\u201c": '"', "\u201d": '"',

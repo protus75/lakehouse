@@ -81,11 +81,6 @@ metadata_field_names:
   - Prerequisites
   - Level
 
-index_headings:
-  - "index"
-  - "alphabetical index"
-  - "general index"
-
 # Chapters to exclude entirely from page mapping and content
 exclude_chapters: []
 
@@ -93,9 +88,6 @@ exclude_chapters: []
 # All other sections treat every H3/H4 heading as a new entry.
 # List of substrings matched against ToC section titles.
 whitelist_sections: []
-
-# No entry types defined — generic parsing only
-entry_types: {}
 
 # Spell class detection — maps keywords found in bold headings to class names
 # Used by extract_spell_list_entries to identify wizard vs priest spell columns
@@ -229,12 +221,6 @@ ocr_check:
     Respond with ONLY a JSON object:
     {{"verdict": "confirmed" or "rejected", "reason": "brief explanation"}}
 
-cross_references:
-  appendix_indexes: []
-  generated_indexes: []
-
-vlm_detection_patterns: []
-
 prompts:
   section_summary: |
     You are summarizing a section from {book_title} for a rules reference.
@@ -367,11 +353,6 @@ gold:
   annotation_entry_types:
     - "spell"
     - "proficiency"
-
-# Manual overrides for known data issues that can't be fixed by parsing.
-# Each entry corrects a specific field for a specific spell.
-# Format: list of {name, class, field, value} dicts.
-manual_overrides: []
 
 # Game terms that are NOT OCR errors — added to spellcheck whitelist.
 # Includes D&D-specific terms, abbreviations, archaic words, proper nouns.

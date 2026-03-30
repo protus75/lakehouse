@@ -3,7 +3,7 @@
 For spells: uses clean descriptions from gold_entry_descriptions (metadata stripped).
 For non-spells: uses raw content from silver_entries.
 
-Summaries are written to gold_entry_descriptions with description_type = 'summary'.
+Summaries are written to gold_ai_summaries (owned by enrichment, never touched by publish).
 
 Run: docker exec lakehouse-workspace python -u scripts/tabletop_rules/enrich_summaries.py
 """
@@ -12,7 +12,6 @@ sys.path.insert(0, "/workspace")
 
 import pyarrow as pa
 import requests
-from datetime import datetime, timezone
 from pathlib import Path
 from dlt.lib.tabletop_cleanup import load_config, _log
 from dlt.lib.duckdb_reader import get_reader
@@ -43,26 +42,25 @@ def main():
     # Purge orphaned summary rows (entry_ids change when pipeline rebuilds)
     try:
         orphaned = conn.execute("""
-            SELECT d.entry_id
-            FROM gold_tabletop.gold_entry_descriptions d
-            LEFT JOIN gold_tabletop.gold_entry_descriptions o
-                ON d.entry_id = o.entry_id AND o.description_type = 'original'
-            WHERE d.description_type = 'summary' AND o.entry_id IS NULL
+            SELECT s.entry_id
+            FROM gold_tabletop.gold_ai_summaries s
+            LEFT JOIN gold_tabletop.gold_entry_index i ON s.entry_id = i.entry_id
+            WHERE i.entry_id IS NULL
         """).fetchall()
         if orphaned:
             from dlt.lib.iceberg_catalog import get_catalog
             catalog = get_catalog()
-            tbl = catalog.load_table("gold_tabletop.gold_entry_descriptions")
+            tbl = catalog.load_table("gold_tabletop.gold_ai_summaries")
             orphan_ids = [r[0] for r in orphaned]
             _log(f"Purging {len(orphan_ids)} orphaned summary rows")
-            tbl.delete(f"description_type = 'summary' AND entry_id IN ({','.join(str(i) for i in orphan_ids)})")
+            tbl.delete(f"entry_id IN ({','.join(str(i) for i in orphan_ids)})")
     except Exception as e:
         _log(f"  Orphan purge skipped: {e}")
 
     # Get entries that need summaries:
-    # - For spells: use clean description from gold_entry_descriptions (type='original')
+    # - For spells: use clean description from gold_entry_descriptions
     # - For non-spells: use raw content from silver_entries
-    # Skip entries that already have a summary row
+    # Skip entries that already have a summary in gold_ai_summaries
     try:
         entries = conn.execute("""
             SELECT e.entry_id, e.source_file, e.entry_title, e.char_count,
@@ -72,9 +70,9 @@ def main():
             FROM silver_tabletop.silver_entries e
             JOIN gold_tabletop.gold_entry_index i ON e.entry_id = i.entry_id
             LEFT JOIN gold_tabletop.gold_entry_descriptions d
-                ON e.entry_id = d.entry_id AND d.description_type = 'original'
-            LEFT JOIN gold_tabletop.gold_entry_descriptions s
-                ON e.entry_id = s.entry_id AND s.description_type = 'summary'
+                ON e.entry_id = d.entry_id
+            LEFT JOIN gold_tabletop.gold_ai_summaries s
+                ON e.entry_id = s.entry_id
             WHERE s.entry_id IS NULL
             ORDER BY e.entry_id
         """).fetchall()
@@ -103,9 +101,14 @@ def main():
     ollama_options = gold_config.get("ollama_options", {})
     min_chars = gold_config.get("min_summary_chars", 200)
     prompt_template = gold_config.get("summary_prompt", "Summarize: {content}")
+    summary_entry_types = gold_config.get("summary_entry_types", [])
 
-    # Filter by min chars
-    to_process = [e for e in entries if e[3] >= min_chars]
+    # Filter by configured entry types (if set) and min chars
+    to_process = entries
+    if summary_entry_types:
+        to_process = [e for e in to_process if e[4] in summary_entry_types]
+        _log(f"Filtered to entry types {summary_entry_types}: {len(to_process)} of {len(entries)}")
+    to_process = [e for e in to_process if e[3] >= min_chars]
     _log(f"AI Summaries: {len(to_process)} entries to summarize "
          f"({len(entries) - len(to_process)} skipped, under {min_chars} chars) "
          f"using {ollama_model}")
@@ -129,9 +132,9 @@ def main():
         summary = call_ollama(prompt, ollama_url, ollama_model, ollama_options)
 
         if summary:
-            write_iceberg("gold_tabletop", "gold_entry_descriptions", pa.table({
+            write_iceberg("gold_tabletop", "gold_ai_summaries", pa.table({
                 "entry_id": [entry_id], "source_file": [source_file],
-                "description_type": ["summary"], "content": [summary],
+                "entry_type": [entry_type], "summary": [summary],
             }), overwrite_filter="entry_id", overwrite_filter_value=entry_id)
 
             if (i + 1) % 10 == 0:

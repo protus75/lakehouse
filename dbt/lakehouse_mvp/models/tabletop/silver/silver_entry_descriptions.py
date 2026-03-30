@@ -4,10 +4,6 @@ For spells: strips the key-value metadata block and material component text,
 leaving only the prose description.
 
 For non-spells: content passes through as-is.
-
-Each row has a description_type:
-  - "original": the cleaned description from the source PDF
-  - "summary": (future) AI-generated summary
 """
 import sys
 sys.path.insert(0, "/workspace")
@@ -30,7 +26,7 @@ def model(dbt, session):
 
     if entries.empty:
         return pd.DataFrame(columns=[
-            "entry_id", "source_file", "description_type", "content",
+            "entry_id", "source_file", "content",
         ])
 
     # Config for material component patterns
@@ -63,7 +59,6 @@ def model(dbt, session):
             rows.append({
                 "entry_id": entry["entry_id"],
                 "source_file": entry["source_file"],
-                "description_type": "original",
                 "content": description,
             })
 

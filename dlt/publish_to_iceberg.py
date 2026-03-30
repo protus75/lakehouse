@@ -18,6 +18,23 @@ from dlt.lib.tabletop_cleanup import _log
 
 DB_PATH = "/workspace/db/lakehouse.duckdb"
 
+# Tables written by enrichment Dagster assets (not dbt/publish).
+# Each pipeline piece owns its own tables — no shared tables.
+ENRICHMENT_TABLES = {
+    "gold_tabletop": [
+        "gold_ai_summaries",
+        "gold_ai_annotations",
+    ],
+}
+
+# Tables written by the dbt_test Dagster asset.
+META_TABLES = {
+    "meta": [
+        "dbt_test_results",
+        "dbt_test_failures",
+    ],
+}
+
 PUBLISH_MAP = {
     "silver_tabletop": [
         "silver_entries",

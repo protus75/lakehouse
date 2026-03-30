@@ -94,26 +94,18 @@ def get_entry_index(entry_title: str, source_file: str) -> dict | None:
 @st.cache_data(ttl=300)
 def get_summary(entry_id: int) -> str | None:
     df = query(
-        "SELECT content FROM gold_tabletop.gold_entry_descriptions "
-        "WHERE entry_id = ? AND description_type = 'summary'",
+        "SELECT summary FROM gold_tabletop.gold_ai_summaries WHERE entry_id = ?",
         [entry_id],
     )
     if df.is_empty():
-        # Fall back to legacy gold_ai_summaries table
-        df = query(
-            "SELECT summary as content FROM gold_tabletop.gold_ai_summaries WHERE entry_id = ?",
-            [entry_id],
-        )
-    if df.is_empty():
         return None
-    return df["content"][0]
+    return df["summary"][0]
 
 
 @st.cache_data(ttl=300)
 def get_description(entry_id: int) -> str | None:
     df = query(
-        "SELECT content FROM gold_tabletop.gold_entry_descriptions "
-        "WHERE entry_id = ? AND description_type = 'original'",
+        "SELECT content FROM gold_tabletop.gold_entry_descriptions WHERE entry_id = ?",
         [entry_id],
     )
     if df.is_empty():

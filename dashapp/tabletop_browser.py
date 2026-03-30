@@ -121,26 +121,17 @@ def _get_tables(source_file):
 def _get_summaries():
     """Return {entry_id: summary}. Empty dict if table doesn't exist yet."""
     try:
-        rows = _query(
-            "SELECT entry_id, content as summary FROM gold_tabletop.gold_entry_descriptions "
-            "WHERE description_type = 'summary'"
-        )
+        rows = _query("SELECT entry_id, summary FROM gold_tabletop.gold_ai_summaries")
         return {r["entry_id"]: r["summary"] for r in rows}
     except Exception:
-        # Fall back to legacy table
-        try:
-            rows = _query("SELECT entry_id, summary FROM gold_tabletop.gold_ai_summaries")
-            return {r["entry_id"]: r["summary"] for r in rows}
-        except Exception:
-            return {}
+        return {}
 
 
 def _get_descriptions():
     """Return {entry_id: content} for original clean descriptions."""
     try:
         rows = _query(
-            "SELECT entry_id, content FROM gold_tabletop.gold_entry_descriptions "
-            "WHERE description_type = 'original'"
+            "SELECT entry_id, content FROM gold_tabletop.gold_entry_descriptions"
         )
         return {r["entry_id"]: r["content"] for r in rows}
     except Exception:
