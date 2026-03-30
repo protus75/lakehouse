@@ -19,5 +19,11 @@ When user says "stop" or "stop everything": `docker stop $(docker ps -q)` FIRST.
 4. Verify: vmmem and com.docker.backend gone from Task Manager
 5. Report RAM/disk/network back to baseline
 
+## No manual docker exec for pipeline work
+NEVER run pipeline scripts via `docker exec`. ALL pipeline steps go through Dagster — enrichment, dbt, publish, everything. The only acceptable `docker exec` is small diagnostic queries for debugging. This is a lakehouse, not a pile of scripts.
+
+**Why:** Manual commands bypass orchestration, lose logging, and can't be monitored via Dagster.
+**How to apply:** Use `python scripts/dagster.py launch <job>` and monitor with `python scripts/dagster.py status <id>`.
+
 ## Save working state aggressively
 During debugging sessions, immediately save bugs, root causes, fixes, and verification status to memory. Include specific entry names, error counts, which validations are real vs false positives. Prevents re-discovery across fresh chats.

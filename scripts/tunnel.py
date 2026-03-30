@@ -15,18 +15,25 @@ import subprocess
 import sys
 import time
 
-import yaml
-
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
-CONFIG_PATH = os.path.join(PROJECT_ROOT, "config", "lakehouse.yaml")
 PID_DIR = os.path.join(PROJECT_ROOT, ".tunnel")
+
+# Config values from config/lakehouse.yaml — no pyyaml dependency
+TUNNEL_CFG = {
+    "name": "gamerules",
+    "id": "f60f5fc0-d2a9-4344-92ce-bb7760bde999",
+    "domain": "gamerules.ai",
+    "credentials_file": "~/.cloudflared/f60f5fc0-d2a9-4344-92ce-bb7760bde999.json",
+}
+DASHAPP_CFG = {
+    "host": "0.0.0.0",
+    "port": 8000,
+}
 
 
 def load_config():
-    with open(CONFIG_PATH) as f:
-        cfg = yaml.safe_load(f)
-    return cfg["tunnel"], cfg["dashapp"]
+    return TUNNEL_CFG, DASHAPP_CFG
 
 
 def pid_file(name):
@@ -57,6 +64,12 @@ def is_running(pid):
     """Check if a process with given PID is running."""
     if pid is None:
         return False
+    if sys.platform == "win32":
+        result = subprocess.run(
+            ["tasklist", "/FI", f"PID eq {pid}"],
+            capture_output=True, text=True,
+        )
+        return str(pid) in result.stdout
     try:
         os.kill(pid, 0)
         return True
@@ -115,8 +128,13 @@ def start_tunnel(tunnel_cfg, dashapp_cfg, background=False):
         return tunnel_pid
 
     creds = os.path.expanduser(tunnel_cfg["credentials_file"])
+    if sys.platform == "win32":
+        exe = r"C:\Program Files (x86)\cloudflared\cloudflared.exe"
+    else:
+        exe = "cloudflared"
     cmd = [
-        "cloudflared", "tunnel",
+        exe, "tunnel",
+        "--no-autoupdate",
         "--url", f"http://localhost:{dashapp_cfg['port']}",
         "--credentials-file", creds,
         "run", tunnel_cfg["name"],
@@ -161,22 +179,66 @@ def cmd_start(background=False):
             cmd_stop()
 
 
-def cmd_stop():
-    # Stop tunnel (local process)
-    tunnel_pid = read_pid("tunnel")
-    if is_running(tunnel_pid):
-        try:
-            if sys.platform == "win32":
-                subprocess.run(["taskkill", "/F", "/PID", str(tunnel_pid)],
-                               capture_output=True)
-            else:
-                os.kill(tunnel_pid, signal.SIGTERM)
-            print(f"Stopped tunnel (PID {tunnel_pid})")
-        except Exception as e:
-            print(f"Failed to stop tunnel (PID {tunnel_pid}): {e}")
+def _kill_pid(pid):
+    """Kill a process by PID. Returns True if killed."""
+    try:
+        if sys.platform == "win32":
+            subprocess.run(["taskkill", "/F", "/PID", str(pid)],
+                           capture_output=True, check=True)
+        else:
+            os.kill(pid, signal.SIGTERM)
+        return True
+    except Exception:
+        return False
+
+
+def _find_cloudflared_pids():
+    """Find all running cloudflared PIDs via tasklist/ps."""
+    pids = []
+    if sys.platform == "win32":
+        result = subprocess.run(
+            ["tasklist", "/FI", "IMAGENAME eq cloudflared.exe", "/FO", "CSV", "/NH"],
+            capture_output=True, text=True,
+        )
+        for line in result.stdout.strip().splitlines():
+            parts = line.split('","')
+            if len(parts) >= 2:
+                try:
+                    pids.append(int(parts[1].strip('"')))
+                except ValueError:
+                    pass
     else:
-        print("Tunnel not running")
+        result = subprocess.run(
+            ["pgrep", "-x", "cloudflared"],
+            capture_output=True, text=True,
+        )
+        for line in result.stdout.strip().splitlines():
+            try:
+                pids.append(int(line))
+            except ValueError:
+                pass
+    return pids
+
+
+def cmd_stop():
+    # Stop tunnel by saved PID first
+    tunnel_pid = read_pid("tunnel")
+    killed_pids = set()
+    if is_running(tunnel_pid):
+        if _kill_pid(tunnel_pid):
+            print(f"Stopped tunnel (PID {tunnel_pid})")
+            killed_pids.add(tunnel_pid)
+        else:
+            print(f"Failed to stop tunnel (PID {tunnel_pid})")
     clear_pid("tunnel")
+
+    # Kill any remaining cloudflared processes (started outside this script)
+    remaining = [p for p in _find_cloudflared_pids() if p not in killed_pids]
+    for pid in remaining:
+        if _kill_pid(pid):
+            print(f"Killed orphan cloudflared (PID {pid})")
+    if not killed_pids and not remaining:
+        print("Tunnel not running")
 
     # Stop Dash app (inside Docker container) via /proc since pkill not installed
     env = _docker_env()

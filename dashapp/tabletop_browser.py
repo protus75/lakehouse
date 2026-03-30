@@ -7,6 +7,7 @@ import sys
 import time
 sys.path.insert(0, "/workspace")
 
+import dash
 from dash import Dash, html, dcc, callback, Input, Output
 from dlt.lib.duckdb_reader import get_reader
 
@@ -452,18 +453,10 @@ app.layout = html.Div([
 ], id="app-container")
 
 
-@callback(
-    Output("toc-nav", "children"),
-    Output("book-content", "children"),
-    Input("book-selector", "value"),
-)
-def update_book(source_file):
-    if not source_file:
-        return [], [html.P("Select a book.")]
-
+def _render_book(source_file):
+    """Render a book's sidebar and content. Uses cache if available."""
     if source_file in _rendered_cache:
-        sidebar, content = _rendered_cache[source_file]
-        return sidebar, content
+        return _rendered_cache[source_file]
 
     t0 = time.time()
     toc = _get_toc(source_file)
@@ -486,6 +479,18 @@ def update_book(source_file):
 
     _rendered_cache[source_file] = (sidebar, result_content)
     return sidebar, result_content
+
+
+@callback(
+    Output("toc-nav", "children"),
+    Output("book-content", "children"),
+    Input("book-selector", "value"),
+)
+def update_book(source_file):
+    if not source_file:
+        return [], [html.P("Select a book.")]
+    sidebar, content = _render_book(source_file)
+    return sidebar, content
 
 
 # Clientside callback — toggles visibility without re-rendering
@@ -527,14 +532,25 @@ app.clientside_callback(
 @callback(
     Output("refresh-status", "children"),
     Output("book-selector", "options"),
+    Output("toc-nav", "children", allow_duplicate=True),
+    Output("book-content", "children", allow_duplicate=True),
     Input("refresh-btn", "n_clicks"),
+    Input("book-selector", "value"),
     prevent_initial_call=True,
 )
-def refresh_data(n_clicks):
+def refresh_data(n_clicks, source_file):
+    from dash import ctx
+    if ctx.triggered_id != "refresh-btn":
+        raise dash.exceptions.PreventUpdate
     _invalidate()
     new_books = _get_books()
     options = [{"label": b.replace(".pdf", ""), "value": b} for b in new_books]
-    return f"Refreshed ({time.strftime('%H:%M:%S')})", options
+    # Re-render current book
+    if source_file:
+        sidebar, content = _render_book(source_file)
+    else:
+        sidebar, content = [], [html.P("Select a book.")]
+    return f"Refreshed ({time.strftime('%H:%M:%S')})", options, sidebar, content
 
 
 # ── CSS ──────────────────────────────────────────────────────
