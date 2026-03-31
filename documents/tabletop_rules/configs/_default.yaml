@@ -244,14 +244,16 @@ table_extraction:
     - Use | to separate columns
     - If the table spans multiple sections, extract only the table rows
     - Output NOTHING except the markdown table
-  # VLM line-level table stripping — identifies which text lines are table content
-  vlm_strip_prompt: |
-    Look at this page from a tabletop RPG rulebook.
-    I will give you the extracted text lines numbered 1 to N.
-    Identify which lines are part of TABLE content — table titles,
-    column headers, data rows, and numeric grids.
-    Return ONLY a JSON array of line numbers to remove.
-    Do NOT include lines that are narrative paragraphs, section headings, or prose.
+  # LLM line classification — text model identifies table lines to strip from entries
+  strip_model: "qwen3:30b-a3b"
+  strip_prompt: |
+    Below are numbered lines extracted from a page of a tabletop RPG rulebook.
+    Some lines are TABLE content: table titles (e.g. "Table 26: ..."),
+    column headers, data rows with aligned numbers/percentages, and numeric grids.
+    Other lines are narrative prose, section headings, or paragraph text.
+
+    Return a JSON array of the line numbers that are TABLE content.
+    ONLY return the JSON array, nothing else.
     Example: [3, 4, 5, 6, 7, 12, 13, 14]
 
 prompts:
