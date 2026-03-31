@@ -4,8 +4,10 @@ description: gold_entry_index needs entry_type='spell' for spell entries — cur
 type: project
 ---
 
-The `gold_entry_index` table has `entry_type` column but all entries are labeled `'rule'` — spells are not distinguished. Spell entries should have `entry_type='spell'`.
+**DONE (2026-03-30).** entry_type classification implemented: spell (486), rule (198), table (69), proficiency (67), class (24).
 
-**Why:** The browser needs to know which entries are spells for the AI Summary toggle (swap summary vs full content). Currently using a workaround: checking if `toc_title` contains "Level Spells". Proper fix is to set `entry_type='spell'` in the gold model so downstream consumers don't need heuristics.
-
-**How to apply:** Update the gold_entry_index dbt model to label spell entries based on their toc section. The `spell_level` and `spell_class` columns in `gold_entries` are populated but `gold_entry_index.entry_type` is not derived from them.
+- spell: from spell_class in silver
+- class: config class_names list + ToC depth inheritance for sub-sections
+- proficiency: authority table whitelist
+- table: is_table flag from ToC
+- rule: default
