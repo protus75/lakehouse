@@ -111,11 +111,73 @@ def region_char_ranges(region, span_map: list) -> list:
 class TableRegion:
     bbox: tuple              # (x0, y0, x1, y1) full region
     header_bbox: tuple       # (x0, y0, x1, y1) header rows only
-    columns: list            # [x0, x0, ...] column anchor positions
+    columns: list            # [(x0, x1), ...] column ranges (midpoint zones)
     row_count: int           # total rows including header
     col_count: int           # number of columns
     header_row_count: int    # number of header rows
     span_indices: list       # indices into the flat span list
+
+
+def extract_table_cells(page, region) -> list:
+    """Extract structured (row_index, col_index, cell_text) tuples from a region.
+
+    Walks all spans inside the region's bbox, groups them by y0 into rows
+    (within row_y_tolerance), and assigns each span to a column based on its
+    x-center vs the region's column ranges. Spans falling outside any column
+    are dropped (column trace already validated they exist).
+
+    Cell text is the concatenation of all spans in that (row, col) bucket,
+    space-joined and stripped.
+    """
+    page_dict = page.get_text("dict")
+    spans = _flatten_spans(page_dict)
+    rx0, ry0, rx1, ry1 = region.bbox
+
+    # Collect spans inside the region bbox
+    inside = []
+    for s in spans:
+        sx0, sy0, sx1, sy1 = s["bbox"]
+        cx = (sx0 + sx1) / 2
+        cy = (sy0 + sy1) / 2
+        if rx0 <= cx <= rx1 and ry0 <= cy <= ry1:
+            inside.append(s)
+
+    if not inside:
+        return []
+
+    # Group into rows by y0 (3pt tolerance — same default as detector)
+    inside.sort(key=lambda s: (s["bbox"][1], s["bbox"][0]))
+    rows = []
+    current = [inside[0]]
+    cy = inside[0]["bbox"][1]
+    for s in inside[1:]:
+        if abs(s["bbox"][1] - cy) <= 3.0:
+            current.append(s)
+        else:
+            rows.append(sorted(current, key=lambda x: x["bbox"][0]))
+            current = [s]
+            cy = s["bbox"][1]
+    rows.append(sorted(current, key=lambda x: x["bbox"][0]))
+
+    # Assign each span to a column
+    cells = {}  # (row_idx, col_idx) -> [text, ...]
+    for ri, row in enumerate(rows):
+        for s in row:
+            sx_center = (s["bbox"][0] + s["bbox"][2]) / 2
+            col_idx = None
+            for ci, (c0, c1) in enumerate(region.columns):
+                if c0 <= sx_center <= c1:
+                    col_idx = ci
+                    break
+            if col_idx is None:
+                continue
+            cells.setdefault((ri, col_idx), []).append(s["text"])
+
+    return [
+        (ri, ci, " ".join(parts).strip())
+        for (ri, ci), parts in sorted(cells.items())
+        if " ".join(parts).strip()
+    ]
 
 
 def _flatten_spans(page_dict: dict) -> list:

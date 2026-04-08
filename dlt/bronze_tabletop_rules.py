@@ -46,6 +46,9 @@ BRONZE_TABLES = [
     "toc_raw",
     "known_entries_raw",
     "tables_raw",
+    "table_regions",
+    "table_cells",
+    "page_text_masks",
     "authority_table_entries",
     "spell_list_entries",
     "watermarks",
@@ -1519,6 +1522,102 @@ def config_hash(config: dict) -> str:
     return hashlib.sha256(json.dumps(config, sort_keys=True).encode()).hexdigest()[:16]
 
 
+# ── Font-switch table region detection (Phase 3) ─────────────────
+
+def detect_all_regions(filepath: Path, page_printed: dict[int, int],
+                       toc_sections: list[dict],
+                       config: dict) -> tuple[list[dict], list[dict], list[dict]]:
+    """Run font-switch table detection on every non-excluded page in the PDF.
+
+    Returns (regions, cells, masks) where each is a list of dicts ready to
+    write to bronze tables. Skips pages covered by an excluded ToC section.
+    Returns empty lists if table_detection is disabled in the config.
+    """
+    from dlt.lib.table_regions import (
+        detect_table_regions, extract_table_cells,
+        extract_page_text_with_span_map, region_char_ranges,
+    )
+
+    td_cfg = config.get("table_detection", {})
+    if not td_cfg.get("enabled", False):
+        _log("  Table regions: detection disabled in config")
+        return [], [], []
+
+    # Build excluded printed-page set from ToC
+    excluded_pages = set()
+    for s in toc_sections:
+        if s.get("is_excluded"):
+            ps = s.get("page_start", 0)
+            pe = min(s.get("page_end", ps), 9999)
+            for p in range(ps, pe + 1):
+                excluded_pages.add(p)
+
+    sf = filepath.name
+    regions_out: list[dict] = []
+    cells_out: list[dict] = []
+    masks_out: list[dict] = []
+
+    doc = fitz.open(str(filepath))
+    try:
+        for page_idx in range(len(doc)):
+            printed = page_printed.get(page_idx, page_idx)
+            if printed in excluded_pages:
+                continue
+            page = doc[page_idx]
+            regions = detect_table_regions(page, td_cfg)
+            if not regions:
+                continue
+            _, span_map = extract_page_text_with_span_map(page)
+
+            # Coalesce char ranges across all regions on this page
+            raw_ranges = []
+            for r in regions:
+                raw_ranges.extend(region_char_ranges(r, span_map))
+            raw_ranges.sort()
+            page_ranges = []
+            for s, e in raw_ranges:
+                if page_ranges and s <= page_ranges[-1][1]:
+                    page_ranges[-1] = (page_ranges[-1][0], max(page_ranges[-1][1], e))
+                else:
+                    page_ranges.append((s, e))
+
+            for char_start, char_end in page_ranges:
+                masks_out.append({
+                    "source_file": sf, "page_index": page_idx,
+                    "printed_page_num": printed,
+                    "char_start": char_start, "char_end": char_end,
+                    "reason": "table_region",
+                })
+
+            for ri, region in enumerate(regions):
+                bbox = region.bbox
+                hbbox = region.header_bbox
+                regions_out.append({
+                    "source_file": sf, "page_index": page_idx,
+                    "printed_page_num": printed, "region_index": ri,
+                    "bbox_x0": float(bbox[0]), "bbox_y0": float(bbox[1]),
+                    "bbox_x1": float(bbox[2]), "bbox_y1": float(bbox[3]),
+                    "header_bbox_x0": float(hbbox[0]), "header_bbox_y0": float(hbbox[1]),
+                    "header_bbox_x1": float(hbbox[2]), "header_bbox_y1": float(hbbox[3]),
+                    "row_count": region.row_count, "col_count": region.col_count,
+                    "header_row_count": region.header_row_count,
+                    "detection_method": "font_switch",
+                })
+                for row_idx, col_idx, text in extract_table_cells(page, region):
+                    cells_out.append({
+                        "source_file": sf, "page_index": page_idx,
+                        "region_index": ri, "row_index": row_idx,
+                        "col_index": col_idx, "cell_text": text,
+                    })
+    finally:
+        doc.close()
+
+    pages_with_regions = len({(r["page_index"]) for r in regions_out})
+    _log(f"  Table regions: {len(regions_out)} regions on {pages_with_regions} pages, "
+         f"{len(cells_out)} cells, {len(masks_out)} mask ranges")
+    return regions_out, cells_out, masks_out
+
+
 # ── Store to Bronze ──────────────────────────────────────────────
 
 def store_bronze(filepath: Path, config: dict, run_id: str,
@@ -1526,7 +1625,10 @@ def store_bronze(filepath: Path, config: dict, run_id: str,
                  markdown: str, toc_sections: list[dict],
                  known_entries: list[dict], spell_list: list[dict],
                  all_tables: list[dict], authority_entries: list[dict],
-                 watermarks: dict[str, int]) -> None:
+                 watermarks: dict[str, int],
+                 table_regions: list[dict] | None = None,
+                 table_cells: list[dict] | None = None,
+                 page_text_masks: list[dict] | None = None) -> None:
     """Write all raw extraction data to bronze Iceberg tables on S3."""
     now = datetime.now(timezone.utc)
     sf = filepath.name
@@ -1599,6 +1701,18 @@ def store_bronze(filepath: Path, config: dict, run_id: str,
             })
     if table_rows:
         write_iceberg(NAMESPACE, "tables_raw", pa.Table.from_pylist(table_rows), **ow)
+
+    # Font-switch table regions / cells / page masks (Phase 3)
+    # Always write to refresh the tables — empty when detection is disabled.
+    if table_regions:
+        rows = [{**r, "run_id": run_id} for r in table_regions]
+        write_iceberg(NAMESPACE, "table_regions", pa.Table.from_pylist(rows), **ow)
+    if table_cells:
+        rows = [{**c, "run_id": run_id} for c in table_cells]
+        write_iceberg(NAMESPACE, "table_cells", pa.Table.from_pylist(rows), **ow)
+    if page_text_masks:
+        rows = [{**m, "run_id": run_id} for m in page_text_masks]
+        write_iceberg(NAMESPACE, "page_text_masks", pa.Table.from_pylist(rows), **ow)
 
     # Authority table entries
     if authority_entries:
@@ -1803,10 +1917,20 @@ def extract_pdf(filepath: Path, force: bool = False) -> None:
         watermarks = detect_watermarks(page_texts)
         step(f"Watermarks: {len(watermarks)}")
 
+        # 8b. Font-switch table region detection (Phase 3, runs alongside the
+        # legacy extract_all_tables until Phase 6 deletes the old path)
+        table_regions, table_cells, page_text_masks = detect_all_regions(
+            filepath, page_printed, toc_sections, config
+        )
+        step(f"Table regions: {len(table_regions)}")
+
         # 9. Store everything
         store_bronze(filepath, config, run_id, page_texts, page_printed,
                      markdown, toc_sections, known_entries, spell_list,
-                     all_tables, authority_entries, watermarks)
+                     all_tables, authority_entries, watermarks,
+                     table_regions=table_regions,
+                     table_cells=table_cells,
+                     page_text_masks=page_text_masks)
         step("Stored")
 
         # Complete the run
@@ -1814,6 +1938,9 @@ def extract_pdf(filepath: Path, force: bool = False) -> None:
             "page_texts": len(page_texts), "toc_raw": len(toc_sections),
             "known_entries_raw": len(known_entries), "spell_list_entries": len(spell_list),
             "tables_raw": sum(len(t["rows"]) for t in all_tables),
+            "table_regions": len(table_regions),
+            "table_cells": len(table_cells),
+            "page_text_masks": len(page_text_masks),
             "authority_table_entries": len(authority_entries), "watermarks": len(watermarks),
         }
         finish_run(run_id, "success", row_counts)

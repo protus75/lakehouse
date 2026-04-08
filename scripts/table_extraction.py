@@ -730,6 +730,80 @@ print(json.dumps(results, ensure_ascii=False))
         print(f"  page {printed}: regions={r['regions']} masked={r['masked_chars']}/{r['orig_len']} chars -> {out_path}")
 
 
+# ── Subcommand: dry-bronze ─────────────────────────────────────────
+
+def cmd_dry_bronze(args):
+    py = f"""
+import sys, json, io, contextlib
+sys.path.insert(0, "/workspace")
+from pathlib import Path
+import yaml
+
+from dlt.bronze_tabletop_rules import detect_all_regions, extract_page_texts
+from dlt.lib.duckdb_reader import get_reader
+
+PDF = {PDF_PATH!r}
+CONFIG_PATH = {CONFIG_PATH!r}
+with open(CONFIG_PATH) as f:
+    cfg = yaml.safe_load(f)
+
+# Load page_printed from bronze (avoid re-running pymupdf page-number scan)
+c = get_reader(["bronze_tabletop"])
+rows = c.execute(
+    "SELECT page_index, printed_page_num FROM bronze_tabletop.page_texts ORDER BY page_index"
+).fetchall()
+page_printed = {{r[0]: r[1] for r in rows}}
+
+# Load toc_sections from bronze
+toc_rows = c.execute(
+    "SELECT title, page_start, page_end, depth, is_chapter, is_table, is_excluded "
+    "FROM bronze_tabletop.toc_raw"
+).fetchall()
+toc_sections = [
+    {{"title": r[0], "page_start": r[1], "page_end": r[2], "depth": r[3],
+      "is_chapter": r[4], "is_table": r[5], "is_excluded": r[6]}}
+    for r in toc_rows
+]
+
+_buf = io.StringIO()
+with contextlib.redirect_stdout(_buf), contextlib.redirect_stderr(_buf):
+    regions, cells, masks = detect_all_regions(
+        Path(PDF), page_printed, toc_sections, cfg
+    )
+sys.stderr.write(_buf.getvalue())
+
+# Stats
+pages_with_regions = len({{r["page_index"] for r in regions}})
+print(json.dumps({{
+    "regions": len(regions),
+    "cells": len(cells),
+    "masks": len(masks),
+    "pages_with_regions": pages_with_regions,
+    "sample_region": regions[0] if regions else None,
+    "sample_cells": cells[:5],
+    "sample_mask": masks[0] if masks else None,
+}}, ensure_ascii=False, default=str))
+"""
+    out = _run_in_container(py)
+    data = json.loads(out)
+    print("=== detect_all_regions dry run ===")
+    print(f"  pages_with_regions: {data['pages_with_regions']}")
+    print(f"  regions:            {data['regions']}")
+    print(f"  cells:              {data['cells']}")
+    print(f"  masks:              {data['masks']}")
+    print()
+    if data["sample_region"]:
+        print("sample region:")
+        for k, v in data["sample_region"].items():
+            print(f"  {k}: {v}")
+    if data["sample_cells"]:
+        print("\nsample cells:")
+        for c in data["sample_cells"]:
+            print(f"  {c}")
+    if data["sample_mask"]:
+        print(f"\nsample mask: {data['sample_mask']}")
+
+
 # ── Main ───────────────────────────────────────────────────────────
 
 def main():
@@ -767,6 +841,10 @@ def main():
         help="dump masked vs original page text for a few ToC table pages")
     p_mask.add_argument("pages", nargs="+", type=int, help="printed page numbers")
     p_mask.set_defaults(func=cmd_mask)
+
+    p_dr = sub.add_parser("dry-bronze",
+        help="dry-run detect_all_regions and report counts (no Iceberg writes)")
+    p_dr.set_defaults(func=cmd_dry_bronze)
 
     args = p.parse_args()
     args.func(args)

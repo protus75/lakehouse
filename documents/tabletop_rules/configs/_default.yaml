@@ -19,6 +19,9 @@ lineage:
     - known_entries_raw
     - spell_list_entries
     - tables_raw
+    - table_regions
+    - table_cells
+    - page_text_masks
     - authority_table_entries
     - watermarks
     - ocr_issues
