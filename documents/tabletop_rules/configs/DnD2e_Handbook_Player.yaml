@@ -192,6 +192,25 @@ table_hints:
   "Armor":
     content_marker: "| Banded mail"
 
+# Font-switch table detection — onboarded via scripts/probe_pymupdf_fonts.py
+# Body text uses Formata-Light 9.5; table headers use Formata-Regular 9.5
+# (same family/size, regular weight not light). See .claude-memory/project_table_extraction.md
+table_detection:
+  enabled: true
+  body_font: Formata-Light
+  body_size: 9.5
+  header_font: Formata-Regular
+  header_size: 9.5
+  header_bold: false
+  # cell_font null = data rows use body font, trace columns down from header
+  cell_font: null
+  min_columns: 2
+  min_rows: 2
+  # Tolerances (PDF points)
+  row_y_tolerance: 3.0      # words within this y-delta are same row
+  cluster_y_gap: 15.0       # max vertical gap between header rows in one cluster
+  column_x_tolerance: 5.0   # word x0 within this delta = same column
+
 validation:
   spell_toc_patterns:
     - "Appendix 3: Wizard Spells"
