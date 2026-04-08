@@ -138,3 +138,22 @@ def list_tables(namespace: str) -> list[str]:
     catalog = get_catalog()
     ensure_namespace(catalog, namespace)
     return [t[1] for t in catalog.list_tables(namespace)]
+
+
+def list_namespaces() -> list[str]:
+    """Return all namespaces present in the catalog."""
+    catalog = get_catalog()
+    return [ns[0] for ns in catalog.list_namespaces()]
+
+
+def list_all_tables() -> dict[str, list[str]]:
+    """Return {namespace: [table_name, ...]} for every namespace in the catalog.
+
+    Use this anywhere code needs "what tables exist". Never hardcode the answer.
+    """
+    catalog = get_catalog()
+    result: dict[str, list[str]] = {}
+    for ns_tuple in catalog.list_namespaces():
+        ns = ns_tuple[0]
+        result[ns] = [t[1] for t in catalog.list_tables(ns)]
+    return result

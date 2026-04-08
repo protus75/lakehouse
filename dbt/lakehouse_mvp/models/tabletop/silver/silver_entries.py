@@ -147,8 +147,10 @@ def model(dbt, session):
                 page_text_masks.setdefault(pp, []).append(
                     (int(r["char_start"]), int(r["char_end"]))
                 )
-        except Exception:
-            pass
+            print(f"  page_text_masks loaded: {len(page_text_masks)} pages, "
+                  f"{sum(len(v) for v in page_text_masks.values())} ranges", flush=True)
+        except Exception as e:
+            print(f"  page_text_masks load FAILED: {type(e).__name__}: {e}", flush=True)
 
         # Build entries from page texts
         entries = build_entries_from_pages(

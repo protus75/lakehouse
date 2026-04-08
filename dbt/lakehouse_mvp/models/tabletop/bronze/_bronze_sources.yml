@@ -12,6 +12,9 @@ sources:
       - name: spell_list_entries
       - name: watermarks
       - name: tables_raw
+      - name: table_regions
+      - name: table_cells
+      - name: page_text_masks
       - name: authority_table_entries
       - name: validation_results
       - name: ocr_issues

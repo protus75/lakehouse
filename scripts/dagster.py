@@ -138,21 +138,34 @@ def cmd_logs(run_id: str, n: int = 20):
         ... on EventConnection {{ events {{
             __typename
             ... on MessageEvent {{ message }}
-            ... on ExecutionStepFailureEvent {{ stepKey error {{ message stack }} }}
+            ... on ExecutionStepFailureEvent {{ stepKey error {{
+                message stack
+                cause {{ message stack
+                    cause {{ message stack }}
+                }}
+            }} }}
         }} }}
     }} }}'''
     events = gql(q)["data"]["logsForRun"]["events"]
     msgs = []
     errors = []
+
+    def _format_err(err, indent=""):
+        out = [f"{indent}{err['message'].rstrip()}"]
+        for line in (err.get("stack") or []):
+            out.append(f"{indent}  {line.rstrip()}")
+        if err.get("cause"):
+            out.append(f"{indent}--- caused by ---")
+            out.extend(_format_err(err["cause"], indent))
+        return out
+
     for e in events:
         if e.get("message"):
             msgs.append(e["message"])
         if e.get("error"):
             step = e.get("stepKey", "?")
             errors.append(f"\n!! STEP FAILED: {step}")
-            errors.append(e["error"]["message"])
-            for line in (e["error"].get("stack") or []):
-                errors.append(f"  {line.rstrip()}")
+            errors.extend(_format_err(e["error"]))
     for m in msgs[-n:]:
         print(m)
     for e in errors:
@@ -230,12 +243,16 @@ def cmd_errors(run_id: str):
             stderr = None
 
         if not stderr:
-            # Fall back to reading compute log files from the container
+            # Fall back to reading compute log files from the container.
+            # Search by step key and run_id prefix; dump both stdout and stderr.
             env = {**subprocess.os.environ, "MSYS_NO_PATHCONV": "1"}
             result = subprocess.run(
                 ["docker", "exec", CONTAINER, "bash", "-c",
-                 f"find /workspace/dagster -path '*{run_id[:8]}*{step}*' -name '*.err' "
-                 f"-exec cat {{}} \\; 2>/dev/null"],
+                 f"find /workspace/dagster -name '*{step}*' -name '*.err' "
+                 f"-newer /tmp/.dockerenv -exec cat {{}} \\; 2>/dev/null; "
+                 f"echo ---OUT---; "
+                 f"find /workspace/dagster -name '*{step}*' -name '*.out' "
+                 f"-newer /tmp/.dockerenv -exec tail -200 {{}} \\; 2>/dev/null"],
                 capture_output=True, text=True, env=env,
             )
             stderr = result.stdout.strip()
@@ -247,6 +264,35 @@ def cmd_errors(run_id: str):
             print(stderr)
         else:
             print("(no stderr captured)")
+
+
+def cmd_dbt_logs(n: int = 100):
+    """Dump the last N lines of /workspace/dbt/lakehouse_mvp/logs/dbt.log."""
+    env = {**subprocess.os.environ, "MSYS_NO_PATHCONV": "1"}
+    result = subprocess.run(
+        ["docker", "exec", WORKSPACE, "bash", "-c",
+         f"tail -n {n} /workspace/dbt/lakehouse_mvp/logs/dbt.log 2>&1"],
+        capture_output=True, text=True, env=env,
+    )
+    sys.stdout.write(result.stdout)
+    if result.returncode != 0:
+        sys.stderr.write(result.stderr)
+
+
+def cmd_dbt_clean():
+    """Force-clean dbt's target/ and partial-parsing cache so the next run does
+    a full parse. Use after editing dbt sources/schema yml files."""
+    env = {**subprocess.os.environ, "MSYS_NO_PATHCONV": "1"}
+    result = subprocess.run(
+        ["docker", "exec", WORKSPACE, "bash", "-c",
+         "rm -rf /workspace/dbt/lakehouse_mvp/target "
+         "/workspace/dbt/lakehouse_mvp/partial_parse.msgpack 2>&1; "
+         "echo cleaned"],
+        capture_output=True, text=True, env=env,
+    )
+    sys.stdout.write(result.stdout)
+    if result.returncode != 0:
+        sys.stderr.write(result.stderr)
 
 
 def cmd_query(sql: str):
@@ -410,17 +456,15 @@ def cmd_catalog(clean: bool = False):
 import sys, json
 sys.path.insert(0, "/workspace")
 from pathlib import Path
-from dlt.lib.iceberg_catalog import get_catalog, list_tables, ensure_namespace, _load_config
+from dlt.lib.iceberg_catalog import get_catalog, list_all_tables, _load_config
 
 cfg = _load_config()
 warehouse = Path(cfg["catalog"]["warehouse"])
-namespaces = list(cfg["namespaces"].values())
 catalog = get_catalog()
 
 results = []
-for ns in namespaces:
-    ensure_namespace(catalog, ns)
-    for tname in list_tables(ns):
+for ns, tables in list_all_tables().items():
+    for tname in tables:
         table_dir = warehouse / ns / tname
         has_data = table_dir.exists() and any(table_dir.rglob("*.parquet"))
         has_metadata = table_dir.exists() and any(table_dir.rglob("*.metadata.json"))
@@ -763,6 +807,10 @@ if __name__ == "__main__":
                 cmd_cancel(args[1])
         elif cmd == "errors":
             cmd_errors(args[1])
+        elif cmd == "dbt-logs":
+            cmd_dbt_logs(int(args[1]) if len(args) > 1 else 100)
+        elif cmd == "dbt-clean":
+            cmd_dbt_clean()
         elif cmd == "catalog":
             cmd_catalog(clean="clean" in args[1:])
         elif cmd == "query":
