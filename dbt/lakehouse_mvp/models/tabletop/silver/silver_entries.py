@@ -133,10 +133,27 @@ def model(dbt, session):
         ))
         pdf_path = Path("/workspace/documents/tabletop_rules/raw") / sf
 
+        # Load font-switch table masks (Phase 4) — char ranges to blank out of
+        # page_texts before entry building. Replaces the old VLM strip pass.
+        page_text_masks: dict[int, list[tuple[int, int]]] = {}
+        try:
+            mask_df = session.execute(
+                f"SELECT printed_page_num, char_start, char_end "
+                f"FROM bronze_tabletop.page_text_masks WHERE source_file = '{sf}' "
+                f"ORDER BY printed_page_num, char_start"
+            ).fetchdf()
+            for _, r in mask_df.iterrows():
+                pp = int(r["printed_page_num"])
+                page_text_masks.setdefault(pp, []).append(
+                    (int(r["char_start"]), int(r["char_end"]))
+                )
+        except Exception:
+            pass
+
         # Build entries from page texts
         entries = build_entries_from_pages(
             toc_all, page_texts, spell_list, authority_entries, config, watermarks,
-            tables_raw, pdf_path, page_index_map
+            tables_raw, pdf_path, page_index_map, page_text_masks
         )
 
         # Collect sub-headings

@@ -623,6 +623,7 @@ def build_entries_from_pages(
     tables_raw: list[dict] | None = None,
     filepath=None,
     page_index_map: dict[int, int] | None = None,
+    page_text_masks: dict[int, list[tuple[int, int]]] | None = None,
 ) -> list[dict]:
     """Build entries by slicing pymupdf page_texts using ToC page ranges.
 
@@ -699,6 +700,29 @@ def build_entries_from_pages(
             i += 1
         return "\n".join(result)
 
+    # Apply font-switch table masks (Phase 4): blank out char ranges from
+    # bronze.page_text_masks before any other processing. The mask offsets
+    # were computed against the raw page_texts strings stored in bronze, so
+    # this MUST happen before line stripping or hyphen rejoining alters them.
+    if page_text_masks:
+        masked_texts = {}
+        total_blanked = 0
+        for pnum, text in page_texts.items():
+            ranges = page_text_masks.get(pnum)
+            if not ranges:
+                masked_texts[pnum] = text
+                continue
+            chars = list(text)
+            for s, e in ranges:
+                for i in range(s, min(e, len(chars))):
+                    if chars[i] != "\n":
+                        chars[i] = " "
+                        total_blanked += 1
+            masked_texts[pnum] = "".join(chars)
+        page_texts = masked_texts
+        _log(f"  Page text masks: {total_blanked} chars blanked across "
+             f"{sum(1 for r in page_text_masks.values() if r)} pages")
+
     # Strip watermarks, page numbers, and rejoin hyphenated lines
     clean_pages = {}
     for pnum, text in page_texts.items():
@@ -719,9 +743,9 @@ def build_entries_from_pages(
             cleaned.append(l)
         clean_pages[pnum] = _rejoin_page_text("\n".join(cleaned))
 
-    # Strip table content from pages using VLM (tables in PDFs are just formatted
-    # text — no string matching can reliably find boundaries)
-    if filepath and page_index_map:
+    # Legacy VLM table-page stripping. Skipped when font-switch masks have
+    # already been applied above (Phase 4). Phase 6 deletes this branch.
+    if not page_text_masks and filepath and page_index_map:
         table_pages = set()
         for t in toc_all:
             if t.get("is_table") and not t.get("is_excluded"):
