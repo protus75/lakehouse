@@ -933,7 +933,8 @@ The stack currently writes Iceberg data to a local filesystem path (`/lakehouse-
 5. **`dbt/lakehouse_mvp/dbt_project.yml`** — Update `vars.warehouse_path` to the `s3://` warehouse URL.
 6. **`docker/requirements-base.txt`** — Add `boto3`, `s3fs`, and change pyiceberg extras to `pyiceberg[s3fs,duckdb,sql-postgres]`.
 7. **`docker/docker-compose.yml`** — Remove the local `F:/lakehouse/data:/lakehouse-data` volume mount. Add S3 credential env vars if needed by any service.
-8. Re-run the pipeline — it will populate the new S3 warehouse from scratch.
+8. **Clean the catalog** — Old catalog entries point to the previous warehouse location. Run `python scripts/dagster.py catalog clean` to drop stale entries before re-running the pipeline.
+9. Re-run the pipeline — it will populate the new S3 warehouse from scratch.
 
 ---
 

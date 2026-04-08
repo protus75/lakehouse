@@ -7,6 +7,12 @@ Usage:
     python scripts/dagster.py status <run_id>
     python scripts/dagster.py logs <run_id> [N]
     python scripts/dagster.py cancel <run_id>
+    python scripts/dagster.py errors <run_id>    Show compute stderr for failed steps
+    python scripts/dagster.py catalog            List all catalog tables + check data on disk
+    python scripts/dagster.py catalog clean      Drop catalog entries with no data on disk
+    python scripts/dagster.py query <sql>         Run a SQL query via DuckDB reader
+    python scripts/dagster.py unload              Unload all Ollama models from GPU
+    python scripts/dagster.py preflight           Check all prerequisites before pipeline run
     python scripts/dagster.py reset              Clear caches + restart Dagster
     python scripts/dagster.py reload
     python scripts/dagster.py jobs
@@ -120,22 +126,54 @@ def cmd_run(job: str, force: bool = False):
 
 
 def cmd_status(run_id: str):
+    run_id = _resolve_run_id(run_id)
     q = f'{{ runOrError(runId: "{run_id}") {{ ... on Run {{ status startTime endTime }} }} }}'
     d = gql(q)["data"]["runOrError"]
     print(f"Status: {d['status']}")
 
 
 def cmd_logs(run_id: str, n: int = 20):
-    q = f'''{{ logsForRun(runId: "{run_id}", afterCursor: null, limit: 200) {{
-        ... on EventConnection {{ events {{ ... on MessageEvent {{ message }} }} }}
+    run_id = _resolve_run_id(run_id)
+    q = f'''{{ logsForRun(runId: "{run_id}", afterCursor: null, limit: {n}) {{
+        ... on EventConnection {{ events {{
+            __typename
+            ... on MessageEvent {{ message }}
+            ... on ExecutionStepFailureEvent {{ stepKey error {{ message stack }} }}
+        }} }}
     }} }}'''
     events = gql(q)["data"]["logsForRun"]["events"]
-    msgs = [e["message"] for e in events if e.get("message")]
+    msgs = []
+    errors = []
+    for e in events:
+        if e.get("message"):
+            msgs.append(e["message"])
+        if e.get("error"):
+            step = e.get("stepKey", "?")
+            errors.append(f"\n!! STEP FAILED: {step}")
+            errors.append(e["error"]["message"])
+            for line in (e["error"].get("stack") or []):
+                errors.append(f"  {line.rstrip()}")
     for m in msgs[-n:]:
         print(m)
+    for e in errors:
+        print(e)
+
+
+def _resolve_run_id(partial: str) -> str:
+    """Resolve a partial run ID to a full one."""
+    q = '{ runsOrError(limit: 20) { ... on Runs { results { runId status } } } }'
+    runs = gql(q)["data"]["runsOrError"]["results"]
+    matches = [r["runId"] for r in runs if r["runId"].startswith(partial)]
+    if len(matches) == 1:
+        return matches[0]
+    if len(matches) > 1:
+        print(f"Ambiguous partial ID '{partial}', matches: {matches}")
+        sys.exit(1)
+    return partial  # try as-is
 
 
 def cmd_cancel(run_id: str):
+    run_id = _resolve_run_id(run_id)
     q = f'''mutation {{ terminateRun(runId: "{run_id}", terminatePolicy: MARK_AS_CANCELED_IMMEDIATELY) {{
         __typename
         ... on TerminateRunSuccess {{ run {{ status }} }}
@@ -143,9 +181,294 @@ def cmd_cancel(run_id: str):
     }} }}'''
     d = gql(q)["data"]["terminateRun"]
     if d["__typename"] == "TerminateRunSuccess":
-        print(f"Cancelled: {d['run']['status']}")
+        print(f"Cancelled {run_id[:12]}: {d['run']['status']}")
     else:
         print(f"Error: {d.get('message', d['__typename'])}")
+
+
+def cmd_cancel_all():
+    """Cancel all running/queued pipeline runs."""
+    q = '{ runsOrError(limit: 20) { ... on Runs { results { runId status } } } }'
+    runs = gql(q)["data"]["runsOrError"]["results"]
+    active = [r for r in runs if r["status"] in ("STARTED", "QUEUED", "STARTING")]
+    if not active:
+        print("No active runs to cancel")
+        return
+    for r in active:
+        cmd_cancel(r["runId"])
+
+
+def cmd_errors(run_id: str):
+    """Show compute stderr for all failed steps in a run."""
+    run_id = _resolve_run_id(run_id)
+    q = f'''{{ runOrError(runId: "{run_id}") {{
+        ... on Run {{
+            stepStats {{
+                stepKey
+                status
+            }}
+        }}
+    }} }}'''
+    stats = gql(q)["data"]["runOrError"]["stepStats"]
+    failed = [s["stepKey"] for s in stats if s["status"] == "FAILURE"]
+    if not failed:
+        print("No failed steps")
+        return
+
+    for step in failed:
+        q2 = f'''{{ runOrError(runId: "{run_id}") {{
+            ... on Run {{
+                capturedLogs(fileKey: "{step}") {{
+                    stderr
+                }}
+            }}
+        }} }}'''
+        try:
+            data = gql(q2)["data"]["runOrError"]["capturedLogs"]
+            stderr = data.get("stderr") if data else None
+        except Exception:
+            stderr = None
+
+        if not stderr:
+            # Fall back to reading compute log files from the container
+            env = {**subprocess.os.environ, "MSYS_NO_PATHCONV": "1"}
+            result = subprocess.run(
+                ["docker", "exec", CONTAINER, "bash", "-c",
+                 f"find /workspace/dagster -path '*{run_id[:8]}*{step}*' -name '*.err' "
+                 f"-exec cat {{}} \\; 2>/dev/null"],
+                capture_output=True, text=True, env=env,
+            )
+            stderr = result.stdout.strip()
+
+        print(f"\n{'='*60}")
+        print(f"STEP FAILED: {step}")
+        print(f"{'='*60}")
+        if stderr:
+            print(stderr)
+        else:
+            print("(no stderr captured)")
+
+
+def cmd_query(sql: str):
+    """Run a SQL query via the DuckDB reader."""
+    code = f'''
+import sys, json
+sys.path.insert(0, "/workspace")
+from dlt.lib.duckdb_reader import get_reader
+conn = get_reader()
+result = conn.execute({sql!r}).fetchall()
+cols = [d[0] for d in conn.description]
+types = [str(d[1]) for d in conn.description]
+print(json.dumps({{"columns": cols, "types": types, "rows": [[str(c)[:200] for c in r] for r in result[:20]]}}))
+'''
+    raw = _docker_py(code)
+    if raw.startswith("ERROR:"):
+        print(raw)
+        return
+    try:
+        data = json.loads(raw)
+    except Exception:
+        print(raw)
+        return
+    print(f"Columns: {data['columns']}")
+    print(f"Types:   {data['types']}")
+    print(f"Rows ({len(data['rows'])}):")
+    for r in data["rows"]:
+        print(f"  {r}")
+
+
+def cmd_unload():
+    """Unload all Ollama models from GPU memory."""
+    from urllib.request import urlopen, Request
+    from urllib.error import URLError
+
+    try:
+        resp = urlopen("http://localhost:11434/api/tags", timeout=5)
+        models = [m["name"] for m in json.loads(resp.read()).get("models", [])]
+    except (URLError, OSError) as e:
+        print(f"Ollama not reachable: {e}")
+        return
+
+    for model in models:
+        try:
+            req = Request(
+                "http://localhost:11434/api/generate",
+                data=json.dumps({"model": model, "keep_alive": 0}).encode(),
+                headers={"Content-Type": "application/json"},
+            )
+            urlopen(req, timeout=10)
+            print(f"  Unloaded {model}")
+        except Exception as e:
+            print(f"  Failed to unload {model}: {e}")
+
+    print("All models unloaded from GPU")
+
+
+def cmd_preflight():
+    """Check all prerequisites before a pipeline run."""
+    from urllib.request import urlopen, Request
+    from urllib.error import URLError
+    problems = []
+
+    # 1. Docker containers running
+    print("Checking Docker containers...")
+    for c in ["lakehouse-dagster-webserver", "lakehouse-dagster-daemon",
+              "lakehouse-workspace", "lakehouse-postgres"]:
+        result = subprocess.run(
+            ["docker", "inspect", "-f", "{{.State.Running}}", c],
+            capture_output=True, text=True,
+        )
+        running = result.stdout.strip() == "true"
+        status = "OK" if running else "DOWN"
+        marker = "  " if running else "!!"
+        print(f"  {marker} {c:40s} {status}")
+        if not running:
+            problems.append(f"{c} is not running")
+
+    # 2. Ollama API
+    print("Checking Ollama...")
+    try:
+        resp = urlopen("http://localhost:11434/api/tags", timeout=5)
+        models = [m["name"] for m in json.loads(resp.read()).get("models", [])]
+        print(f"     Ollama running, {len(models)} models loaded")
+        # Check required models from config
+        required = _docker_py('''
+import sys, json; sys.path.insert(0, "/workspace")
+import yaml
+with open("/workspace/config/lakehouse.yaml") as f:
+    cfg = yaml.safe_load(f)
+print(json.dumps(cfg.get("models", {}).get("ollama", {}).get("models", [])))
+''')
+        try:
+            required_models = json.loads(required)
+        except Exception:
+            required_models = []
+        for rm in required_models:
+            found = any(rm in m for m in models)
+            marker = "  " if found else "!!"
+            status = "OK" if found else "MISSING"
+            print(f"  {marker} {rm:40s} {status}")
+            if not found:
+                problems.append(f"Ollama model {rm} not loaded")
+    except (URLError, OSError) as e:
+        print(f"  !! Ollama not reachable: {e}")
+        problems.append("Ollama is not running")
+
+    # 3. Warehouse directory
+    print("Checking warehouse...")
+    warehouse = _docker_py('''
+import sys, json; sys.path.insert(0, "/workspace")
+import yaml; from pathlib import Path
+with open("/workspace/config/lakehouse.yaml") as f:
+    cfg = yaml.safe_load(f)
+w = Path(cfg["catalog"]["warehouse"])
+print(json.dumps({"path": str(w), "exists": w.exists()}))
+''')
+    try:
+        wh = json.loads(warehouse)
+        marker = "  " if wh["exists"] else "!!"
+        status = "OK" if wh["exists"] else "MISSING"
+        print(f"  {marker} {wh['path']:40s} {status}")
+        if not wh["exists"]:
+            problems.append(f"Warehouse directory {wh['path']} does not exist")
+    except Exception:
+        print(f"  !! Could not check warehouse: {warehouse}")
+
+    # 4. PostgreSQL / catalog
+    print("Checking catalog...")
+    cat_check = _docker_py('''
+import sys; sys.path.insert(0, "/workspace")
+try:
+    from dlt.lib.iceberg_catalog import get_catalog
+    c = get_catalog()
+    ns = c.list_namespaces()
+    print(f"OK ({len(ns)} namespaces)")
+except Exception as e:
+    print(f"ERROR: {e}")
+''')
+    if cat_check.startswith("OK"):
+        print(f"     {cat_check}")
+    else:
+        print(f"  !! {cat_check}")
+        problems.append(f"Catalog: {cat_check}")
+
+    # Summary
+    print()
+    if problems:
+        print(f"{len(problems)} PROBLEM(S):")
+        for p in problems:
+            print(f"  !! {p}")
+        return False
+    else:
+        print("All checks passed — ready to run pipeline")
+        return True
+
+
+def cmd_catalog(clean: bool = False):
+    """List catalog tables and optionally drop stale entries."""
+    code = f'''
+import sys, json
+sys.path.insert(0, "/workspace")
+from pathlib import Path
+from dlt.lib.iceberg_catalog import get_catalog, list_tables, ensure_namespace, _load_config
+
+cfg = _load_config()
+warehouse = Path(cfg["catalog"]["warehouse"])
+namespaces = list(cfg["namespaces"].values())
+catalog = get_catalog()
+
+results = []
+for ns in namespaces:
+    ensure_namespace(catalog, ns)
+    for tname in list_tables(ns):
+        table_dir = warehouse / ns / tname
+        has_data = table_dir.exists() and any(table_dir.rglob("*.parquet"))
+        has_metadata = table_dir.exists() and any(table_dir.rglob("*.metadata.json"))
+        results.append({{
+            "ns": ns, "table": tname,
+            "has_data": has_data, "has_metadata": has_metadata,
+        }})
+
+clean = {clean}
+dropped = []
+if clean:
+    for r in results:
+        if not r["has_metadata"]:
+            full = f"{{r['ns']}}.{{r['table']}}"
+            try:
+                catalog.drop_table(full)
+                dropped.append(full)
+            except Exception as e:
+                dropped.append(f"{{full}} (error: {{e}})")
+
+print(json.dumps({{"tables": results, "dropped": dropped}}))
+'''
+    raw = _docker_py(code)
+    if raw.startswith("ERROR:"):
+        print(raw)
+        return
+
+    data = json.loads(raw)
+    current_ns = None
+    stale = 0
+    for t in data["tables"]:
+        if t["ns"] != current_ns:
+            current_ns = t["ns"]
+            print(f"\n  {current_ns}")
+        status = "OK" if t["has_metadata"] else "STALE (no metadata on disk)"
+        marker = "  " if t["has_metadata"] else "!!"
+        if not t["has_metadata"]:
+            stale += 1
+        print(f"  {marker} {t['table']:40s} {status}")
+
+    if data["dropped"]:
+        print(f"\nDropped {len(data['dropped'])} stale entries:")
+        for d in data["dropped"]:
+            print(f"  - {d}")
+    elif stale > 0 and not clean:
+        print(f"\n{stale} stale entries. Run 'python scripts/dagster.py catalog clean' to drop them.")
+    elif stale == 0:
+        print("\nAll catalog entries have data on disk.")
 
 
 def cmd_reset():
@@ -434,7 +757,21 @@ if __name__ == "__main__":
         elif cmd == "logs":
             cmd_logs(args[1], int(args[2]) if len(args) > 2 else 20)
         elif cmd == "cancel":
-            cmd_cancel(args[1])
+            if len(args) > 1 and args[1] == "all":
+                cmd_cancel_all()
+            else:
+                cmd_cancel(args[1])
+        elif cmd == "errors":
+            cmd_errors(args[1])
+        elif cmd == "catalog":
+            cmd_catalog(clean="clean" in args[1:])
+        elif cmd == "query":
+            cmd_query(args[1])
+        elif cmd == "unload":
+            cmd_unload()
+        elif cmd == "preflight":
+            if not cmd_preflight():
+                sys.exit(1)
         elif cmd == "reset":
             cmd_reset()
         elif cmd == "reload":

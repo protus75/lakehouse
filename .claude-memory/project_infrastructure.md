@@ -1,12 +1,13 @@
 ---
 name: Infrastructure and architecture decisions
-description: D drive requirement, S3+Parquet storage, architecture migration status, model seeding, Docker image split plan
+description: D/F drive layout, local filesystem Iceberg storage, architecture migration status, model seeding, Docker image split plan
 type: project
 ---
 
-## D drive requirement
-All data, models, caches, storage on D drive — never C drive. Key locations:
+## Drive layout
+Data, models, caches on D and F drives — never C drive. Key locations:
 - Docker bind mounts: `D:\source\lakehouse\lakehouse\` subdirectories
+- Iceberg warehouse data: `F:\lakehouse\data` → `/lakehouse-data` in containers
 - Ollama models: `D:\ollama\models` (OLLAMA_MODELS env var)
 - HuggingFace cache: `cache/huggingface`
 - Datalab/Surya cache: `cache/datalab`
@@ -14,13 +15,15 @@ All data, models, caches, storage on D drive — never C drive. Key locations:
 - PostgreSQL: `db/postgres`
 - Claude Code temp: `D:\Claude\Temp` (CLAUDE_TMPDIR)
 
-## Architecture migration (completed 2026-03-26)
-DuckDB-as-storage → SeaweedFS (S3) + Apache Iceberg (PyIceberg SQL catalog on PostgreSQL).
-- All data written as Iceberg tables to `s3://lakehouse/warehouse/`
+## Architecture migration history
+1. DuckDB-as-storage → SeaweedFS (S3) + Iceberg (2026-03-26)
+2. SeaweedFS removed → local filesystem storage (2026-04-07)
+- All data written as Iceberg tables to `/lakehouse-data/<namespace>/<table>/`
 - Writes via `write_iceberg()`, reads via `get_reader()` (DuckDB views over Iceberg)
-- Polaris (Java) removed → PyIceberg SQL talks directly to PostgreSQL
-- Dagster added for orchestration
+- PyIceberg SQL catalog talks directly to PostgreSQL
+- Dagster for orchestration
 - dbt still materializes to DuckDB, post-dbt publish writes to Iceberg
+- Cloud S3 migration steps documented in `ai/python_lakehouse_architecture.md`
 
 ## Model seeding (done 2026-03-27)
 `seed_models` Dagster job validates all model dependencies. Daemon has `TRANSFORMERS_OFFLINE=1`, `HF_HUB_OFFLINE=1`.
@@ -31,7 +34,7 @@ DuckDB-as-storage → SeaweedFS (S3) + Apache Iceberg (PyIceberg SQL catalog on 
 
 ## Docker images (done 2026-03-27)
 Two images: base + workspace. All three services use workspace image.
-- **Dockerfile.base**: python:3.11-slim + shared packages (pyarrow, duckdb, boto3, pyiceberg, polars, pyspellchecker)
+- **Dockerfile.base**: python:3.11-slim + shared packages (pyarrow, duckdb, pyiceberg, polars, pyspellchecker)
 - **Dockerfile.workspace**: FROM base + dagster, dbt, PyTorch, CUDA, marker-pdf, sentence-transformers, chromadb, streamlit
 - Webserver, daemon, workspace all use `lakehouse-workspace:latest` with different commands
 - Three-way split was tried and reverted — daemon couldn't import pymupdf/marker needed by bronze assets

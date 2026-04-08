@@ -36,8 +36,8 @@ For ANY task expected to take >15 seconds: give a time estimate up front before 
 ### No downloads without permission
 Before pipeline runs: verify model cache volumes mounted. Monitor stderr for "Downloading" in first 5 seconds — kill immediately if found. Metered network.
 
-### Never manually wipe S3 or catalog — CRITICAL
-NEVER delete S3 files or drop catalog entries manually. The pipeline handles all cleanup via `write_iceberg(overwrite_all=True)`. If S3 appears corrupted, re-run the pipeline — it will drop catalog, wipe S3 by prefix, and recreate. Manual wipes break the catalog→S3 link and require manual catalog cleanup to fix.
+### Never manually wipe data or catalog — CRITICAL
+NEVER delete data files or drop catalog entries manually. The pipeline handles all cleanup via `write_iceberg(overwrite_all=True)`. If data appears corrupted, re-run the pipeline — it will drop catalog, wipe the table directory, and recreate. Manual wipes break the catalog→data link and require manual catalog cleanup to fix.
 
 ### No pip install in containers
 NEVER `pip install` in a running container — it's lost on restart. Add to `docker/requirements.txt` and rebuild the image.
@@ -64,10 +64,10 @@ Complete the current task fully — run full validation, review results, fix iss
 - Compose file: `docker/docker-compose.yml`
 - All code mounted from host via volumes (edits on host appear in container)
 
-### Storage: SeaweedFS (S3-compatible)
-- S3 gateway: port 8333 (container: `seaweedfs-s3:8333`)
-- Bucket: `lakehouse` — all Iceberg data at `s3://lakehouse/warehouse/`
-- Auth: `lakehouse_key` / `lakehouse_secret` (configured in `docker/s3.json`)
+### Storage: Local Filesystem
+- Host path: `F:/lakehouse/data` → container mount: `/lakehouse-data`
+- All Iceberg data at `/lakehouse-data/<namespace>/<table>/`
+- Volume mounted in all three Docker services (webserver, daemon, workspace)
 
 ### Catalog: PyIceberg SQL (PostgreSQL)
 - PostgreSQL: `lakehouse-postgres` (port 5432, user=`iceberg`, db=`iceberg`)
@@ -78,7 +78,7 @@ Complete the current task fully — run full validation, review results, fix iss
 ### DuckDB (query engine only)
 - Used in-memory for reads via `dlt/lib/duckdb_reader.py`
 - `dbt` still materializes to `db/duckdb/lakehouse.duckdb` during builds
-- `get_reader()` creates DuckDB views over Iceberg tables on S3
+- `get_reader()` creates DuckDB views over Iceberg tables on local filesystem
 - NEVER write data to DuckDB — all writes go through `write_iceberg()`
 
 ### Ollama (LLM)
@@ -117,7 +117,7 @@ PDF → Bronze (dlt→Iceberg, ~15s) → Silver+Gold (dbt, ~5s) → Publish (Ice
 
 ### Config-driven approach
 - All thresholds, patterns, and corrections go in YAML configs — never hardcode
-- Lakehouse infra config: `config/lakehouse.yaml` (S3, catalog, namespaces)
+- Lakehouse infra config: `config/lakehouse.yaml` (catalog, namespaces)
 - OCR corrections: `content_substitutions` in per-book config
 - Authority tables: define which tables provide ground-truth entry names
 - Entry anchors: for entries Marker doesn't render as headings
@@ -126,7 +126,7 @@ PDF → Bronze (dlt→Iceberg, ~15s) → Silver+Gold (dbt, ~5s) → Publish (Ice
 - **No one-off scripts.** All functionality belongs in a lakehouse layer:
   - Bronze (`dlt/`): ingestion, extraction, raw validation
   - Silver/Gold (`dbt/`): transforms, enrichment, quality checks
-- All data stored as Iceberg tables on S3 (`bronze_tabletop.*`, `silver_tabletop.*`, `gold_tabletop.*`)
+- All data stored as Iceberg tables on local filesystem (`bronze_tabletop.*`, `silver_tabletop.*`, `gold_tabletop.*`)
 - Writes: always via `write_iceberg()` from `dlt/lib/iceberg_catalog.py`
 - Reads: always via `get_reader()` from `dlt/lib/duckdb_reader.py`
 - Validation steps (OCR check, page number validation, etc.) are bronze functions that store results in bronze Iceberg tables

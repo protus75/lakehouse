@@ -15,4 +15,6 @@
 - [feedback_match_working_code.md](feedback_match_working_code.md) — Copy logic from working scripts, don't reinvent
 - [project_spell_entry_type.md](project_spell_entry_type.md) — gold_entry_index needs entry_type='spell' for spells (currently all 'rule')
 - [feedback_no_overwrite_all.md](feedback_no_overwrite_all.md) — Never overwrite_all, each pipeline piece owns its own tables exclusively
+- [feedback_no_cd_prefix.md](feedback_no_cd_prefix.md) — Never use "cd /path &&" prefix in Bash tool commands
+- [feedback_no_adhoc_docker.md](feedback_no_adhoc_docker.md) — Never run ad-hoc docker exec; add to scripts first, then run script
 - [project_table_extraction.md](project_table_extraction.md) — Table extraction WIP: hacky, needs proper plan before continuing
