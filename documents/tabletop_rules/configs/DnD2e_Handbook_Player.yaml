@@ -68,6 +68,7 @@ content_substitutions:
   - ['drelb', 'Drelb']
 
 exclude_chapters:
+  - "Glossary"
   - "Appendix 1: Spell Lists"
   - "Appendix 5: Wizard Spells by School"
   - "Appendix 6: Priest Spells by Sphere"
@@ -205,7 +206,13 @@ table_detection:
   # cell_font null = data rows use body font, trace columns down from header
   cell_font: null
   min_columns: 2
-  min_rows: 2
+  min_rows: 2              # header + at least 1 data row
+  # Headerless fallback: when a header cluster is just a label like "Armor *",
+  # look this many points below for a column-aligned body-font row to use as
+  # the column template, requiring this many consecutive matching data rows.
+  headerless_lookahead: 30.0
+  headerless_min_data_rows: 3
+
   # Tolerances (PDF points)
   row_y_tolerance: 3.0      # words within this y-delta are same row
   cluster_y_gap: 15.0       # max vertical gap between header rows in one cluster

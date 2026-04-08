@@ -296,7 +296,8 @@ OUT_DIR = {CONTAINER_OUT!r}
 os.makedirs(OUT_DIR, exist_ok=True)
 
 with open(CONFIG_PATH) as f:
-    cfg = yaml.safe_load(f).get("table_detection", {{}})
+    cfg_full = yaml.safe_load(f)
+cfg = cfg_full.get("table_detection", {{}})
 
 c = get_reader(["bronze_tabletop"])
 rows = c.execute(
@@ -315,6 +316,30 @@ for p, t in toc_rows:
     toc_counts[p] = toc_counts.get(p, 0) + 1
     toc_titles.setdefault(p, []).append(t)
 
+# Pages covered by any excluded ToC section — caller responsibility to skip.
+# Reads excluded titles from the per-book yaml so probe matches what bronze
+# WILL exclude on next run, not just what's currently in the catalog.
+excluded_titles = set(cfg_full.get("exclude_chapters", []))
+all_toc = c.execute(
+    "SELECT page_start, page_end, title FROM bronze_tabletop.toc_raw"
+).fetchall()
+excluded_pages = set()
+for ps, pe, title in all_toc:
+    is_excluded = title in excluded_titles
+    if not is_excluded:
+        # Also honor any catalog-level is_excluded already set
+        try:
+            row = c.execute(
+                "SELECT is_excluded FROM bronze_tabletop.toc_raw "
+                "WHERE title = ? AND page_start = ?", [title, ps]
+            ).fetchone()
+            is_excluded = bool(row[0]) if row else False
+        except Exception:
+            pass
+    if is_excluded:
+        for p in range(ps, min(pe, 9999) + 1):
+            excluded_pages.add(p)
+
 doc = fitz.open(PDF)
 target_indices = ([printed_to_idx[p] for p in TARGET if p in printed_to_idx]
                   if TARGET else list(range(len(doc))))
@@ -323,6 +348,8 @@ per_page = {{}}
 for page_idx in target_indices:
     page = doc[page_idx]
     printed = idx_to_printed.get(page_idx, page_idx)
+    if printed in excluded_pages:
+        continue
     try:
         regions = detect_table_regions(page, cfg)
     except Exception as e:
@@ -527,20 +554,26 @@ for ri, r in enumerate(regions):
     print(f"  R{{ri}}: bbox={{r.bbox}}  rows={{r.row_count}}  cols={{r.col_count}}  hdr_rows={{r.header_row_count}}")
     print(f"       columns={{r.columns}}")
 
-if header_rows:
-    all_rows = _group_into_rows(spans, y_tol)
-    target_y = min(s['bbox'][1] for s in header_spans)
+all_rows = _group_into_rows(spans, y_tol)
+# Print all rows in y range around each header cluster
+for ci, cluster in enumerate(clusters):
+    cy_top = min(s['bbox'][1] for r in cluster for s in r)
+    cy_bot = max(s['bbox'][3] for r in cluster for s in r)
+    cols = _column_ranges_from_cluster(cluster, x_tol)
+    cluster_x = (min(s['bbox'][0] for r in cluster for s in r),
+                 max(s['bbox'][2] for r in cluster for s in r))
     print()
-    print(f"=== All rows in y range [{{target_y - 5}}, {{target_y + 100}}] ===")
+    print(f"=== Rows around cluster {{ci}} (y={{cy_top:.1f}}-{{cy_bot:.1f}}, x_range={{cluster_x}}) ===")
     for ri, row in enumerate(all_rows):
         ry = min(s['bbox'][1] for s in row)
-        if target_y - 5 <= ry <= target_y + 100:
+        if cy_top - 5 <= ry <= cy_bot + 80:
             x_range = _row_x_range(row)
-            print(f"  row {{ri}}: y={{ry:.1f}}  x={{x_range}}  spans={{len(row)}}")
+            in_band = "   " if (x_range[1] < cluster_x[0] or x_range[0] > cluster_x[1]) else ">>>"
+            print(f"  {{in_band}} row {{ri}}: y={{ry:.1f}}  x={{x_range}}  spans={{len(row)}}")
             for s in row[:8]:
-                print(f"    x0={{s['bbox'][0]:.1f}}  {{s['font'][:20]}}  {{s['text']!r}}")
+                print(f"        x0={{s['bbox'][0]:.1f}}  {{s['font'][:20]}}  {{s['text']!r}}")
             if len(row) > 8:
-                print(f"    ... ({{len(row) - 8}} more)")
+                print(f"        ... ({{len(row) - 8}} more)")
 doc.close()
 """
     sys.stdout.write(_run_in_container(py))
