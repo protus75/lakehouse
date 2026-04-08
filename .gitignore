@@ -52,3 +52,7 @@ documents/tabletop_rules/processed/marker/
 # Tunnel runtime (PID files, logs)
 .tunnel/
 output/
+
+# Probe / verification artifacts
+verify_output/
+verify_output.txt
