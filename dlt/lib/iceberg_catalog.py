@@ -5,6 +5,7 @@ directly — call get_catalog(), write_iceberg(), or read_iceberg().
 
 Config loaded from /workspace/config/lakehouse.yaml. Nothing hardcoded.
 """
+import shutil
 from functools import lru_cache
 from pathlib import Path
 
@@ -65,28 +66,12 @@ def write_iceberg(
         except Exception:
             pass
 
-        # Always clean S3 data files by path prefix, regardless of catalog state
-        import boto3
+        # Clean data files on disk
         cfg = _load_config()
-        s3_cfg = cfg["s3"]
-        catalog_cfg = cfg["catalog"]
-        endpoint = s3_cfg["endpoint"]
-        endpoint_url = endpoint if endpoint.startswith("http") else f"http://{endpoint}"
-        s3 = boto3.client("s3", endpoint_url=endpoint_url,
-            aws_access_key_id=s3_cfg["access_key"],
-            aws_secret_access_key=s3_cfg["secret_key"])
-        warehouse = catalog_cfg["warehouse"]
-        # Derive bucket and prefix from warehouse path
-        # warehouse = s3://lakehouse/warehouse → bucket=lakehouse, base=warehouse
-        parts = warehouse.replace("s3://", "").split("/", 1)
-        bucket = parts[0]
-        base = parts[1] if len(parts) > 1 else ""
-        prefix = f"{base}/{namespace}/{table_name}/"
-        # SeaweedFS doesn't support batch delete_objects — use single deletes
-        paginator = s3.get_paginator("list_objects_v2")
-        for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
-            for obj in page.get("Contents", []):
-                s3.delete_object(Bucket=bucket, Key=obj["Key"])
+        warehouse = Path(cfg["catalog"]["warehouse"])
+        table_dir = warehouse / namespace / table_name
+        if table_dir.exists():
+            shutil.rmtree(table_dir)
 
         tbl = catalog.create_table(full_name, schema=arrow_table.schema)
         tbl.append(arrow_table)

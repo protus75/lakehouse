@@ -9,15 +9,11 @@ dlt[duckdb,filesystem]==1.21.0
 duckdb==1.4.4
 
 # Table format
-pyiceberg[s3fs,duckdb,sql-postgres]==0.11.1
+pyiceberg[duckdb,sql-postgres]==0.11.1
 
 # Data processing
 polars==1.30.0
 pyarrow==23.0.1
-
-# S3 client
-boto3==1.42.50
-s3fs==2026.2.0
 
 # Database drivers
 psycopg2-binary==2.9.10

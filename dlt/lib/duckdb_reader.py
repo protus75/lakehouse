@@ -36,18 +36,9 @@ def get_reader(namespaces: list[str] | None = None) -> duckdb.DuckDBPyConnection
     conn = duckdb.connect()
 
     conn.execute("INSTALL iceberg; LOAD iceberg;")
-    conn.execute("INSTALL httpfs; LOAD httpfs;")
-
-    s3_cfg = _load_config()["s3"]
-    catalog_cfg = _load_config()["catalog"]
-    endpoint = s3_cfg["endpoint"].replace("http://", "").replace("https://", "")
-    conn.execute(f"SET s3_endpoint='{endpoint}';")
-    conn.execute(f"SET s3_access_key_id='{s3_cfg['access_key']}';")
-    conn.execute(f"SET s3_secret_access_key='{s3_cfg['secret_key']}';")
-    conn.execute("SET s3_url_style='path';")
-    conn.execute("SET s3_use_ssl=false;")
     conn.execute("SET unsafe_enable_version_guessing=true;")
 
+    catalog_cfg = _load_config()["catalog"]
     warehouse = catalog_cfg["warehouse"]
     catalog = get_catalog()
 

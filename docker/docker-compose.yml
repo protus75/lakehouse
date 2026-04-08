@@ -20,53 +20,6 @@ services:
       timeout: 5s
       retries: 10
 
-  # ── SeaweedFS ───────────────────────────────────────────────
-  # Distributed object storage with S3-compatible API
-  seaweedfs-master:
-    image: chrislusf/seaweedfs:latest
-    container_name: lakehouse-weed-master
-    ports:
-      - "9333:9333"
-    command: "master -ip=seaweedfs-master -ip.bind=0.0.0.0"
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:9333/cluster/status"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  seaweedfs-volume:
-    image: chrislusf/seaweedfs:latest
-    container_name: lakehouse-weed-volume
-    ports:
-      - "8080:8080"
-    command: "volume -mserver=seaweedfs-master:9333 -ip.bind=0.0.0.0 -dir=/data -dataCenter=dc1"
-    depends_on:
-      seaweedfs-master:
-        condition: service_healthy
-    volumes:
-      - ../storage:/data
-
-  seaweedfs-filer:
-    image: chrislusf/seaweedfs:latest
-    container_name: lakehouse-weed-filer
-    ports:
-      - "8898:8898"
-    command: "filer -master=seaweedfs-master:9333 -port=8898"
-    depends_on:
-      seaweedfs-master:
-        condition: service_healthy
-
-  seaweedfs-s3:
-    image: chrislusf/seaweedfs:latest
-    container_name: lakehouse-weed-s3
-    ports:
-      - "8333:8333"
-    command: "s3 -filer=seaweedfs-filer:8898 -port=8333 -config=/etc/seaweedfs/s3.json"
-    depends_on:
-      - seaweedfs-filer
-    volumes:
-      - ./s3.json:/etc/seaweedfs/s3.json
-
   # ── Dagster ────────────────────────────────────────────────
   # Asset-based orchestration for the lakehouse pipeline
   # All three Python services share the same image (base + workspace).
@@ -84,12 +37,10 @@ services:
       - ../documents:/workspace/documents
       - ../db/duckdb:/workspace/db
       - ../cache:/workspace/cache
+      - F:/lakehouse/data:/lakehouse-data
     environment:
       DAGSTER_HOME: /workspace/dagster
       PYTHONPATH: /workspace
-      S3_ENDPOINT: http://seaweedfs-s3:8333
-      S3_ACCESS_KEY: lakehouse_key
-      S3_SECRET_KEY: lakehouse_secret
     command: dagster-webserver -h 0.0.0.0 -p 3000 -w /workspace/dagster/workspace.yaml
     depends_on:
       postgres:
@@ -108,15 +59,13 @@ services:
       - ../db/duckdb:/workspace/db
       - ../cache:/workspace/cache
       - ../cache/datalab:/root/.cache/datalab
+      - F:/lakehouse/data:/lakehouse-data
     environment:
       DAGSTER_HOME: /workspace/dagster
       PYTHONPATH: /workspace
       HF_HOME: /workspace/cache/huggingface
       TRANSFORMERS_OFFLINE: "1"
       HF_HUB_OFFLINE: "1"
-      S3_ENDPOINT: http://seaweedfs-s3:8333
-      S3_ACCESS_KEY: lakehouse_key
-      S3_SECRET_KEY: lakehouse_secret
     command: dagster-daemon run -w /workspace/dagster/workspace.yaml
     depends_on:
       dagster-webserver:
@@ -158,11 +107,9 @@ services:
       - ../dagster:/workspace/dagster
       - ../cache:/workspace/cache
       - ../cache/datalab:/root/.cache/datalab
+      - F:/lakehouse/data:/lakehouse-data
     environment:
       HF_HOME: /workspace/cache/huggingface
-      S3_ENDPOINT: http://seaweedfs-s3:8333
-      S3_ACCESS_KEY: lakehouse_key
-      S3_SECRET_KEY: lakehouse_secret
     command: >
       jupyter lab
       --ip=0.0.0.0

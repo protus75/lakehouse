@@ -1,24 +1,11 @@
 # Lakehouse configuration — single source of truth for all services.
 # All code reads from this file via dlt.lib.iceberg_catalog. Nothing hardcoded.
 
-s3:
-  endpoint: http://seaweedfs-s3:8333
-  access_key: lakehouse_key
-  secret_key: lakehouse_secret
-  region: us-east-1
-
 catalog:
   name: lakehouse
   type: sql
   uri: postgresql+psycopg2://iceberg:iceberg_secret@postgres:5432/iceberg
-  warehouse: s3://lakehouse/warehouse
-  s3.endpoint: http://seaweedfs-s3:8333
-  s3.access-key-id: lakehouse_key
-  s3.secret-access-key: lakehouse_secret
-  s3.region: us-east-1
-
-buckets:
-  warehouse: lakehouse
+  warehouse: /lakehouse-data
 
 namespaces:
   bronze: bronze_tabletop

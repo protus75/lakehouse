@@ -922,6 +922,19 @@ This stack is designed to scale up gradually:
 - Built-in governance → Ranger (add centralized policies)
 - All layers remain compatible (Iceberg abstraction)
 
+### Migrating from Local Filesystem to Cloud S3
+
+The stack currently writes Iceberg data to a local filesystem path (`/lakehouse-data`, mounted from the host). All reads and writes go through the PyIceberg catalog API — no code references raw file paths. To move to cloud S3:
+
+1. **`config/lakehouse.yaml`** — Add an `s3` section with endpoint, credentials, and region. Update the `catalog` section to set `warehouse: s3://<bucket>/warehouse` and add `s3.endpoint`, `s3.access-key-id`, `s3.secret-access-key`, `s3.region` fields.
+2. **`dlt/lib/iceberg_catalog.py`** — Replace the `shutil.rmtree` cleanup in `overwrite_all` with boto3 S3 object deletion (list and delete by prefix).
+3. **`dlt/lib/duckdb_reader.py`** — Re-add `INSTALL httpfs; LOAD httpfs;` and configure DuckDB S3 settings (`s3_endpoint`, `s3_access_key_id`, `s3_secret_access_key`, `s3_url_style`, `s3_use_ssl`).
+4. **`dbt/lakehouse_mvp/profiles.yml`** — Re-add `httpfs` to extensions and add the S3 settings block.
+5. **`dbt/lakehouse_mvp/dbt_project.yml`** — Update `vars.warehouse_path` to the `s3://` warehouse URL.
+6. **`docker/requirements-base.txt`** — Add `boto3`, `s3fs`, and change pyiceberg extras to `pyiceberg[s3fs,duckdb,sql-postgres]`.
+7. **`docker/docker-compose.yml`** — Remove the local `F:/lakehouse/data:/lakehouse-data` volume mount. Add S3 credential env vars if needed by any service.
+8. Re-run the pipeline — it will populate the new S3 warehouse from scratch.
+
 ---
 
 ## Why Python-First Matters

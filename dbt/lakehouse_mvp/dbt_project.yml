@@ -4,6 +4,9 @@ config-version: 2
 
 profile: lakehouse_mvp
 
+vars:
+  warehouse_path: /lakehouse-data
+
 model-paths: ["models"]
 test-paths:  ["tests"]
 

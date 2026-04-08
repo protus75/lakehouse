@@ -1,5 +1,5 @@
 {% macro create_bronze_views() %}
-    {# Create DuckDB views over Iceberg tables on S3.
+    {# Create DuckDB views over Iceberg tables.
        Drops old tables/views with the same name first. #}
 
     {% set bronze_tables = [
@@ -9,7 +9,7 @@
         'pipeline_runs', 'catalog'
     ] %}
 
-    {% set warehouse = 's3://lakehouse/warehouse' %}
+    {% set warehouse = var('warehouse_path') %}
 
     CREATE SCHEMA IF NOT EXISTS bronze_tabletop;
 
