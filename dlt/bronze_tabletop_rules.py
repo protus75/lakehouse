@@ -2321,6 +2321,55 @@ def validate_bronze(source_file: str) -> None:
                           json.dumps({"missing": missing, "pct": round(pct, 1)}))
         _log(f"  Table completeness: {status} — {msg}")
 
+    # ── 1b. Font-switch table region coverage ──
+    # Per-page lower-bound: detected_regions >= toc_is_table_count.
+    # An UNDER page (det < toc) means a known table was missed by the
+    # font-switch detector. EXTRA pages (det > toc) are fine — they're
+    # mid-section unlabeled tables (Weapons, Armor) or false positives
+    # that silver ignores anyway.
+    toc_table_pages = conn.execute(
+        "SELECT page_start, COUNT(*) FROM bronze_tabletop.toc_raw "
+        "WHERE source_file = ? AND is_table = TRUE AND is_excluded = FALSE "
+        "GROUP BY page_start", [sf]
+    ).fetchall()
+    region_pages = []
+    try:
+        region_pages = conn.execute(
+            "SELECT printed_page_num, COUNT(*) FROM bronze_tabletop.table_regions "
+            "WHERE source_file = ? GROUP BY printed_page_num", [sf]
+        ).fetchall()
+    except Exception:
+        pass  # table_regions doesn't exist yet — first run before Phase 3 deploy
+
+    if toc_table_pages:
+        region_count_by_page = {p: c for p, c in region_pages}
+        under_pages = []
+        for page, toc_count in toc_table_pages:
+            det = region_count_by_page.get(page, 0)
+            if det < toc_count:
+                under_pages.append({"page": page, "detected": det, "toc": toc_count})
+        total_toc = sum(c for _, c in toc_table_pages)
+        total_det = sum(region_count_by_page.get(p, 0) for p, _ in toc_table_pages)
+        if not under_pages:
+            status, msg = "pass", (
+                f"All {len(toc_table_pages)} ToC table pages have >= the expected "
+                f"region count ({total_det} regions on declared pages)"
+            )
+            passed += 1
+        else:
+            status = "fail"
+            msg = (
+                f"{len(under_pages)} pages have FEWER detected regions than ToC "
+                f"is_table count ({total_det}/{total_toc} on declared pages)"
+            )
+            failed += 1
+        _store_validation(sf, "table_region_coverage", status, msg, run_id,
+                          json.dumps({"under_pages": under_pages[:20],
+                                      "total_toc_table_pages": len(toc_table_pages),
+                                      "total_det_on_declared": total_det,
+                                      "total_toc_is_table": total_toc}))
+        _log(f"  Table region coverage: {status} — {msg}")
+
     # ── 2. Spell index vs spell list cross-check ──
     index_spells = set()
     rows = conn.execute(
