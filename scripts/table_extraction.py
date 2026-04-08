@@ -579,6 +579,157 @@ doc.close()
     sys.stdout.write(_run_in_container(py))
 
 
+# ── Subcommand: span-map ───────────────────────────────────────────
+
+def cmd_span_map(args):
+    pages_filter = None
+    if args.pages:
+        pages_filter = [int(p) for p in args.pages.split(",")]
+    py = f"""
+import sys, json
+sys.path.insert(0, "/workspace")
+import fitz
+from dlt.lib.table_regions import extract_page_text_with_span_map
+from dlt.lib.duckdb_reader import get_reader
+
+PDF = {PDF_PATH!r}
+TARGET = {pages_filter!r}
+
+c = get_reader(["bronze_tabletop"])
+rows = c.execute("SELECT printed_page_num, page_index FROM bronze_tabletop.page_texts ORDER BY page_index").fetchall()
+printed_to_idx = {{r[0]: r[1] for r in rows}}
+idx_to_printed = {{r[1]: r[0] for r in rows}}
+
+doc = fitz.open(PDF)
+target_indices = ([printed_to_idx[p] for p in TARGET if p in printed_to_idx]
+                  if TARGET else list(range(len(doc))))
+
+n_pages = 0
+n_match = 0
+mismatches = []
+for page_idx in target_indices:
+    page = doc[page_idx]
+    expected = page.get_text("text")
+    actual, span_map = extract_page_text_with_span_map(page)
+    n_pages += 1
+    if actual == expected:
+        n_match += 1
+    else:
+        mismatches.append({{
+            "page_idx": page_idx,
+            "printed": idx_to_printed.get(page_idx, page_idx),
+            "expected_len": len(expected),
+            "actual_len": len(actual),
+            "first_diff": _first_diff(expected, actual),
+        }})
+
+doc.close()
+print(json.dumps({{"n_pages": n_pages, "n_match": n_match,
+                   "mismatches": mismatches[:10]}}, ensure_ascii=False))
+"""
+    # Inject helper into the in-container code
+    helper = """
+def _first_diff(a, b):
+    for i in range(min(len(a), len(b))):
+        if a[i] != b[i]:
+            ctx_a = a[max(0,i-20):i+20]
+            ctx_b = b[max(0,i-20):i+20]
+            return {"pos": i, "expected": repr(ctx_a), "actual": repr(ctx_b)}
+    return {"pos": min(len(a), len(b)), "expected": repr(a[-30:]), "actual": repr(b[-30:])}
+"""
+    py = helper + py
+    out = _run_in_container(py)
+    data = json.loads(out)
+    print(f"=== span-map byte-equivalence check ===")
+    print(f"  pages checked: {data['n_pages']}")
+    print(f"  matches:       {data['n_match']}")
+    print(f"  mismatches:    {data['n_pages'] - data['n_match']}")
+    for m in data["mismatches"]:
+        print(f"  page {m['printed']}: expected={m['expected_len']} actual={m['actual_len']}")
+        d = m["first_diff"]
+        print(f"    first diff @ pos {d['pos']}")
+        print(f"    expected: {d['expected']}")
+        print(f"    actual:   {d['actual']}")
+
+
+# ── Subcommand: mask ───────────────────────────────────────────────
+
+def cmd_mask(args):
+    pages = args.pages
+    py = f"""
+import sys, json
+sys.path.insert(0, "/workspace")
+import fitz, yaml
+from dlt.lib.table_regions import (
+    extract_page_text_with_span_map, detect_table_regions, region_char_ranges,
+)
+from dlt.lib.duckdb_reader import get_reader
+
+PDF = {PDF_PATH!r}
+TARGET = {pages!r}
+with open({CONFIG_PATH!r}) as f:
+    cfg = yaml.safe_load(f).get("table_detection", {{}})
+
+c = get_reader(["bronze_tabletop"])
+rows = c.execute("SELECT printed_page_num, page_index FROM bronze_tabletop.page_texts").fetchall()
+printed_to_idx = {{r[0]: r[1] for r in rows}}
+
+doc = fitz.open(PDF)
+results = []
+for printed in TARGET:
+    if printed not in printed_to_idx:
+        continue
+    page = doc[printed_to_idx[printed]]
+    text, span_map = extract_page_text_with_span_map(page)
+    regions = detect_table_regions(page, cfg)
+    raw_ranges = []
+    for r in regions:
+        raw_ranges.extend(region_char_ranges(r, span_map))
+    raw_ranges.sort()
+    # Coalesce overlapping ranges across all regions
+    all_ranges = []
+    for s, e in raw_ranges:
+        if all_ranges and s <= all_ranges[-1][1]:
+            all_ranges[-1] = (all_ranges[-1][0], max(all_ranges[-1][1], e))
+        else:
+            all_ranges.append((s, e))
+    # Apply mask: blank out chars in those ranges (preserving newlines)
+    masked = list(text)
+    for s, e in all_ranges:
+        for i in range(s, min(e, len(masked))):
+            if masked[i] != "\\n":
+                masked[i] = " "
+    masked_text = "".join(masked)
+    results.append({{
+        "printed": printed,
+        "regions": len(regions),
+        "ranges": all_ranges,
+        "orig_len": len(text),
+        "masked_chars": sum(e - s for s, e in all_ranges),
+        "original": text,
+        "masked": masked_text,
+    }})
+doc.close()
+print(json.dumps(results, ensure_ascii=False))
+"""
+    out = _run_in_container(py)
+    data = json.loads(out)
+    HOST_OUT.mkdir(parents=True, exist_ok=True)
+    for r in data:
+        printed = r["printed"]
+        out_path = HOST_OUT / f"mask_page_{printed:03d}.txt"
+        with open(out_path, "w", encoding="utf-8") as f:
+            f.write(f"=== Page {printed} ===\n")
+            f.write(f"regions: {r['regions']}\n")
+            f.write(f"orig_chars: {r['orig_len']}  masked_chars: {r['masked_chars']}\n")
+            f.write(f"ranges: {r['ranges']}\n")
+            f.write("\n--- ORIGINAL ---\n")
+            f.write(r["original"])
+            f.write("\n--- MASKED ---\n")
+            f.write(r["masked"])
+        print(f"  page {printed}: regions={r['regions']} masked={r['masked_chars']}/{r['orig_len']} chars -> {out_path}")
+
+
 # ── Main ───────────────────────────────────────────────────────────
 
 def main():
@@ -606,6 +757,16 @@ def main():
     p_dbg = sub.add_parser("debug", help="verbose detector trace for one page")
     p_dbg.add_argument("page", type=int)
     p_dbg.set_defaults(func=cmd_debug)
+
+    p_sm = sub.add_parser("span-map",
+        help="verify extract_page_text_with_span_map matches page.get_text()")
+    p_sm.add_argument("--pages", help="comma-separated printed page numbers (default: all)")
+    p_sm.set_defaults(func=cmd_span_map)
+
+    p_mask = sub.add_parser("mask",
+        help="dump masked vs original page text for a few ToC table pages")
+    p_mask.add_argument("pages", nargs="+", type=int, help="printed page numbers")
+    p_mask.set_defaults(func=cmd_mask)
 
     args = p.parse_args()
     args.func(args)

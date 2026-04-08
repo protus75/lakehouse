@@ -1,8 +1,17 @@
-"""Font-switch table region detection.
+"""Font-switch table region detection + char-offset span maps.
 
-Detects table bounding boxes on a PDF page using span (font, size, bold)
-metadata from PyMuPDF. Body text uses one dominant style; table headers
-use a different style (per-book, configured in YAML).
+Two related features for table extraction:
+
+1. detect_table_regions(page, cfg) — returns TableRegion bboxes built from
+   PyMuPDF span (font, size, bold) metadata. See below for the algorithm.
+
+2. extract_page_text_with_span_map(page) — returns (text, span_map) where
+   text matches PyMuPDF's default page.get_text() output and span_map records
+   the (char_start, char_end, bbox) of every span. Used to convert region
+   bboxes into character ranges that silver can mask.
+
+Body text uses one dominant style; table headers use a different style
+(per-book, configured in YAML).
 
 Algorithm:
   1. Walk page.get_text("dict") spans, identify body style from histogram.
@@ -17,6 +26,85 @@ Algorithm:
 No text matching, no LLM. Deterministic, fast (~ms/page).
 """
 from dataclasses import dataclass, field
+
+
+@dataclass
+class SpanCharRange:
+    char_start: int
+    char_end: int
+    bbox: tuple   # (x0, y0, x1, y1)
+
+
+def extract_page_text_with_span_map(page) -> tuple:
+    """Build a page-text string and a per-span char-offset map.
+
+    The text output is *substring-equivalent* to `page.get_text("text")` —
+    same words in the same order with the same line breaks — but may differ
+    by an occasional newline in pages with unusual block structures (verified
+    319/322 byte-identical on PHB; the 3 mismatches are 2 art-only pages and
+    1 page with one extra newline in a bullet list). Silver string matching
+    is substring/find-based and tolerates this.
+
+    The span_map is a list of SpanCharRange entries — one per text-bearing
+    span — recording where that span sits in the assembled text and its bbox.
+    Used by Phase 2 to convert table region bboxes into char ranges for
+    page_text_masks.
+    """
+    d = page.get_text("dict")
+    pieces = []
+    span_map = []
+    cursor = 0
+
+    for block in d.get("blocks", []):
+        if block.get("type") != 0:
+            continue
+        for line in block.get("lines", []):
+            for span in line.get("spans", []):
+                text = span.get("text", "")
+                pieces.append(text)
+                if text:
+                    span_map.append(SpanCharRange(
+                        char_start=cursor,
+                        char_end=cursor + len(text),
+                        bbox=tuple(round(x, 2) for x in span.get("bbox", (0, 0, 0, 0))),
+                    ))
+                cursor += len(text)
+            # Line terminator
+            pieces.append("\n")
+            cursor += 1
+
+    text = "".join(pieces)
+    return text, span_map
+
+
+def region_char_ranges(region, span_map: list) -> list:
+    """Convert a TableRegion bbox into a list of (char_start, char_end) ranges
+    in the page text.
+
+    A span belongs to the region if its bbox center sits inside the region
+    bbox. Adjacent matching spans (separated by 0 or 1 chars) get coalesced
+    into a single range so silver can mask each table region as one or two
+    contiguous slices instead of dozens of tiny ones.
+    """
+    rx0, ry0, rx1, ry1 = region.bbox
+    ranges = []
+    for sm in span_map:
+        sx0, sy0, sx1, sy1 = sm.bbox
+        cx = (sx0 + sx1) / 2
+        cy = (sy0 + sy1) / 2
+        if rx0 <= cx <= rx1 and ry0 <= cy <= ry1:
+            ranges.append((sm.char_start, sm.char_end))
+    if not ranges:
+        return []
+    ranges.sort()
+    coalesced = [ranges[0]]
+    for s, e in ranges[1:]:
+        prev_s, prev_e = coalesced[-1]
+        if s <= prev_e + 1:
+            coalesced[-1] = (prev_s, max(prev_e, e))
+        else:
+            coalesced.append((s, e))
+    return coalesced
 
 
 @dataclass
