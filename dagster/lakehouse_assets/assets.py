@@ -428,7 +428,8 @@ seed_models = define_asset_job(
 defs = Definitions(
     assets=[
         seed_ollama_models, seed_huggingface_models, seed_marker_cache,
-        bronze_tabletop, toc_review, bronze_ocr_check, dbt_build,
+        bronze_tabletop, toc_review, bronze_ocr_check,
+        silver_entries, dbt_build,
         publish_to_iceberg, dbt_test, gold_ai_summaries, gold_ai_annotations,
     ],
     jobs=[seed_models, tabletop_full_pipeline, tabletop_without_enrichment, bronze_and_review, silver_and_publish, enrichment_only],
