@@ -38,6 +38,7 @@ services:
       - ../db/duckdb:/workspace/db
       - ../cache:/workspace/cache
       - F:/lakehouse/data:/lakehouse-data
+      - E:/lakehouse/scratch:/scratch
     environment:
       DAGSTER_HOME: /workspace/dagster
       PYTHONPATH: /workspace
@@ -60,6 +61,7 @@ services:
       - ../cache:/workspace/cache
       - ../cache/datalab:/root/.cache/datalab
       - F:/lakehouse/data:/lakehouse-data
+      - E:/lakehouse/scratch:/scratch
     environment:
       DAGSTER_HOME: /workspace/dagster
       PYTHONPATH: /workspace
@@ -108,6 +110,7 @@ services:
       - ../cache:/workspace/cache
       - ../cache/datalab:/root/.cache/datalab
       - F:/lakehouse/data:/lakehouse-data
+      - E:/lakehouse/scratch:/scratch
     environment:
       HF_HOME: /workspace/cache/huggingface
     command: >

@@ -1,4 +1,14 @@
 -- Silver file-level metadata aggregated from entries
+--
+-- Phase 2a proof model: materializes directly to iceberg via the custom
+-- iceberg plugin (dlt/lib/dbt_iceberg_plugin.py). Once verified end-to-end,
+-- Phase 2c rolls this config up to dbt_project.yml as the silver default
+-- and removes this per-model block.
+{{ config(
+    materialized='external',
+    plugin='iceberg',
+    location='/scratch/dbt/silver_files.parquet'
+) }}
 
 select
     e.source_file,

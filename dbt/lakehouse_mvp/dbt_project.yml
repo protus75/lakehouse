@@ -10,8 +10,10 @@ vars:
 model-paths: ["models"]
 test-paths:  ["tests"]
 
-on-run-start:
-  - "{{ create_bronze_views() }}"
+# Bronze view registration is now handled by the iceberg plugin's
+# configure_connection hook (see dlt/lib/dbt_iceberg_plugin.py). It
+# enumerates the live catalog at session start instead of relying on
+# a hardcoded macro list.
 
 models:
   lakehouse_mvp:
@@ -22,6 +24,10 @@ models:
       +materialized: table
       +schema: marts
     tabletop:
+      # Phase 2a proof: silver_files is the ONLY model converted to the new
+      # iceberg materialization. Once it works end-to-end, Phase 2c rolls
+      # this default up to the silver/gold groups and removes per-model
+      # overrides everywhere.
       silver:
         +materialized: table
         +schema: silver_tabletop

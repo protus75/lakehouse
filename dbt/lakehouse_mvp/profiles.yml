@@ -3,6 +3,9 @@ lakehouse_mvp:
   outputs:
     dev:
       type: duckdb
+      # Phase 2a (in progress): keeping the persistent file path so non-converted
+      # models still materialize. Phase 2c switches to ':memory:' once every
+      # silver/gold model uses the iceberg plugin and the file is no longer needed.
       path: /workspace/db/lakehouse.duckdb
       schema: staging
       threads: 4
@@ -10,3 +13,6 @@ lakehouse_mvp:
         - iceberg
       settings:
         unsafe_enable_version_guessing: true
+      plugins:
+        - module: dlt.lib.dbt_iceberg_plugin
+          alias: iceberg
