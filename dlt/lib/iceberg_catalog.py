@@ -48,35 +48,48 @@ def write_iceberg(
     overwrite_filter_value: str | None = None,
     overwrite_all: bool = False,
 ) -> None:
-    """Write an Arrow table to Iceberg. Idempotent via overwrite filter.
+    """Write an Arrow table to Iceberg. Atomic — either both catalog entry
+    and data files exist after the call, or neither does.
 
     If overwrite_all is True, drops and recreates the table (full replace).
     If overwrite_filter and overwrite_filter_value are set, deletes existing
     rows matching the filter before appending. This preserves the
     delete-and-insert pattern used by the bronze layer.
+
+    The atomicity guarantee is enforced by wrapping create+append in a try
+    block that cleans up both the catalog row and the data directory on
+    failure. The catalog must never have an entry without matching on-disk
+    metadata — that's the "stale entry" bug class this method exists to
+    prevent.
     """
     catalog = get_catalog()
     ensure_namespace(catalog, namespace)
     full_name = f"{namespace}.{table_name}"
+    cfg = _load_config()
+    warehouse = Path(cfg["catalog"]["warehouse"])
+    table_dir = warehouse / namespace / table_name
 
-    if overwrite_all:
-        # Clean catalog entry (may fail if metadata files are gone — that's OK)
+    def _drop_everything() -> None:
+        """Drop catalog entry AND wipe on-disk data. Idempotent."""
         try:
             catalog.drop_table(full_name)
         except Exception:
             pass
-
-        # Clean data files on disk
-        cfg = _load_config()
-        warehouse = Path(cfg["catalog"]["warehouse"])
-        table_dir = warehouse / namespace / table_name
         if table_dir.exists():
             shutil.rmtree(table_dir)
 
-        tbl = catalog.create_table(full_name, schema=arrow_table.schema)
-        tbl.append(arrow_table)
+    if overwrite_all:
+        _drop_everything()
+        try:
+            tbl = catalog.create_table(full_name, schema=arrow_table.schema)
+            tbl.append(arrow_table)
+        except Exception:
+            # create or append failed — leave neither catalog nor data behind
+            _drop_everything()
+            raise
         return
 
+    # Append / upsert path
     try:
         tbl = catalog.load_table(full_name)
         # Evolve schema if incoming table has new columns
@@ -91,17 +104,26 @@ def write_iceberg(
                     update.add_column(field.name, iceberg_type)
             tbl = catalog.load_table(full_name)
     except Exception:
-        # Table may exist in catalog but S3 metadata is gone — drop stale entry
+        # Table doesn't exist yet (or its catalog entry is stale).
+        # _drop_everything ensures we start clean before creating.
+        _drop_everything()
         try:
-            catalog.drop_table(full_name)
+            tbl = catalog.create_table(full_name, schema=arrow_table.schema)
         except Exception:
-            pass
-        tbl = catalog.create_table(full_name, schema=arrow_table.schema)
+            _drop_everything()
+            raise
 
-    if overwrite_filter and overwrite_filter_value is not None:
-        tbl.delete(EqualTo(overwrite_filter, overwrite_filter_value))
-
-    tbl.append(arrow_table)
+    try:
+        if overwrite_filter and overwrite_filter_value is not None:
+            tbl.delete(EqualTo(overwrite_filter, overwrite_filter_value))
+        tbl.append(arrow_table)
+    except Exception:
+        # Append failed mid-write. The table existed before; we can't roll
+        # back the delete cleanly, so the safest action is to drop the
+        # whole table and let the next run recreate it. This is consistent
+        # with the lakehouse rule: never leave half-state behind.
+        _drop_everything()
+        raise
 
 
 def read_iceberg(namespace: str, table_name: str) -> pa.Table:
