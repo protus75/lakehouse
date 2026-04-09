@@ -4,6 +4,17 @@ description: Kill stale processes before runs, stop means immediately, kill-all 
 type: feedback
 ---
 
+## Validate preconditions BEFORE launching any pipeline run
+Run `python scripts/dagster.py catalog` and inspect for stale entries (catalog rows with no metadata on disk). If ANY appear, fix them first — `catalog clean` to drop them, or investigate why they exist. NEVER launch a pipeline against known-broken state.
+
+**Why:** Stale catalog entries cause immediate dbt/iceberg failures (`Could not guess Iceberg table version`). Launching anyway wastes a 6-8 minute pipeline run on a problem that was visible in 2 seconds before launch. The user explicitly called this out: "why wasn't a test of stale data run beforehand."
+
+**How to apply:** Before EVERY `dagster.py launch`:
+1. `python scripts/dagster.py catalog` — verify zero `STALE` entries
+2. `python scripts/dagster.py preflight` — verify containers, ollama, warehouse OK
+3. Only then launch
+This is the same discipline as "estimate and monitor" — validate inputs before committing to a long operation.
+
 ## Kill stale processes before every pipeline run
 Check for leftover python processes in containers before runs. After completion: verify cleanup. Report GPU state.
 
