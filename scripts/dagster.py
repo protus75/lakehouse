@@ -5,9 +5,14 @@ Usage:
     python scripts/dagster.py launch <job_name> [--force]
     python scripts/dagster.py run <job_name> [--force]   Launch + poll until done
     python scripts/dagster.py status <run_id>
+    python scripts/dagster.py state <run_id>     Structured state: per-step + dbt model progress
+    python scripts/dagster.py watch <run_id>     Adaptive live polling until terminal state
     python scripts/dagster.py logs <run_id> [N]
     python scripts/dagster.py cancel <run_id>
     python scripts/dagster.py errors <run_id>    Show compute stderr for failed steps
+    python scripts/dagster.py dbt-logs [N]       Tail dbt's own log file
+    python scripts/dagster.py dbt-results [run_id]  dbt error results (run_id-filtered)
+    python scripts/dagster.py dbt-clean          Force-clean dbt target/ + parse cache
     python scripts/dagster.py catalog            List all catalog tables + check data on disk
     python scripts/dagster.py catalog clean      Drop catalog entries with no data on disk
     python scripts/dagster.py query <sql>         Run a SQL query via DuckDB reader
@@ -123,6 +128,277 @@ def cmd_run(job: str, force: bool = False):
     cmd_verify()
     if status != "SUCCESS":
         sys.exit(1)
+
+
+import re
+
+# ANSI escape stripper for dbt log lines (they have color codes)
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*m|\[\d+m")
+# dbt model progress: "13 of 16 START sql external model silver_tabletop.silver_files ..."
+_DBT_MODEL_RE = re.compile(
+    r"(\d+) of (\d+) (START|OK created|ERROR(?:[^\s]+)?|SKIP)\s+"
+    r"(?:python\s+|sql\s+)?(?:external\s+|table\s+|view\s+|incremental\s+)?"
+    r"(?:table\s+model|view\s+model|model|relation)?\s*"
+    r"([\w.]+)"
+)
+
+
+def _strip_ansi(s: str) -> str:
+    return _ANSI_RE.sub("", s)
+
+
+def _fmt_duration(seconds: float) -> str:
+    if seconds < 1:
+        return f"{seconds * 1000:.0f}ms"
+    if seconds < 60:
+        return f"{seconds:.1f}s"
+    m, s = divmod(int(seconds), 60)
+    if m < 60:
+        return f"{m}m{s:02d}s"
+    h, m = divmod(m, 60)
+    return f"{h}h{m:02d}m"
+
+
+def _fetch_run_state(run_id: str) -> dict:
+    """One-shot fetch of run state: top-level status, per-step stats, and the
+    recent log events parsed for dbt model progress. No log scraping for
+    timing — uses dagster's structured stepStats.
+    """
+    q = f'''{{
+      runOrError(runId: "{run_id}") {{
+        ... on Run {{
+          status
+          startTime
+          endTime
+          stepStats {{
+            stepKey
+            status
+            startTime
+            endTime
+          }}
+        }}
+      }}
+    }}'''
+    run = gql(q)["data"]["runOrError"]
+    if not run or "status" not in run:
+        return {"error": "run not found"}
+
+    # Get recent message events for dbt model progress (only place where we
+    # need to parse text — dbt's structured event for model progress is the
+    # log line itself).
+    q2 = f'''{{
+      logsForRun(runId: "{run_id}", afterCursor: null, limit: 500) {{
+        ... on EventConnection {{
+          events {{
+            ... on MessageEvent {{ message timestamp }}
+          }}
+        }}
+      }}
+    }}'''
+    log_data = gql(q2).get("data", {}).get("logsForRun") or {}
+    events = log_data.get("events", []) or []
+
+    # Track dbt model state. Parse model lines as we go in chronological order.
+    dbt_models: dict[str, dict] = {}
+    dbt_total = 0
+    for e in events:
+        msg = _strip_ansi(e.get("message", "") or "")
+        if not msg:
+            continue
+        for m in _DBT_MODEL_RE.finditer(msg):
+            idx = int(m.group(1))
+            total = int(m.group(2))
+            action = m.group(3)
+            name = m.group(4).strip()
+            dbt_total = total
+            entry = dbt_models.setdefault(name, {"index": idx, "status": "PENDING",
+                                                  "start_ts": None, "end_ts": None})
+            ts = float(e.get("timestamp", 0)) / 1000.0 if e.get("timestamp") else None
+            if action == "START":
+                entry["status"] = "RUN"
+                entry["start_ts"] = ts
+            elif action.startswith("OK"):
+                entry["status"] = "OK"
+                entry["end_ts"] = ts
+            elif action.startswith("ERROR"):
+                entry["status"] = "ERROR"
+                entry["end_ts"] = ts
+            elif action == "SKIP":
+                entry["status"] = "SKIP"
+                entry["end_ts"] = ts
+
+    return {
+        "status": run["status"],
+        "start_time": run.get("startTime"),
+        "end_time": run.get("endTime"),
+        "step_stats": run.get("stepStats", []) or [],
+        "dbt_total": dbt_total,
+        "dbt_models": dbt_models,
+    }
+
+
+def cmd_state(run_id: str):
+    """Print structured state of a run: top status, per-step timeline,
+    and dbt model progress within dbt_build. Single GraphQL roundtrip,
+    no log message text scraping for timing data.
+    """
+    run_id = _resolve_run_id(run_id)
+    state = _fetch_run_state(run_id)
+    if state.get("error"):
+        print(state["error"])
+        return
+
+    import time as _time
+    now = _time.time()
+    age = ""
+    if state.get("start_time"):
+        elapsed = (state.get("end_time") or now) - state["start_time"]
+        age = f" for {_fmt_duration(elapsed)}"
+
+    print(f"[{state['status']}{age}] {run_id[:12]}")
+
+    # Per-step timeline
+    for ss in state["step_stats"]:
+        dur = ""
+        if ss.get("startTime"):
+            end = ss.get("endTime") or now
+            dur = _fmt_duration(end - ss["startTime"])
+        print(f"  {ss['stepKey']:24s} {ss['status']:10s} {dur}")
+
+    # dbt model progress (only meaningful while dbt_build is running or done)
+    if state["dbt_models"]:
+        total = state["dbt_total"]
+        ok = sum(1 for m in state["dbt_models"].values() if m["status"] == "OK")
+        err = sum(1 for m in state["dbt_models"].values() if m["status"] == "ERROR")
+        run_now = [(name, m) for name, m in state["dbt_models"].items()
+                   if m["status"] == "RUN"]
+        print(f"  dbt: {ok}/{total} ok, {err} error, {len(run_now)} running")
+        for name, m in sorted(run_now, key=lambda x: x[1]["index"]):
+            run_for = ""
+            if m.get("start_ts"):
+                run_for = f" ({_fmt_duration(now - m['start_ts'])})"
+            print(f"    {m['index']:3d}/{total} RUN  {name}{run_for}")
+
+
+def cmd_dbt_results(run_id: str | None = None):
+    """Dump dbt's run_results.json error rows for the most recent dbt run.
+
+    With a run_id, also prints the dbt invocation_id from that run's logs
+    so you can verify the results file matches. If they don't match,
+    refuses to print stale results.
+    """
+    env = {**subprocess.os.environ, "MSYS_NO_PATHCONV": "1"}
+    expected_invocation = None
+    if run_id:
+        run_id = _resolve_run_id(run_id)
+        # Find the dbt invocation id from the dagster log stream — dbt prints
+        # "Running with dbt=1.11.5" then later structured events include the
+        # invocation_id. Easier path: scrape "invocation_id" from log messages.
+        q = f'''{{ logsForRun(runId: "{run_id}", afterCursor: null, limit: 500) {{
+            ... on EventConnection {{ events {{
+                ... on MessageEvent {{ message }}
+            }} }}
+        }} }}'''
+        events = (gql(q).get("data", {}).get("logsForRun") or {}).get("events", []) or []
+        for e in events:
+            msg = _strip_ansi(e.get("message", "") or "")
+            m = re.search(r'invocation_id["\'\s:=]+([0-9a-f-]{36})', msg)
+            if m:
+                expected_invocation = m.group(1)
+                break
+
+    py = (
+        "import json, sys; "
+        "d = json.load(open('/workspace/dbt/lakehouse_mvp/target/run_results.json')); "
+        "inv = d.get('metadata', {}).get('invocation_id', '?'); "
+        f"expected = {expected_invocation!r}; "
+        "print(f'dbt invocation: {inv}'); "
+        "sys.exit(2) if expected and inv != expected else None; "
+        "[print(r['unique_id'], r['status'], (r.get('message') or '').replace('\\n', ' | ')) "
+        "for r in d['results'] if r['status'] != 'success']"
+    )
+    result = subprocess.run(
+        ["docker", "exec", WORKSPACE, "python", "-c", py],
+        capture_output=True, text=True, env=env,
+    )
+    sys.stdout.write(result.stdout)
+    if result.returncode == 2:
+        print("STALE: run_results.json invocation_id does not match the requested run.")
+        print("       Either dbt hasn't run yet for this run, or this run was older.")
+        sys.exit(0)
+    if result.returncode != 0:
+        sys.stderr.write(result.stderr)
+
+
+def cmd_watch(run_id: str):
+    """Live-poll a run, printing state changes as they happen.
+
+    Adaptive cadence: 30s polling while bronze is running (Marker is slow),
+    5s while dbt or other Python steps are running. Stops when the run
+    reaches a terminal state. Prints dbt model transitions individually.
+    """
+    import time as _time
+    run_id = _resolve_run_id(run_id)
+    seen_step_states: dict[str, str] = {}
+    seen_model_states: dict[str, str] = {}
+    last_print_time = 0.0
+    start_wall = _time.time()
+
+    def _stamp() -> str:
+        elapsed = int(_time.time() - start_wall)
+        m, s = divmod(elapsed, 60)
+        return f"{m:02d}:{s:02d}"
+
+    while True:
+        state = _fetch_run_state(run_id)
+        if state.get("error"):
+            print(state["error"])
+            return
+        status = state["status"]
+
+        # Detect step transitions
+        active_step = None
+        for ss in state["step_stats"]:
+            key = ss["stepKey"]
+            cur = ss["status"]
+            prev = seen_step_states.get(key)
+            if prev != cur:
+                # Compute duration if terminal
+                dur = ""
+                if cur in ("SUCCESS", "FAILURE", "SKIPPED") and ss.get("startTime"):
+                    end = ss.get("endTime") or _time.time()
+                    dur = " " + _fmt_duration(end - ss["startTime"])
+                print(f"{_stamp()}  {key:24s} {cur}{dur}")
+                seen_step_states[key] = cur
+            if cur in ("STARTED", "IN_PROGRESS"):
+                active_step = key
+
+        # dbt model transitions
+        if state["dbt_models"]:
+            for name in sorted(state["dbt_models"], key=lambda n: state["dbt_models"][n]["index"]):
+                m = state["dbt_models"][name]
+                cur = m["status"]
+                prev = seen_model_states.get(name)
+                if prev != cur:
+                    dur = ""
+                    if cur in ("OK", "ERROR", "SKIP") and m.get("start_ts") and m.get("end_ts"):
+                        dur = " " + _fmt_duration(m["end_ts"] - m["start_ts"])
+                    total = state["dbt_total"]
+                    print(f"{_stamp()}  dbt: {m['index']:3d}/{total} {cur:5s} {name}{dur}")
+                    seen_model_states[name] = cur
+
+        # Terminal status?
+        if status in ("SUCCESS", "FAILURE", "CANCELED"):
+            print(f"{_stamp()}  RUN {status}")
+            if status == "FAILURE":
+                print()
+                print("=== dbt errors (filtered to this run) ===")
+                cmd_dbt_results(run_id)
+            return
+
+        # Adaptive sleep
+        sleep_s = 30 if active_step == "bronze_tabletop" else 5
+        _time.sleep(sleep_s)
 
 
 def cmd_status(run_id: str):
@@ -272,6 +548,46 @@ def cmd_dbt_logs(n: int = 100):
     result = subprocess.run(
         ["docker", "exec", WORKSPACE, "bash", "-c",
          f"tail -n {n} /workspace/dbt/lakehouse_mvp/logs/dbt.log 2>&1"],
+        capture_output=True, text=True, env=env,
+    )
+    sys.stdout.write(result.stdout)
+    if result.returncode != 0:
+        sys.stderr.write(result.stderr)
+
+
+def cmd_dbt_internals(what: str = "list", path: str = ""):
+    """Inspect installed dbt-duckdb internals.
+
+    Subcommands (passed as the first arg):
+        list                       — list dbt.adapters.duckdb package files
+        plugins                    — list dbt.adapters.duckdb.plugins files
+        macros                     — list bundled materialization macros (.sql)
+        cat-pkg <relative/path>    — cat a file under dbt.adapters.duckdb
+        cat-inc <relative/path>    — cat a file under dbt.include.duckdb
+        find <pattern>             — grep -rln pattern under both trees
+    """
+    env = {**subprocess.os.environ, "MSYS_NO_PATHCONV": "1"}
+    pkg = "/usr/local/lib/python3.11/site-packages/dbt/adapters/duckdb"
+    inc = "/usr/local/lib/python3.11/site-packages/dbt/include/duckdb"
+    if what == "list":
+        cmd = f"ls -la {pkg}"
+    elif what == "plugins":
+        cmd = f"ls -la {pkg}/plugins"
+    elif what == "macros":
+        cmd = f"find {inc} -name '*.sql' | sort"
+    elif what == "cat-pkg":
+        cmd = f"cat {pkg}/{path}"
+    elif what == "cat-inc":
+        cmd = f"cat {inc}/{path}"
+    elif what == "cat":  # backwards compat with earlier usage
+        cmd = f"cat {pkg}/{path}"
+    elif what == "find":
+        cmd = f"grep -rln {path!r} {pkg} {inc} 2>/dev/null"
+    else:
+        print(cmd_dbt_internals.__doc__)
+        return
+    result = subprocess.run(
+        ["docker", "exec", WORKSPACE, "bash", "-c", cmd],
         capture_output=True, text=True, env=env,
     )
     sys.stdout.write(result.stdout)
@@ -798,6 +1114,10 @@ if __name__ == "__main__":
             cmd_run(job_args[0], force=force)
         elif cmd == "status":
             cmd_status(args[1])
+        elif cmd == "state":
+            cmd_state(args[1])
+        elif cmd == "watch":
+            cmd_watch(args[1])
         elif cmd == "logs":
             cmd_logs(args[1], int(args[2]) if len(args) > 2 else 20)
         elif cmd == "cancel":
@@ -809,8 +1129,14 @@ if __name__ == "__main__":
             cmd_errors(args[1])
         elif cmd == "dbt-logs":
             cmd_dbt_logs(int(args[1]) if len(args) > 1 else 100)
+        elif cmd == "dbt-results":
+            cmd_dbt_results(args[1] if len(args) > 1 else None)
         elif cmd == "dbt-clean":
             cmd_dbt_clean()
+        elif cmd == "dbt-internals":
+            sub = args[1] if len(args) > 1 else "list"
+            arg = args[2] if len(args) > 2 else ""
+            cmd_dbt_internals(sub, arg)
         elif cmd == "catalog":
             cmd_catalog(clean="clean" in args[1:])
         elif cmd == "query":
