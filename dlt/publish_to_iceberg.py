@@ -37,7 +37,8 @@ META_TABLES = {
 
 PUBLISH_MAP = {
     "silver_tabletop": [
-        "silver_entries",
+        # silver_entries removed: now built directly in iceberg by the
+        # silver_entries Dagster asset (dlt/silver_tabletop/entries.py).
         "silver_page_anchors",
         "silver_known_entries",
         "silver_toc_sections",

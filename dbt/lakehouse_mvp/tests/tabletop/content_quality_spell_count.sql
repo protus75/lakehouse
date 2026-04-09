@@ -5,7 +5,7 @@ with expected as (
     select count(*) as cnt from bronze_tabletop.spell_list_entries
 ),
 actual as (
-    select count(*) as cnt from {{ ref('silver_entries') }}
+    select count(*) as cnt from {{ source('silver_tabletop', 'silver_entries') }}
     where spell_class is not null
 )
 

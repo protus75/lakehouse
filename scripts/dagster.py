@@ -368,7 +368,7 @@ def cmd_watch(run_id: str):
                 if cur in ("SUCCESS", "FAILURE", "SKIPPED") and ss.get("startTime"):
                     end = ss.get("endTime") or _time.time()
                     dur = " " + _fmt_duration(end - ss["startTime"])
-                print(f"{_stamp()}  {key:24s} {cur}{dur}")
+                print(f"{_stamp()}  {key:24s} {cur}{dur}", flush=True)
                 seen_step_states[key] = cur
             if cur in ("STARTED", "IN_PROGRESS"):
                 active_step = key
@@ -384,12 +384,12 @@ def cmd_watch(run_id: str):
                     if cur in ("OK", "ERROR", "SKIP") and m.get("start_ts") and m.get("end_ts"):
                         dur = " " + _fmt_duration(m["end_ts"] - m["start_ts"])
                     total = state["dbt_total"]
-                    print(f"{_stamp()}  dbt: {m['index']:3d}/{total} {cur:5s} {name}{dur}")
+                    print(f"{_stamp()}  dbt: {m['index']:3d}/{total} {cur:5s} {name}{dur}", flush=True)
                     seen_model_states[name] = cur
 
         # Terminal status?
         if status in ("SUCCESS", "FAILURE", "CANCELED"):
-            print(f"{_stamp()}  RUN {status}")
+            print(f"{_stamp()}  RUN {status}", flush=True)
             if status == "FAILURE":
                 print()
                 print("=== dbt errors (filtered to this run) ===")
@@ -555,6 +555,43 @@ def cmd_dbt_logs(n: int = 100):
         sys.stderr.write(result.stderr)
 
 
+def cmd_compute_logs(run_id: str, step: str = ""):
+    """Dump dagster compute log files for a run (or a specific step).
+    These contain the captured stdout/stderr of step subprocesses, which
+    is where dbt's full output and Python tracebacks live.
+
+    Compute log files are named with random hashes, not step names. To
+    find a specific step, we grep all .out files for the step key and
+    print the matching file's .err and .out together.
+    """
+    env = {**subprocess.os.environ, "MSYS_NO_PATHCONV": "1"}
+    run_id = _resolve_run_id(run_id)
+    base = f"/workspace/dagster/storage/{run_id}/compute_logs"
+    if step:
+        cmd = (
+            f"for f in {base}/*.out {base}/*.err; do "
+            f"  [ -f \"$f\" ] || continue; "
+            f"  if grep -l {step!r} \"$f\" >/dev/null 2>&1 || grep -l {step!r} \"${{f%.*}}.out\" >/dev/null 2>&1; then "
+            f"    echo \"=== $f ===\"; cat \"$f\"; echo; "
+            f"  fi; "
+            f"done"
+        )
+    else:
+        cmd = (
+            f"for f in {base}/*.out {base}/*.err; do "
+            f"  [ -f \"$f\" ] && [ -s \"$f\" ] || continue; "
+            f"  echo \"=== $f ===\"; cat \"$f\"; echo; "
+            f"done"
+        )
+    result = subprocess.run(
+        ["docker", "exec", WORKSPACE, "bash", "-c", cmd],
+        capture_output=True, text=True, env=env,
+    )
+    sys.stdout.write(result.stdout)
+    if result.returncode != 0:
+        sys.stderr.write(result.stderr)
+
+
 def cmd_dbt_internals(what: str = "list", path: str = ""):
     """Inspect installed dbt-duckdb internals.
 
@@ -593,6 +630,41 @@ def cmd_dbt_internals(what: str = "list", path: str = ""):
     sys.stdout.write(result.stdout)
     if result.returncode != 0:
         sys.stderr.write(result.stderr)
+
+
+def cmd_validate_assets():
+    """Import dagster asset module + dbt parse to verify both are syntactically
+    valid before launching a pipeline run. Catches import errors, missing
+    asset references, broken dbt models/sources/yml without burning a 6-min
+    pipeline run on a typo.
+    """
+    env = {**subprocess.os.environ, "MSYS_NO_PATHCONV": "1"}
+    py = (
+        "import sys; sys.path.insert(0, '/workspace/dagster'); "
+        "from lakehouse_assets.assets import silver_entries, dbt_build, "
+        "tabletop_without_enrichment, tabletop_full_pipeline; "
+        "print('dagster assets: OK'); "
+        "print('  silver_entries deps:', sorted(str(k) for k in silver_entries.dependency_keys)); "
+        "print('  dbt_build deps:    ', sorted(str(k) for k in dbt_build.dependency_keys))"
+    )
+    r = subprocess.run(
+        ["docker", "exec", WORKSPACE, "python", "-c", py],
+        capture_output=True, text=True, env=env,
+    )
+    sys.stdout.write(r.stdout)
+    if r.returncode != 0:
+        sys.stderr.write(r.stderr)
+        sys.exit(r.returncode)
+    # dbt parse
+    r2 = subprocess.run(
+        ["docker", "exec", WORKSPACE, "bash", "-c",
+         "cd /workspace/dbt/lakehouse_mvp && dbt parse 2>&1 | tail -20"],
+        capture_output=True, text=True, env=env,
+    )
+    sys.stdout.write(r2.stdout)
+    if r2.returncode != 0:
+        sys.stderr.write(r2.stderr)
+        sys.exit(r2.returncode)
 
 
 def cmd_dbt_clean():
@@ -1131,8 +1203,12 @@ if __name__ == "__main__":
             cmd_dbt_logs(int(args[1]) if len(args) > 1 else 100)
         elif cmd == "dbt-results":
             cmd_dbt_results(args[1] if len(args) > 1 else None)
+        elif cmd == "compute-logs":
+            cmd_compute_logs(args[1], args[2] if len(args) > 2 else "")
         elif cmd == "dbt-clean":
             cmd_dbt_clean()
+        elif cmd == "validate":
+            cmd_validate_assets()
         elif cmd == "dbt-internals":
             sub = args[1] if len(args) > 1 else "list"
             arg = args[2] if len(args) > 2 else ""

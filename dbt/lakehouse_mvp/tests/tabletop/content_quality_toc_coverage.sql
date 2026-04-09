@@ -15,7 +15,7 @@ with gaps as (
 parents_with_children as (
     select distinct t.parent_title
     from {{ ref('silver_toc_sections') }} t
-    join {{ ref('silver_entries') }} e on e.toc_id = t.toc_id
+    join {{ source('silver_tabletop', 'silver_entries') }} e on e.toc_id = t.toc_id
     where t.parent_title is not null
 )
 

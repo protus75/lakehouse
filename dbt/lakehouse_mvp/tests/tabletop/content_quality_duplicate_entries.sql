@@ -8,7 +8,7 @@ select
     entry_title,
     count(*) as duplicate_count,
     string_agg(cast(entry_id as varchar), ', ' order by entry_id) as entry_ids
-from {{ ref('silver_entries') }}
+from {{ source('silver_tabletop', 'silver_entries') }}
 where entry_title is not null
 group by toc_id, toc_title, entry_title
 having count(*) > 1

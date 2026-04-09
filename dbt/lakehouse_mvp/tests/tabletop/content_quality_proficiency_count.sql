@@ -6,7 +6,7 @@ with expected as (
     where entry_type = 'proficiency'
 ),
 actual as (
-    select count(distinct entry_title) as cnt from {{ ref('silver_entries') }} e
+    select count(distinct entry_title) as cnt from {{ source('silver_tabletop', 'silver_entries') }} e
     inner join {{ ref('silver_toc_sections') }} t
         on e.toc_id = t.toc_id
     where lower(t.title) like '%proficiency desc%'

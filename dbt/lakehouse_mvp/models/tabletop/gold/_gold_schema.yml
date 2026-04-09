@@ -12,7 +12,7 @@ models:
         tests:
           - not_null
           - relationships:
-              to: ref('silver_entries')
+              to: source('silver_tabletop', 'silver_entries')
               field: entry_id
       - name: toc_id
         tests:
@@ -68,7 +68,7 @@ models:
         tests:
           - not_null
           - relationships:
-              to: ref('silver_entries')
+              to: source('silver_tabletop', 'silver_entries')
               field: entry_id
       - name: source_file
         tests:

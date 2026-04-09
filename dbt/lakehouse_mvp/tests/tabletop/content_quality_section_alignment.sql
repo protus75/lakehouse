@@ -6,7 +6,7 @@ select
     e.toc_title as entry_toc_title,
     t.title as actual_toc_title,
     e.entry_title
-from {{ ref('silver_entries') }} e
+from {{ source('silver_tabletop', 'silver_entries') }} e
 join {{ ref('silver_toc_sections') }} t
     on e.toc_id = t.toc_id
 where e.toc_title != t.title

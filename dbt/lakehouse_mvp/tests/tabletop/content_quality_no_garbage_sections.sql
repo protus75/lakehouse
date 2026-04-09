@@ -5,7 +5,7 @@ select
     e.toc_title,
     e.section_title,
     e.entry_title
-from {{ ref('silver_entries') }} e
+from {{ source('silver_tabletop', 'silver_entries') }} e
 left join {{ ref('silver_toc_sections') }} t
     on (
         lower(e.section_title) = lower(t.title)

@@ -1,0 +1,12 @@
+version: 2
+
+# Tables in silver_tabletop that are NOT dbt models — they're built by
+# Dagster Python assets and exposed to dbt as sources via the
+# dbt_iceberg_plugin's configure_connection hook.
+
+sources:
+  - name: silver_tabletop
+    schema: silver_tabletop
+    tables:
+      - name: silver_entries
+        description: "Cleaned, chapter-assigned entries. Built by the silver_entries Dagster asset (dlt/silver_tabletop/entries.py), not by dbt."

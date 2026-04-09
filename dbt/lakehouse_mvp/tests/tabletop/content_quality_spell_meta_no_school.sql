@@ -6,5 +6,5 @@ select
     e.entry_title,
     m.school
 from {{ ref('silver_spell_meta') }} m
-join {{ ref('silver_entries') }} e on e.entry_id = m.entry_id
+join {{ source('silver_tabletop', 'silver_entries') }} e on e.entry_id = m.entry_id
 where m.school = '' or m.school is null

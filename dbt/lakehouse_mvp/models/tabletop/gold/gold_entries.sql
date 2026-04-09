@@ -18,8 +18,10 @@ select
     t.is_chapter,
     t.is_table,
     t.is_excluded
+-- silver_entries is a Dagster asset (not a dbt model). Read directly from
+-- the iceberg view registered by dbt_iceberg_plugin.configure_connection.
 from {{ ref('silver_toc_sections') }} t
-left join {{ ref('silver_entries') }} e
+left join silver_tabletop.silver_entries e
     on e.source_file = t.source_file
     and e.toc_id = t.toc_id
 where t.is_excluded = false

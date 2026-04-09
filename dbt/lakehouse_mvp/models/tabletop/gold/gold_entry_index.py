@@ -51,7 +51,10 @@ def model(dbt, session):
     import pandas as pd
 
     configs_dir = Path("/workspace/documents/tabletop_rules/configs")
-    entries_df = dbt.ref("silver_entries").df()
+    # silver_entries is a Dagster asset; iceberg view registered by plugin.
+    entries_df = session.execute(
+        "SELECT * FROM silver_tabletop.silver_entries"
+    ).fetchdf()
     toc_df = dbt.ref("silver_toc_sections").df()
     crosscheck_df = dbt.ref("silver_spell_crosscheck").df()
 

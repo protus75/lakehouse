@@ -6,7 +6,7 @@ select
     e.toc_title,
     e.entry_title,
     e.char_count
-from {{ ref('silver_entries') }} e
+from {{ source('silver_tabletop', 'silver_entries') }} e
 inner join {{ ref('silver_toc_sections') }} t
     on t.is_chapter = true
     and lower(e.entry_title) = lower(t.title)

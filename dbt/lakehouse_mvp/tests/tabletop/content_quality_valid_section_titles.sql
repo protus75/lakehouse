@@ -7,7 +7,7 @@ select
     e.toc_title,
     e.section_title,
     e.entry_title
-from {{ ref('silver_entries') }} e
+from {{ source('silver_tabletop', 'silver_entries') }} e
 where e.section_title is not null
   and e.section_title != coalesce(e.entry_title, '')
   and not exists (

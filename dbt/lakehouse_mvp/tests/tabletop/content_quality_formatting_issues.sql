@@ -7,7 +7,7 @@ with title_repeated_at_end as (
         entry_id,
         entry_title,
         'title_repeated_at_end' as issue
-    from {{ ref('silver_entries') }}
+    from {{ source('silver_tabletop', 'silver_entries') }}
     where entry_title is not null
       and length(entry_title) > 3
       and trim(content) like '%' || entry_title
@@ -20,7 +20,7 @@ chapter_refs_in_content as (
         e.entry_id,
         e.entry_title,
         'chapter_ref_in_content' as issue
-    from {{ ref('silver_entries') }} e
+    from {{ source('silver_tabletop', 'silver_entries') }} e
     inner join {{ ref('silver_toc_sections') }} t
         on t.is_chapter = true
         and lower(e.content) like '%(' || lower(trim(split_part(t.title, ':', 1))) || ')%'
@@ -32,7 +32,7 @@ raw_html_in_content as (
         entry_id,
         entry_title,
         'raw_html_in_content' as issue
-    from {{ ref('silver_entries') }}
+    from {{ source('silver_tabletop', 'silver_entries') }}
     where content like '%<%>%'
 )
 

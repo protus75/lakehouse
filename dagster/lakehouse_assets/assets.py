@@ -84,7 +84,22 @@ def bronze_ocr_check(context: AssetExecutionContext):
     context.log.info(f"OCR check complete for {len(pdfs)} books")
 
 
-@asset(group_name="silver_gold", compute_kind="dbt", deps=[bronze_ocr_check])
+@asset(group_name="silver_gold", compute_kind="python", deps=[bronze_tabletop, toc_review])
+def silver_entries(context: AssetExecutionContext):
+    """Build silver_tabletop.silver_entries directly in iceberg.
+
+    Migrated out of dbt — see dlt/silver_tabletop/entries.py for the
+    rationale. Reads bronze via get_reader(), writes silver via
+    write_iceberg() per source_file. The dbt models that previously did
+    {{ ref('silver_entries') }} now read from the iceberg view registered
+    by the dbt_iceberg_plugin's configure_connection hook.
+    """
+    from dlt.silver_tabletop.entries import build_silver_entries
+    n = build_silver_entries()
+    context.log.info(f"silver_entries: {n} rows written to iceberg")
+
+
+@asset(group_name="silver_gold", compute_kind="dbt", deps=[bronze_ocr_check, silver_entries])
 def dbt_build(context: AssetExecutionContext):
     """Run dbt models for tabletop (silver + gold). Tests run separately after publish."""
     result = subprocess.run(
@@ -378,14 +393,15 @@ def seed_marker_cache(context: AssetExecutionContext):
 tabletop_full_pipeline = define_asset_job(
     name="tabletop_full_pipeline",
     selection=[
-        bronze_tabletop, toc_review, bronze_ocr_check, dbt_build,
+        bronze_tabletop, toc_review, bronze_ocr_check, silver_entries, dbt_build,
         publish_to_iceberg, dbt_test, gold_ai_summaries, gold_ai_annotations,
     ],
 )
 
 tabletop_without_enrichment = define_asset_job(
     name="tabletop_without_enrichment",
-    selection=[bronze_tabletop, toc_review, bronze_ocr_check, dbt_build, publish_to_iceberg, dbt_test],
+    selection=[bronze_tabletop, toc_review, bronze_ocr_check, silver_entries,
+               dbt_build, publish_to_iceberg, dbt_test],
 )
 
 bronze_and_review = define_asset_job(
@@ -395,7 +411,7 @@ bronze_and_review = define_asset_job(
 
 silver_and_publish = define_asset_job(
     name="silver_and_publish",
-    selection=[dbt_build, publish_to_iceberg, dbt_test],
+    selection=[silver_entries, dbt_build, publish_to_iceberg, dbt_test],
 )
 
 enrichment_only = define_asset_job(
