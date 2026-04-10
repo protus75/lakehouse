@@ -36,6 +36,29 @@ PDF_DIR = Path("/workspace/documents/tabletop_rules/raw")
 NAMESPACE = "silver_tabletop"
 TABLE = "silver_entries"
 
+# Explicit arrow schema. Required because PyIceberg v2 cannot store columns
+# whose pyarrow type is null() — and a column where every row is None gets
+# inferred as null() unless we specify the type up front. The dbt python
+# model never hit this because dbt's adapter generated the duckdb table
+# schema from the model SQL/python signature, not from the data values.
+SCHEMA = pa.schema([
+    ("entry_id", pa.int64()),
+    ("toc_id", pa.int64()),
+    ("source_file", pa.string()),
+    ("toc_title", pa.string()),
+    ("section_title", pa.string()),
+    ("entry_title", pa.string()),
+    ("content", pa.string()),
+    ("school", pa.string()),
+    ("sphere", pa.string()),
+    ("spell_class", pa.string()),
+    ("spell_level", pa.int32()),
+    ("page_numbers", pa.string()),
+    ("char_count", pa.int64()),
+    ("has_metadata", pa.bool_()),
+    ("has_description", pa.bool_()),
+])
+
 
 def _build_one_file(reader, sf: str) -> list[dict]:
     """Build silver_entries rows for a single source_file. Returns dict rows."""
@@ -251,7 +274,7 @@ def build_silver_entries() -> int:
         if not rows:
             print(f"  {sf}: 0 entries", flush=True)
             continue
-        arrow = pa.Table.from_pylist(rows)
+        arrow = pa.Table.from_pylist(rows, schema=SCHEMA)
         if first:
             write_iceberg(NAMESPACE, TABLE, arrow, overwrite_all=True)
             first = False
