@@ -16,6 +16,7 @@ from pathlib import Path
 
 sys.path.insert(0, "/workspace")
 
+import pandas as pd
 import pyarrow as pa
 
 from dlt.lib.duckdb_reader import get_reader
@@ -104,14 +105,19 @@ def _build_one_file(reader, sf: str) -> list[dict]:
         [sf],
     ).fetchdf()
     if not meta_df.empty:
+        # Convert Pandas NA to Python None for safe truthiness checks.
+        # get_reader() returns Pandas DataFrames where null = pd.NA, not None.
+        def _val(v):
+            return None if pd.isna(v) else v
+
         spell_meta: dict = {}
         for _, r in meta_df.iterrows():
             name = r["entry_name"].lower()
-            ref_page = int(r["ref_page"]) if r.get("ref_page") else None
+            ref_page = int(r["ref_page"]) if pd.notna(r.get("ref_page")) else None
             if name not in spell_meta:
                 spell_meta[name] = {
-                    "school": r["school"],
-                    "sphere": r.get("sphere"),
+                    "school": _val(r["school"]),
+                    "sphere": _val(r.get("sphere")),
                     "ref_page": ref_page,
                 }
             elif ref_page and not spell_meta[name].get("ref_page"):
