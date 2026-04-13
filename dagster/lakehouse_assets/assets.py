@@ -1,17 +1,18 @@
 """Dagster asset definitions for the lakehouse pipeline.
 
 Asset graph:
-    bronze_tabletop → dbt_tabletop → publish_to_iceberg
-        → gold_ai_summaries
-        → gold_ai_annotations
+    bronze_tabletop → toc_review → bronze_ocr_check
+                   → silver_entries → silver_toc_sections → gold_toc / gold_tables / gold_entries
+                                   → silver_known_entries → silver_spell_crosscheck → gold_entry_index
+                                   → silver_spell_meta / silver_entry_descriptions / silver_page_anchors
+                                   → silver_files / silver_tables
+                   → gold_chunks → gold_files
+                   → gold_entry_descriptions → gold_ai_summaries → gold_ai_annotations
 
-All services share the same Docker image (lakehouse-workspace).
+All data writes go directly to Iceberg via write_iceberg(). No dbt, no duckdb file.
 """
 import sys
 sys.path.insert(0, "/workspace")
-
-import subprocess
-from pathlib import Path
 
 from dagster import (
     asset,
@@ -20,8 +21,6 @@ from dagster import (
     define_asset_job,
     Config,
 )
-
-DBT_PROJECT_DIR = Path("/workspace/dbt/lakehouse_mvp")
 
 
 class BronzeConfig(Config):
@@ -106,127 +105,127 @@ def silver_entries(context: AssetExecutionContext):
         raise
 
 
-@asset(group_name="silver_gold", compute_kind="dbt", deps=[bronze_ocr_check, silver_entries])
-def dbt_build(context: AssetExecutionContext):
-    """Run dbt models for tabletop (silver + gold). Tests run separately after publish."""
-    result = subprocess.run(
-        ["dbt", "run", "--select", "tabletop", "--project-dir", str(DBT_PROJECT_DIR)],
-        capture_output=True, text=True, cwd=str(DBT_PROJECT_DIR),
-    )
-    context.log.info(result.stdout)
-    if result.returncode != 0:
-        context.log.error(result.stderr)
-        raise Exception(f"dbt run failed: {result.stderr}")
-    context.log.info("dbt models built")
+@asset(group_name="silver_gold", compute_kind="python", deps=[silver_entries])
+def silver_toc_sections(context: AssetExecutionContext):
+    """Build silver_tabletop.silver_toc_sections directly in iceberg."""
+    from dlt.silver_tabletop.models import build_silver_toc_sections
+    n = build_silver_toc_sections()
+    context.log.info(f"silver_toc_sections: {n} rows written to iceberg")
 
 
-@asset(group_name="silver_gold", compute_kind="python", deps=[dbt_build])
-def publish_to_iceberg(context: AssetExecutionContext):
-    """Publish dbt silver/gold tables to Iceberg on S3."""
-    from dlt.publish_to_iceberg import publish
-    publish()
-    context.log.info("Published silver/gold to Iceberg")
+@asset(group_name="silver_gold", compute_kind="python", deps=[bronze_tabletop])
+def silver_known_entries(context: AssetExecutionContext):
+    """Build silver_tabletop.silver_known_entries directly in iceberg."""
+    from dlt.silver_tabletop.models import build_silver_known_entries
+    n = build_silver_known_entries()
+    context.log.info(f"silver_known_entries: {n} rows written to iceberg")
 
 
-@asset(group_name="silver_gold", compute_kind="dbt", deps=[publish_to_iceberg])
-def dbt_test(context: AssetExecutionContext):
-    """Run dbt tests and write results to Iceberg. Fails if any tests fail."""
-    import json as _json
-    from datetime import datetime
-    import pyarrow as pa
-    from dlt.lib.iceberg_catalog import write_iceberg
-
-    # Run dbt test with JSON logging for structured results
-    result = subprocess.run(
-        ["dbt", "test", "--select", "tabletop", "--project-dir", str(DBT_PROJECT_DIR),
-         "--log-format", "json"],
-        capture_output=True, text=True, cwd=str(DBT_PROJECT_DIR),
-    )
-
-    # Parse JSON log lines for test results
-    now = datetime.now()
-    test_rows = []
-    for line in result.stdout.strip().split("\n"):
-        line = line.strip()
-        if not line.startswith("{"):
-            continue
-        try:
-            log_entry = _json.loads(line)
-            data = log_entry.get("data", {})
-            # dbt emits TestNodeStatus events with node_info
-            node_info = data.get("node_info", {})
-            if not node_info or node_info.get("resource_type") != "test":
-                continue
-            status = node_info.get("node_status")
-            if not status:
-                continue
-            # dbt puts failure details in different fields depending on version
-            message = (
-                data.get("message")
-                or log_entry.get("info", {}).get("msg")
-                or data.get("node_info", {}).get("node_finished_at", "")
-            )
-            test_rows.append({
-                "test_name": node_info.get("unique_id", ""),
-                "status": status,
-                "failures": int(data.get("failures", 0) or 0),
-                "message": str(message)[:500],
-                "tested_at": now,
-            })
-        except _json.JSONDecodeError:
-            continue
-
-    if test_rows:
-        write_iceberg("meta", "dbt_test_results", pa.table({
-            k: [r[k] for r in test_rows] for k in test_rows[0]
-        }), overwrite_all=True)
-        context.log.info(f"Wrote {len(test_rows)} test results to meta.dbt_test_results")
-
-    passed = sum(1 for r in test_rows if r["status"] == "pass")
-    failed = sum(1 for r in test_rows if r["status"] in ("fail", "error"))
-    skipped = sum(1 for r in test_rows if r["status"] == "skip")
-    context.log.info(f"Tests: {passed} passed, {failed} failed, {skipped} skipped")
-
-    # Re-run each failing test query and store actual failing rows to S3
-    if failed > 0:
-        import duckdb
-        conn = duckdb.connect(str(DBT_PROJECT_DIR / "../../db/lakehouse.duckdb"), read_only=True)
-        compiled_dir = DBT_PROJECT_DIR / "target" / "compiled" / "lakehouse_mvp" / "tests" / "tabletop"
-        failure_rows = []
-        for tr in test_rows:
-            if tr["status"] != "fail":
-                continue
-            # Extract short test name from unique_id
-            test_name = tr["test_name"].replace("test.lakehouse_mvp.", "")
-            sql_file = compiled_dir / f"{test_name}.sql"
-            if not sql_file.exists():
-                continue
-            sql = sql_file.read_text()
-            try:
-                df = conn.execute(sql).fetchdf()
-                for _, row in df.iterrows():
-                    failure_rows.append({
-                        "test_name": test_name,
-                        "failing_row": _json.dumps({k: str(v)[:200] for k, v in row.items()}),
-                        "tested_at": now,
-                    })
-            except Exception as e:
-                context.log.warning(f"Could not re-run {test_name}: {e}")
-        conn.close()
-
-        if failure_rows:
-            write_iceberg("meta", "dbt_test_failures", pa.table({
-                k: [r[k] for r in failure_rows] for k in failure_rows[0]
-            }), overwrite_all=True)
-            context.log.info(f"Wrote {len(failure_rows)} failing rows to meta.dbt_test_failures")
-
-    if result.returncode != 0:
-        if result.stderr:
-            context.log.error(result.stderr)
-        raise Exception(f"dbt test failed: {failed} failures (results on S3 at meta.dbt_test_results, rows at meta.dbt_test_failures)")
+@asset(group_name="silver_gold", compute_kind="python", deps=[silver_known_entries])
+def silver_spell_crosscheck(context: AssetExecutionContext):
+    """Build silver_tabletop.silver_spell_crosscheck directly in iceberg."""
+    from dlt.silver_tabletop.models import build_silver_spell_crosscheck
+    n = build_silver_spell_crosscheck()
+    context.log.info(f"silver_spell_crosscheck: {n} rows written to iceberg")
 
 
-@asset(group_name="enrichment", compute_kind="ollama", deps=[dbt_test])
+@asset(group_name="silver_gold", compute_kind="python", deps=[silver_entries])
+def silver_spell_meta(context: AssetExecutionContext):
+    """Build silver_tabletop.silver_spell_meta directly in iceberg."""
+    from dlt.silver_tabletop.models import build_silver_spell_meta
+    n = build_silver_spell_meta()
+    context.log.info(f"silver_spell_meta: {n} rows written to iceberg")
+
+
+@asset(group_name="silver_gold", compute_kind="python", deps=[silver_entries])
+def silver_entry_descriptions(context: AssetExecutionContext):
+    """Build silver_tabletop.silver_entry_descriptions directly in iceberg."""
+    from dlt.silver_tabletop.models import build_silver_entry_descriptions
+    n = build_silver_entry_descriptions()
+    context.log.info(f"silver_entry_descriptions: {n} rows written to iceberg")
+
+
+@asset(group_name="silver_gold", compute_kind="python", deps=[bronze_tabletop])
+def silver_page_anchors(context: AssetExecutionContext):
+    """Build silver_tabletop.silver_page_anchors directly in iceberg."""
+    from dlt.silver_tabletop.models import build_silver_page_anchors
+    n = build_silver_page_anchors()
+    context.log.info(f"silver_page_anchors: {n} rows written to iceberg")
+
+
+@asset(group_name="silver_gold", compute_kind="python", deps=[silver_entries])
+def silver_files(context: AssetExecutionContext):
+    """Build silver_tabletop.silver_files directly in iceberg."""
+    from dlt.silver_tabletop.models import build_silver_files
+    n = build_silver_files()
+    context.log.info(f"silver_files: {n} rows written to iceberg")
+
+
+@asset(group_name="silver_gold", compute_kind="python", deps=[silver_toc_sections])
+def silver_tables(context: AssetExecutionContext):
+    """Build silver_tabletop.silver_tables directly in iceberg."""
+    from dlt.silver_tabletop.models import build_silver_tables
+    n = build_silver_tables()
+    context.log.info(f"silver_tables: {n} rows written to iceberg")
+
+
+@asset(group_name="gold", compute_kind="python", deps=[silver_toc_sections])
+def gold_toc(context: AssetExecutionContext):
+    """Build gold_tabletop.gold_toc directly in iceberg."""
+    from dlt.gold_tabletop.models import build_gold_toc
+    n = build_gold_toc()
+    context.log.info(f"gold_toc: {n} rows written to iceberg")
+
+
+@asset(group_name="gold", compute_kind="python", deps=[silver_tables])
+def gold_tables(context: AssetExecutionContext):
+    """Build gold_tabletop.gold_tables directly in iceberg."""
+    from dlt.gold_tabletop.models import build_gold_tables
+    n = build_gold_tables()
+    context.log.info(f"gold_tables: {n} rows written to iceberg")
+
+
+@asset(group_name="gold", compute_kind="python", deps=[silver_toc_sections, silver_entries])
+def gold_entries(context: AssetExecutionContext):
+    """Build gold_tabletop.gold_entries directly in iceberg."""
+    from dlt.gold_tabletop.models import build_gold_entries
+    n = build_gold_entries()
+    context.log.info(f"gold_entries: {n} rows written to iceberg")
+
+
+@asset(group_name="gold", compute_kind="python", deps=[silver_entries, silver_toc_sections, silver_spell_crosscheck, bronze_tabletop])
+def gold_entry_index(context: AssetExecutionContext):
+    """Build gold_tabletop.gold_entry_index directly in iceberg."""
+    from dlt.gold_tabletop.models import build_gold_entry_index
+    n = build_gold_entry_index()
+    context.log.info(f"gold_entry_index: {n} rows written to iceberg")
+
+
+@asset(group_name="gold", compute_kind="python", deps=[silver_entries, silver_toc_sections])
+def gold_chunks(context: AssetExecutionContext):
+    """Build gold_tabletop.gold_chunks directly in iceberg."""
+    from dlt.gold_tabletop.models import build_gold_chunks
+    n = build_gold_chunks()
+    context.log.info(f"gold_chunks: {n} rows written to iceberg")
+
+
+@asset(group_name="gold", compute_kind="python", deps=[silver_entry_descriptions, gold_entry_index])
+def gold_entry_descriptions(context: AssetExecutionContext):
+    """Build gold_tabletop.gold_entry_descriptions directly in iceberg."""
+    from dlt.gold_tabletop.models import build_gold_entry_descriptions
+    n = build_gold_entry_descriptions()
+    context.log.info(f"gold_entry_descriptions: {n} rows written to iceberg")
+
+
+@asset(group_name="gold", compute_kind="python", deps=[gold_chunks, silver_files, gold_toc])
+def gold_files(context: AssetExecutionContext):
+    """Build gold_tabletop.gold_files directly in iceberg."""
+    from dlt.gold_tabletop.models import build_gold_files
+    n = build_gold_files()
+    context.log.info(f"gold_files: {n} rows written to iceberg")
+
+
+@asset(group_name="enrichment", compute_kind="ollama", deps=[gold_entry_descriptions])
 def gold_ai_summaries(context: AssetExecutionContext):
     """AI-generated summaries for gold entries via Ollama. ~45min for 800+ entries."""
     from scripts.tabletop_rules.enrich_summaries import main
@@ -400,15 +399,24 @@ def seed_marker_cache(context: AssetExecutionContext):
 tabletop_full_pipeline = define_asset_job(
     name="tabletop_full_pipeline",
     selection=[
-        bronze_tabletop, toc_review, bronze_ocr_check, silver_entries, dbt_build,
-        publish_to_iceberg, dbt_test, gold_ai_summaries, gold_ai_annotations,
+        bronze_tabletop, toc_review, bronze_ocr_check, silver_entries,
+        silver_toc_sections, silver_known_entries, silver_spell_crosscheck,
+        silver_spell_meta, silver_entry_descriptions, silver_page_anchors,
+        silver_files, silver_tables,
+        gold_toc, gold_tables, gold_entries, gold_entry_index,
+        gold_chunks, gold_entry_descriptions, gold_files,
+        gold_ai_summaries, gold_ai_annotations,
     ],
 )
 
 tabletop_without_enrichment = define_asset_job(
     name="tabletop_without_enrichment",
     selection=[bronze_tabletop, toc_review, bronze_ocr_check, silver_entries,
-               dbt_build, publish_to_iceberg, dbt_test],
+               silver_toc_sections, silver_known_entries, silver_spell_crosscheck,
+               silver_spell_meta, silver_entry_descriptions, silver_page_anchors,
+               silver_files, silver_tables,
+               gold_toc, gold_tables, gold_entries, gold_entry_index,
+               gold_chunks, gold_entry_descriptions, gold_files],
 )
 
 bronze_and_review = define_asset_job(
@@ -418,7 +426,11 @@ bronze_and_review = define_asset_job(
 
 silver_and_publish = define_asset_job(
     name="silver_and_publish",
-    selection=[silver_entries, dbt_build, publish_to_iceberg, dbt_test],
+    selection=[silver_entries, silver_toc_sections, silver_known_entries,
+               silver_spell_crosscheck, silver_spell_meta, silver_entry_descriptions,
+               silver_page_anchors, silver_files, silver_tables,
+               gold_toc, gold_tables, gold_entries, gold_entry_index,
+               gold_chunks, gold_entry_descriptions, gold_files],
 )
 
 enrichment_only = define_asset_job(
@@ -436,8 +448,12 @@ defs = Definitions(
     assets=[
         seed_ollama_models, seed_huggingface_models, seed_marker_cache,
         bronze_tabletop, toc_review, bronze_ocr_check,
-        silver_entries, dbt_build,
-        publish_to_iceberg, dbt_test, gold_ai_summaries, gold_ai_annotations,
+        silver_entries, silver_toc_sections, silver_known_entries,
+        silver_spell_crosscheck, silver_spell_meta, silver_entry_descriptions,
+        silver_page_anchors, silver_files, silver_tables,
+        gold_toc, gold_tables, gold_entries, gold_entry_index,
+        gold_chunks, gold_entry_descriptions, gold_files,
+        gold_ai_summaries, gold_ai_annotations,
     ],
     jobs=[seed_models, tabletop_full_pipeline, tabletop_without_enrichment, bronze_and_review, silver_and_publish, enrichment_only],
 )

@@ -641,14 +641,14 @@ def cmd_validate_assets():
     env = {**subprocess.os.environ, "MSYS_NO_PATHCONV": "1"}
     py = (
         "import sys; sys.path.insert(0, '/workspace/dagster')\n"
-        "from lakehouse_assets.assets import defs, silver_entries, dbt_build\n"
+        "from lakehouse_assets.assets import defs, silver_entries, gold_entry_index\n"
         "# Force the Definitions object to construct its repository, which\n"
         "# resolves every job's asset selection. Catches assets that are\n"
         "# defined but not registered in defs(assets=...).\n"
         "defs.get_repository_def()\n"
         "print('dagster assets+jobs: OK')\n"
         "print('  silver_entries deps:', sorted(str(k) for k in silver_entries.dependency_keys))\n"
-        "print('  dbt_build deps:    ', sorted(str(k) for k in dbt_build.dependency_keys))\n"
+        "print('  gold_entry_index deps:', sorted(str(k) for k in gold_entry_index.dependency_keys))\n"
     )
     r = subprocess.run(
         ["docker", "exec", WORKSPACE, "python", "-c", py],

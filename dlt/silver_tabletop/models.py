@@ -11,12 +11,18 @@ from pathlib import Path
 
 sys.path.insert(0, "/workspace")
 
+import pandas as pd
 import pyarrow as pa
 
 from dlt.lib.duckdb_reader import get_reader
 from dlt.lib.iceberg_catalog import write_iceberg
 from dlt.lib.tabletop_cleanup import load_config, _detect_watermarks
 from dlt.lib.stable_keys import make_id
+
+
+def _val(v):
+    """Convert pandas NA/NaN to Python None for safe truthiness checks."""
+    return None if pd.isna(v) else v
 
 CONFIGS_DIR = Path("/workspace/documents/tabletop_rules/configs")
 NAMESPACE = "silver_tabletop"
@@ -190,7 +196,7 @@ def build_silver_toc_sections() -> int:
         toc_id_by_title = {}
         for _, row in toc_df.iterrows():
             title = row["title"]
-            parent = row["parent_title"] if row["parent_title"] and str(row["parent_title"]) != "nan" else ""
+            parent = _val(row["parent_title"]) or ""
             tid = make_id("toc_id", {
                 "source_file": sf, "title": title,
                 "parent_title": parent,
@@ -200,7 +206,7 @@ def build_silver_toc_sections() -> int:
 
         for _, row in toc_df.iterrows():
             title = row["title"]
-            parent = row["parent_title"] if row["parent_title"] and str(row["parent_title"]) != "nan" else ""
+            parent = _val(row["parent_title"]) or ""
             tid = toc_id_by_title[title]
             parent_tid = toc_id_by_title.get(parent)
             subs = sub_headings.get(title, [])
@@ -286,8 +292,8 @@ def build_silver_spell_meta() -> int:
             all_rows.append({
                 "entry_id": int(row["entry_id"]),
                 "source_file": sf,
-                "school": row["school"] if row["school"] and str(row["school"]) != "nan" else "",
-                "sphere": row["sphere"] if row["sphere"] and str(row["sphere"]) != "nan" else "",
+                "school": _val(row["school"]) or "",
+                "sphere": _val(row["sphere"]) or "",
                 "reversible": "",  # populated from content if present
                 "range": fields.get("range", ""),
                 "components": fields.get("components", fields.get("component", "")),
@@ -347,7 +353,7 @@ def build_silver_spell_crosscheck() -> int:
         # Cross-check each known spell entry
         exclude_names = set(n.lower() for n in config.get("exclude_entry_names", []))
         for _, r in known_df.iterrows():
-            if not r["entry_class"]:
+            if not _val(r["entry_class"]):
                 continue
             name = r["entry_name"]
             cls = r["entry_class"]
@@ -359,8 +365,7 @@ def build_silver_spell_crosscheck() -> int:
             sl_row = spell_list_lookup.get(key, {})
 
             level_mismatch = False
-            if in_list and r["entry_level"] is not None:
-                import pandas as pd
+            if in_list and pd.notna(r["entry_level"]):
                 sl_level = sl_row.get("entry_level")
                 if pd.notna(sl_level) and pd.notna(r["entry_level"]):
                     level_mismatch = int(sl_level) != int(r["entry_level"])
@@ -369,14 +374,14 @@ def build_silver_spell_crosscheck() -> int:
                 "source_file": sf,
                 "entry_name": name,
                 "entry_class": cls,
-                "entry_level": int(r["entry_level"]) if r["entry_level"] is not None else None,
-                "ref_page": int(r["ref_page"]) if r["ref_page"] is not None else None,
-                "school": r["school"] if r["school"] and str(r["school"]) != "nan" else None,
-                "sphere": r["sphere"] if r["sphere"] and str(r["sphere"]) != "nan" else None,
+                "entry_level": int(r["entry_level"]) if pd.notna(r["entry_level"]) else None,
+                "ref_page": int(r["ref_page"]) if pd.notna(r["ref_page"]) else None,
+                "school": _val(r["school"]),
+                "sphere": _val(r["sphere"]),
                 "is_reversible": bool(sl_row.get("is_reversible", False)) if in_list else False,
                 "in_spell_list": in_list,
-                "in_school_index": r["school"] is not None and str(r["school"]) != "nan",
-                "in_sphere_index": r["sphere"] is not None and str(r["sphere"]) != "nan",
+                "in_school_index": pd.notna(r["school"]),
+                "in_sphere_index": pd.notna(r["sphere"]),
                 "level_mismatch": level_mismatch,
             })
 
@@ -417,7 +422,7 @@ def build_silver_entry_descriptions() -> int:
 
         for _, row in entries_df.iterrows():
             content = row["content"]
-            is_spell = row["spell_level"] is not None
+            is_spell = pd.notna(row["spell_level"])
 
             if is_spell and field_names:
                 # Strip spell header (key-value metadata lines)
