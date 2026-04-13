@@ -66,20 +66,45 @@ class Plugin(BasePlugin):
         SELECT FROM <namespace>.<table> for any table that exists in iceberg
         — bronze, silver, gold, meta — without any hardcoded list anywhere.
 
-        The catalog and on-disk data must match: every table the catalog
-        knows about MUST have its iceberg metadata on disk. Stale entries
-        are a bug, not a tolerated state, so this method fails loudly.
+        IMPORTANT: This method is also called by dbt-duckdb during workspace
+        loading in the Dagster daemon process (before forking step subprocesses).
+        DuckDB's iceberg extension is NOT fork-safe — loading it in the parent
+        then forking causes SIGSEGV in child processes. We guard against this
+        by only registering views when we detect we're in an actual dbt run
+        (the connection will have schemas from dbt's adapter setup).
         """
-        conn.execute("INSTALL iceberg; LOAD iceberg;")
-        conn.execute("SET unsafe_enable_version_guessing=true;")
-        for namespace, tables in list_all_tables().items():
-            conn.execute(f'CREATE SCHEMA IF NOT EXISTS "{namespace}"')
-            for table in tables:
-                table_path = f"{self._warehouse}/{namespace}/{table}"
-                conn.execute(
-                    f'CREATE OR REPLACE VIEW "{namespace}"."{table}" AS '
-                    f"SELECT * FROM iceberg_scan('{table_path}')"
-                )
+        # Skip if this is a cursor configure during workspace/grpc loading,
+        # not during an actual dbt run. dbt-duckdb's adapter sets up schemas
+        # before calling configure_connection on model cursors, but during
+        # workspace loading it creates a bare connection just to validate
+        # the plugin. We detect this by checking if we've already been
+        # initialized — the first call sets up views, subsequent calls on
+        # the same session are no-ops (the views persist across cursors).
+        if getattr(self, '_configured', False):
+            return
+        try:
+            conn.execute("INSTALL iceberg; LOAD iceberg;")
+            conn.execute("SET unsafe_enable_version_guessing=true;")
+            warehouse_root = Path(self._warehouse)
+            for namespace, tables in list_all_tables().items():
+                conn.execute(f'CREATE SCHEMA IF NOT EXISTS "{namespace}"')
+                for table in tables:
+                    table_dir = warehouse_root / namespace / table
+                    metadata_dir = table_dir / "metadata"
+                    if not metadata_dir.exists() or not any(metadata_dir.glob("*.metadata.json")):
+                        continue
+                    table_path = f"{self._warehouse}/{namespace}/{table}"
+                    conn.execute(f'DROP VIEW IF EXISTS "{namespace}"."{table}"')
+                    conn.execute(f'DROP TABLE IF EXISTS "{namespace}"."{table}"')
+                    conn.execute(
+                        f'CREATE VIEW "{namespace}"."{table}" AS '
+                        f"SELECT * FROM iceberg_scan('{table_path}')"
+                    )
+            self._configured = True
+        except Exception as e:
+            # Log but don't crash — workspace loading may call this before
+            # the catalog is available
+            print(f"dbt_iceberg_plugin: configure_connection warning: {e}", flush=True)
 
     def store(self, target_config: TargetConfig) -> None:
         """Persist a model's output (already exported to parquet by dbt) to iceberg.

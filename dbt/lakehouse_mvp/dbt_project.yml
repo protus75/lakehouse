@@ -10,10 +10,8 @@ vars:
 model-paths: ["models"]
 test-paths:  ["tests"]
 
-# Bronze view registration is now handled by the iceberg plugin's
-# configure_connection hook (see dlt/lib/dbt_iceberg_plugin.py). It
-# enumerates the live catalog at session start instead of relying on
-# a hardcoded macro list.
+on-run-start:
+  - "{{ create_bronze_views() }}"
 
 models:
   lakehouse_mvp:

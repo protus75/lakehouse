@@ -18,5 +18,6 @@
 - [feedback_no_cd_prefix.md](feedback_no_cd_prefix.md) — Never use "cd /path &&" prefix in Bash tool commands
 - [feedback_no_adhoc_docker.md](feedback_no_adhoc_docker.md) — Never run ad-hoc docker exec; add to scripts first, then run script
 - [project_table_extraction.md](project_table_extraction.md) — Font-switch table detection plan (PHB validated, per-book onboarding)
+- [project_dbt_removal.md](project_dbt_removal.md) — Replace dbt with direct iceberg writes, one model at a time, fix/test/commit
 - [feedback_consolidate_scripts.md](feedback_consolidate_scripts.md) — One script per domain with subcommands, not one per action
 - [feedback_no_proprietary_files.md](feedback_no_proprietary_files.md) — Parquet or JSON only, no duckdb/pickle/proprietary files ever

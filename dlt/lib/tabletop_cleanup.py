@@ -773,6 +773,8 @@ def build_entries_from_pages(
 
     def _build_norm_map(text: str):
         """Build normalized text with char mapping back to original positions."""
+        if not isinstance(text, str):
+            raise TypeError(f"_build_norm_map expected str, got {type(text).__name__}: {repr(text)[:200]}")
         text_chars = []  # (original_idx, char)
         i = 0
         in_space = False
@@ -1032,10 +1034,11 @@ def build_entries_from_pages(
 
     entries = []
 
-    for ch in chapters:
+    for ch_idx, ch in enumerate(chapters):
         ch_title = ch["title"]
         ch_start = ch.get("page_start", 0)
         ch_end = ch.get("page_end", 9999)
+        print(f"    CH {ch_idx+1}/{len(chapters)}: {ch_title[:40]} (p{ch_start}-{ch_end})", flush=True)
 
         # Determine entry_mode from config — exact dict lookup, no string matching
         matched_cfg = toc_overrides.get(ch_title)

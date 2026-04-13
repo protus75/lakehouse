@@ -86,17 +86,24 @@ def bronze_ocr_check(context: AssetExecutionContext):
 
 @asset(group_name="silver_gold", compute_kind="python", deps=[bronze_tabletop, toc_review])
 def silver_entries(context: AssetExecutionContext):
-    """Build silver_tabletop.silver_entries directly in iceberg.
-
-    Migrated out of dbt — see dlt/silver_tabletop/entries.py for the
-    rationale. Reads bronze via get_reader(), writes silver via
-    write_iceberg() per source_file. The dbt models that previously did
-    {{ ref('silver_entries') }} now read from the iceberg view registered
-    by the dbt_iceberg_plugin's configure_connection hook.
-    """
-    from dlt.silver_tabletop.entries import build_silver_entries
-    n = build_silver_entries()
-    context.log.info(f"silver_entries: {n} rows written to iceberg")
+    """Build silver_tabletop.silver_entries directly in iceberg."""
+    import sys
+    import traceback
+    sys.stdout.flush()
+    sys.stderr.flush()
+    try:
+        print("silver_entries: starting import", flush=True)
+        from dlt.silver_tabletop.entries import build_silver_entries
+        print("silver_entries: import OK, calling build", flush=True)
+        n = build_silver_entries()
+        print(f"silver_entries: {n} rows written", flush=True)
+        context.log.info(f"silver_entries: {n} rows written to iceberg")
+    except Exception as e:
+        print(f"silver_entries CRASHED: {type(e).__name__}: {e}", flush=True)
+        traceback.print_exc()
+        sys.stdout.flush()
+        sys.stderr.flush()
+        raise
 
 
 @asset(group_name="silver_gold", compute_kind="dbt", deps=[bronze_ocr_check, silver_entries])

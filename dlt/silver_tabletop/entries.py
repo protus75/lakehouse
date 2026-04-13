@@ -188,6 +188,14 @@ def _build_one_file(reader, sf: str) -> list[dict]:
             flush=True,
         )
 
+    # Release DataFrames — all data has been extracted into Python dicts/lists.
+    # This frees the DuckDB/Arrow memory before the heavy entry builder runs.
+    del pages_df, toc_df, sl_df, ae_df, tr_df
+    if 'meta_df' in dir(): del meta_df
+    if 'mask_df' in dir(): del mask_df
+    import gc; gc.collect()
+    print(f"  {sf}: starting build_entries_from_pages", flush=True)
+
     # Build entries
     entries = build_entries_from_pages(
         toc_all, page_texts, spell_list, authority_entries, config, watermarks,
@@ -259,17 +267,21 @@ def build_silver_entries() -> int:
 
     Returns the total row count written.
     """
+    print("build_silver_entries: opening reader", flush=True)
     reader = get_reader(["bronze_tabletop"])
+    print("build_silver_entries: reader OK, querying files", flush=True)
     files_df = reader.execute(
         "SELECT source_file FROM bronze_tabletop.files ORDER BY source_file"
     ).fetchdf()
     if files_df.empty:
         print("silver_entries: no files in bronze, nothing to write", flush=True)
         return 0
+    source_files = files_df["source_file"].tolist()
+    print(f"build_silver_entries: {len(source_files)} files to process", flush=True)
 
     total_rows = 0
     first = True
-    for sf in files_df["source_file"].tolist():
+    for sf in source_files:
         rows = _build_one_file(reader, sf)
         if not rows:
             print(f"  {sf}: 0 entries", flush=True)
