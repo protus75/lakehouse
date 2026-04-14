@@ -13,7 +13,7 @@ NEVER hardcode thresholds, field names, patterns, pixel values, magic numbers, o
 NEVER use regex for content parsing. Use string operations (split, startswith, find, `in`), ML-detected headings, or LLM for complex classification. Only acceptable for truly atomic patterns (extracting a number, fixed format).
 
 ### Dagster only — CRITICAL
-NEVER run pipeline steps manually (`docker exec python -m dlt.*`, `dbt build`, `ollama pull`). Always use Dagster jobs/assets via http://localhost:3000. Only exception: small diagnostic/sample queries for debugging.
+NEVER run pipeline steps manually (`docker exec python -m dlt.*`, `ollama pull`). Always use Dagster jobs/assets via http://localhost:3000. Only exception: small diagnostic/sample queries for debugging.
 
 ### Cache reset before EVERY pipeline run — CRITICAL
 ALWAYS clear caches and restart Dagster before launching ANY pipeline. No exceptions, even if "only config changed." Steps:
@@ -77,7 +77,6 @@ Complete the current task fully — run full validation, review results, fix iss
 
 ### DuckDB (query engine only)
 - Used in-memory for reads via `dlt/lib/duckdb_reader.py`
-- `dbt` still materializes to `db/duckdb/lakehouse.duckdb` during builds
 - `get_reader()` creates DuckDB views over Iceberg tables on local filesystem
 - NEVER write data to DuckDB — all writes go through `write_iceberg()`
 
@@ -94,13 +93,13 @@ Complete the current task fully — run full validation, review results, fix iss
 ## Pipeline (Tabletop Rules)
 
 ```
-PDF → Bronze (dlt→Iceberg, ~15s) → Silver+Gold (dbt, ~5s) → Publish (Iceberg) → AI Enrichment (Ollama, ~70min)
+PDF → Bronze (dlt→Iceberg, ~15s) → Silver (Python→Iceberg, ~5s) → Gold (Python→Iceberg, ~5s) → AI Enrichment (Ollama, ~70min)
 ```
 
 ### Dagster orchestration (ALL pipeline runs go through Dagster)
 - UI: http://localhost:3000
 - Jobs: `tabletop_full_pipeline`, `tabletop_without_enrichment`
-- Assets: `bronze_tabletop → dbt_tabletop → publish_to_iceberg → gold_ai_summaries / gold_ai_annotations`
+- Assets: `bronze_tabletop → silver_* → gold_* → gold_ai_summaries / gold_ai_annotations`
 - Asset definitions: `dagster/lakehouse_assets/assets.py`
 
 ### Key paths
@@ -108,12 +107,10 @@ PDF → Bronze (dlt→Iceberg, ~15s) → Silver+Gold (dbt, ~5s) → Publish (Ice
 - Iceberg library: `dlt/lib/iceberg_catalog.py` (write_iceberg, read_iceberg)
 - DuckDB reader: `dlt/lib/duckdb_reader.py` (get_reader)
 - Shared library: `dlt/lib/tabletop_cleanup.py`
-- Publish script: `dlt/publish_to_iceberg.py`
+- Silver models: `dlt/silver_tabletop/entries.py`, `dlt/silver_tabletop/models.py`
+- Gold models: `dlt/gold_tabletop/models.py`
 - Lakehouse config: `config/lakehouse.yaml`
 - Per-book configs: `documents/tabletop_rules/configs/`
-- Silver models: `dbt/lakehouse_mvp/models/tabletop/silver/`
-- Gold models: `dbt/lakehouse_mvp/models/tabletop/gold/`
-- Bronze views macro: `dbt/lakehouse_mvp/macros/create_bronze_views.sql`
 
 ### Config-driven approach
 - All thresholds, patterns, and corrections go in YAML configs — never hardcode
@@ -125,7 +122,8 @@ PDF → Bronze (dlt→Iceberg, ~15s) → Silver+Gold (dbt, ~5s) → Publish (Ice
 ### Architecture rules
 - **No one-off scripts.** All functionality belongs in a lakehouse layer:
   - Bronze (`dlt/`): ingestion, extraction, raw validation
-  - Silver/Gold (`dbt/`): transforms, enrichment, quality checks
+  - Silver (`dlt/silver_tabletop/`): transforms via Dagster Python assets
+  - Gold (`dlt/gold_tabletop/`): enrichment, quality checks via Dagster Python assets
 - All data stored as Iceberg tables on local filesystem (`bronze_tabletop.*`, `silver_tabletop.*`, `gold_tabletop.*`)
 - Writes: always via `write_iceberg()` from `dlt/lib/iceberg_catalog.py`
 - Reads: always via `get_reader()` from `dlt/lib/duckdb_reader.py`
@@ -133,4 +131,3 @@ PDF → Bronze (dlt→Iceberg, ~15s) → Silver+Gold (dbt, ~5s) → Publish (Ice
 
 ### Current focus: Player's Handbook only
 - Process one book until validation passes before moving to others
-- 41/41 dbt tests passing

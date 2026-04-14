@@ -15,4 +15,4 @@ DuckDB is fine as an in-memory query engine. It is NOT fine as a storage format.
 
 **Why:** Proprietary files create vendor lock-in, can't be read by other tools, and add an unnecessary intermediary between the pipeline and the canonical store (iceberg, which uses parquet internally).
 
-**How to apply:** Any pipeline step that needs to persist data writes to iceberg via `write_iceberg()` or to parquet/JSON files on disk. If dbt needs intermediate storage between subprocess runs, use parquet via the `external` materialization, not a duckdb database file.
+**How to apply:** Any pipeline step that needs to persist data writes to iceberg via `write_iceberg()` or to parquet/JSON files on disk.

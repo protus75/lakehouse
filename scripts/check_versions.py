@@ -12,7 +12,6 @@ PACKAGES = [
     "rapidfuzz",
     "marker",
     "dlt",
-    "dbt",
     "dagster",
     "requests",
 ]

@@ -7,7 +7,7 @@ type: feedback
 ## Validate preconditions BEFORE launching any pipeline run
 Run `python scripts/dagster.py catalog` and inspect for stale entries (catalog rows with no metadata on disk). If ANY appear, fix them first — `catalog clean` to drop them, or investigate why they exist. NEVER launch a pipeline against known-broken state.
 
-**Why:** Stale catalog entries cause immediate dbt/iceberg failures (`Could not guess Iceberg table version`). Launching anyway wastes a 6-8 minute pipeline run on a problem that was visible in 2 seconds before launch. The user explicitly called this out: "why wasn't a test of stale data run beforehand."
+**Why:** Stale catalog entries cause immediate iceberg failures (`Could not guess Iceberg table version`). Launching anyway wastes a pipeline run on a problem that was visible in 2 seconds before launch. The user explicitly called this out: "why wasn't a test of stale data run beforehand."
 
 **How to apply:** Before EVERY `dagster.py launch`:
 1. `python scripts/dagster.py catalog` — verify zero `STALE` entries
@@ -31,7 +31,7 @@ When user says "stop" or "stop everything": `docker stop $(docker ps -q)` FIRST.
 5. Report RAM/disk/network back to baseline
 
 ## No manual docker exec for pipeline work
-NEVER run pipeline scripts via `docker exec`. ALL pipeline steps go through Dagster — enrichment, dbt, publish, everything. The only acceptable `docker exec` is small diagnostic queries for debugging. This is a lakehouse, not a pile of scripts.
+NEVER run pipeline scripts via `docker exec`. ALL pipeline steps go through Dagster — enrichment, everything. The only acceptable `docker exec` is small diagnostic queries for debugging. This is a lakehouse, not a pile of scripts.
 
 **Why:** Manual commands bypass orchestration, lose logging, and can't be monitored via Dagster.
 **How to apply:** Use `python scripts/dagster.py launch <job>` and monitor with `python scripts/dagster.py status <id>`.

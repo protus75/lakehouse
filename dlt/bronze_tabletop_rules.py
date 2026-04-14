@@ -2493,7 +2493,7 @@ def validate_bronze(source_file: str) -> None:
 def review_toc(source_file: str | None = None) -> dict:
     """Review parsed ToC and Marker headings for a book. Returns review report.
 
-    Called by Dagster as a validation gate between bronze and dbt.
+    Called by Dagster as a validation gate between bronze and silver.
     Checks:
     1. toc_reviewed flag in config — warns if false (new book needs manual review)
     2. Dumps parsed ToC sections with page ranges
