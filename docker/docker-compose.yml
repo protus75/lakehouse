@@ -40,6 +40,7 @@ services:
     environment:
       DAGSTER_HOME: /workspace/dagster
       PYTHONPATH: /workspace
+      RAPIDFUZZ_IMPLEMENTATION: python
     command: dagster-webserver -h 0.0.0.0 -p 3000 -w /workspace/dagster/workspace.yaml
     depends_on:
       postgres:
@@ -64,6 +65,7 @@ services:
       HF_HOME: /workspace/cache/huggingface
       TRANSFORMERS_OFFLINE: "1"
       HF_HUB_OFFLINE: "1"
+      RAPIDFUZZ_IMPLEMENTATION: python
     command: dagster-daemon run -w /workspace/dagster/workspace.yaml
     depends_on:
       dagster-webserver:
@@ -107,6 +109,7 @@ services:
       - E:/lakehouse/scratch:/scratch
     environment:
       HF_HOME: /workspace/cache/huggingface
+      RAPIDFUZZ_IMPLEMENTATION: python
     command: >
       jupyter lab
       --ip=0.0.0.0

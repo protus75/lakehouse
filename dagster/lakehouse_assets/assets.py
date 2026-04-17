@@ -20,6 +20,7 @@ from dagster import (
     Definitions,
     define_asset_job,
     Config,
+    in_process_executor,
 )
 
 
@@ -86,23 +87,9 @@ def bronze_ocr_check(context: AssetExecutionContext):
 @asset(group_name="silver_gold", compute_kind="python", deps=[bronze_tabletop, toc_review])
 def silver_entries(context: AssetExecutionContext):
     """Build silver_tabletop.silver_entries directly in iceberg."""
-    import sys
-    import traceback
-    sys.stdout.flush()
-    sys.stderr.flush()
-    try:
-        print("silver_entries: starting import", flush=True)
-        from dlt.silver_tabletop.entries import build_silver_entries
-        print("silver_entries: import OK, calling build", flush=True)
-        n = build_silver_entries()
-        print(f"silver_entries: {n} rows written", flush=True)
-        context.log.info(f"silver_entries: {n} rows written to iceberg")
-    except Exception as e:
-        print(f"silver_entries CRASHED: {type(e).__name__}: {e}", flush=True)
-        traceback.print_exc()
-        sys.stdout.flush()
-        sys.stderr.flush()
-        raise
+    from dlt.silver_tabletop.entries import build_silver_entries
+    n = build_silver_entries()
+    context.log.info(f"silver_entries: {n} rows written to iceberg")
 
 
 @asset(group_name="silver_gold", compute_kind="python", deps=[silver_entries])
@@ -396,8 +383,11 @@ def seed_marker_cache(context: AssetExecutionContext):
 
 
 # Jobs
+# All jobs use in_process_executor. The DuckDB iceberg extension has known
+# crash issues in Dagster's multiprocess-spawn executor.
 tabletop_full_pipeline = define_asset_job(
     name="tabletop_full_pipeline",
+    executor_def=in_process_executor,
     selection=[
         bronze_tabletop, toc_review, bronze_ocr_check, silver_entries,
         silver_toc_sections, silver_known_entries, silver_spell_crosscheck,
@@ -411,6 +401,7 @@ tabletop_full_pipeline = define_asset_job(
 
 tabletop_without_enrichment = define_asset_job(
     name="tabletop_without_enrichment",
+    executor_def=in_process_executor,
     selection=[bronze_tabletop, toc_review, bronze_ocr_check, silver_entries,
                silver_toc_sections, silver_known_entries, silver_spell_crosscheck,
                silver_spell_meta, silver_entry_descriptions, silver_page_anchors,
@@ -421,11 +412,13 @@ tabletop_without_enrichment = define_asset_job(
 
 bronze_and_review = define_asset_job(
     name="bronze_and_review",
+    executor_def=in_process_executor,
     selection=[bronze_tabletop, toc_review],
 )
 
 silver_and_publish = define_asset_job(
     name="silver_and_publish",
+    executor_def=in_process_executor,
     selection=[silver_entries, silver_toc_sections, silver_known_entries,
                silver_spell_crosscheck, silver_spell_meta, silver_entry_descriptions,
                silver_page_anchors, silver_files, silver_tables,
@@ -435,11 +428,13 @@ silver_and_publish = define_asset_job(
 
 enrichment_only = define_asset_job(
     name="enrichment_only",
+    executor_def=in_process_executor,
     selection=[gold_ai_summaries, gold_ai_annotations],
 )
 
 seed_models = define_asset_job(
     name="seed_models",
+    executor_def=in_process_executor,
     selection=[seed_ollama_models, seed_huggingface_models, seed_marker_cache],
 )
 

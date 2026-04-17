@@ -19,8 +19,7 @@ sys.path.insert(0, "/workspace")
 import pandas as pd
 import pyarrow as pa
 
-from dlt.lib.duckdb_reader import get_reader
-from dlt.lib.iceberg_catalog import write_iceberg, list_tables
+from dlt.lib.iceberg_catalog import write_iceberg, list_tables, read_iceberg_filtered, table_exists, read_iceberg
 from dlt.lib.tabletop_cleanup import (
     load_config,
     build_entries_from_pages,
@@ -60,76 +59,60 @@ SCHEMA = pa.schema([
 ])
 
 
-def _build_one_file(reader, sf: str) -> list[dict]:
-    """Build silver_entries rows for a single source_file. Returns dict rows."""
+def _arrow_to_df(arrow_table):
+    """Convert Arrow table to pandas, replacing PyArrow nulls with Python None."""
+    return arrow_table.to_pandas()
+
+
+def _build_one_file(sf: str) -> list[dict]:
+    """Build silver_entries rows for a single source_file. Returns dict rows.
+
+    Reads all bronze data via PyIceberg (no DuckDB). The DuckDB iceberg
+    extension causes heap corruption that manifests as SIGSEGV in later
+    pure-Python code.
+    """
     config = load_config(Path(sf), CONFIGS_DIR)
 
-    # Page texts (primary content)
-    pages_df = reader.execute(
-        "SELECT page_index, page_text, printed_page_num "
-        "FROM bronze_tabletop.page_texts WHERE source_file = ? ORDER BY page_index",
-        [sf],
-    ).fetchdf()
-    if pages_df.empty:
+    pages_at = read_iceberg_filtered("bronze_tabletop", "page_texts", "source_file", sf)
+    if len(pages_at) == 0:
         return []
+    pages_df = _arrow_to_df(pages_at).sort_values("page_index")
     page_texts = dict(zip(
         pages_df["printed_page_num"].astype(int).tolist(),
         pages_df["page_text"].tolist(),
     ))
     total_pages = len(pages_df)
 
-    # ToC (sort_order preserves book order within same page)
-    toc_df = reader.execute(
-        "SELECT title, page_start, page_end, is_excluded, is_chapter, is_table, "
-        "parent_title, sort_order "
-        "FROM bronze_tabletop.toc_raw WHERE source_file = ? ORDER BY sort_order",
-        [sf],
-    ).fetchdf()
+    toc_at = read_iceberg_filtered("bronze_tabletop", "toc_raw", "source_file", sf)
+    toc_df = _arrow_to_df(toc_at).sort_values("sort_order")
     toc_all = []
     for _, row in toc_df.iterrows():
         toc_all.append({
             "title": row["title"],
             "page_start": int(row["page_start"]),
-            "page_end": int(row["page_end"]) if row["page_end"] else 9999,
+            "page_end": int(row["page_end"]) if pd.notna(row["page_end"]) else 9999,
             "is_excluded": bool(row["is_excluded"]),
             "is_chapter": bool(row["is_chapter"]),
             "is_table": bool(row.get("is_table", False)),
-            "parent_title": row.get("parent_title"),
-            "sort_order": int(row["sort_order"]) if row.get("sort_order") is not None else 0,
+            "parent_title": row.get("parent_title") if pd.notna(row.get("parent_title")) else None,
+            "sort_order": int(row["sort_order"]) if pd.notna(row.get("sort_order")) else 0,
             "sub_headings": [],
             "tables": [],
         })
 
-    # Watermarks
     watermarks = _detect_watermarks(pages_df["page_text"].tolist(), total_pages)
 
-    # Spell list
-    sl_df = reader.execute(
-        "SELECT entry_name, entry_class, entry_level "
-        "FROM bronze_tabletop.spell_list_entries WHERE source_file = ?",
-        [sf],
-    ).fetchdf()
-    spell_list = sl_df.to_dict("records") if not sl_df.empty else []
+    sl_at = read_iceberg_filtered("bronze_tabletop", "spell_list_entries", "source_file", sf)
+    spell_list = _arrow_to_df(sl_at).to_dict("records") if len(sl_at) > 0 else []
 
-    # Authority entries
-    ae_df = reader.execute(
-        "SELECT entry_name, entry_type, source_table "
-        "FROM bronze_tabletop.authority_table_entries WHERE source_file = ?",
-        [sf],
-    ).fetchdf()
-    authority_entries = ae_df.to_dict("records") if not ae_df.empty else []
+    ae_at = read_iceberg_filtered("bronze_tabletop", "authority_table_entries", "source_file", sf)
+    authority_entries = _arrow_to_df(ae_at).to_dict("records") if len(ae_at) > 0 else []
 
-    # Cross-referenced spell metadata
-    meta_df = reader.execute(
-        "SELECT entry_name, school, sphere, ref_page "
-        "FROM bronze_tabletop.known_entries_raw "
-        "WHERE source_file = ? AND entry_class IS NOT NULL "
-        "AND (school IS NOT NULL OR ref_page IS NOT NULL)",
-        [sf],
-    ).fetchdf()
+    meta_at = read_iceberg_filtered("bronze_tabletop", "known_entries_raw", "source_file", sf)
+    meta_df = _arrow_to_df(meta_at) if len(meta_at) > 0 else pd.DataFrame()
     if not meta_df.empty:
-        # Convert Pandas NA to Python None for safe truthiness checks.
-        # get_reader() returns Pandas DataFrames where null = pd.NA, not None.
+        meta_df = meta_df[meta_df["entry_class"].notna() & (meta_df["school"].notna() | meta_df["ref_page"].notna())]
+    if not meta_df.empty:
         def _val(v):
             return None if pd.isna(v) else v
 
@@ -152,48 +135,34 @@ def _build_one_file(reader, sf: str) -> list[dict]:
                 s["sphere"] = spell_meta[name].get("sphere")
                 s["ref_page"] = spell_meta[name].get("ref_page")
 
-    # tables_raw for table entries
-    tr_df = reader.execute(
-        "SELECT toc_title, row_index, cells "
-        "FROM bronze_tabletop.tables_raw WHERE source_file = ? "
-        "ORDER BY toc_title, row_index",
-        [sf],
-    ).fetchdf()
-    tables_raw = tr_df.to_dict("records") if not tr_df.empty else []
+    tr_at = read_iceberg_filtered("bronze_tabletop", "tables_raw", "source_file", sf)
+    tables_raw = _arrow_to_df(tr_at).sort_values(["toc_title", "row_index"]).to_dict("records") if len(tr_at) > 0 else []
 
-    # printed→0-based page index map (for VLM page rendering, when used)
     page_index_map = dict(zip(
         pages_df["printed_page_num"].astype(int).tolist(),
         pages_df["page_index"].astype(int).tolist(),
     ))
     pdf_path = PDF_DIR / sf
 
-    # Font-switch table masks (Phase 4)
     page_text_masks: dict[int, list[tuple[int, int]]] = {}
-    if "page_text_masks" in list_tables("bronze_tabletop"):
-        mask_df = reader.execute(
-            "SELECT printed_page_num, char_start, char_end "
-            "FROM bronze_tabletop.page_text_masks WHERE source_file = ? "
-            "ORDER BY printed_page_num, char_start",
-            [sf],
-        ).fetchdf()
-        for _, r in mask_df.iterrows():
-            pp = int(r["printed_page_num"])
-            page_text_masks.setdefault(pp, []).append(
-                (int(r["char_start"]), int(r["char_end"]))
+    if table_exists("bronze_tabletop", "page_text_masks"):
+        mask_at = read_iceberg_filtered("bronze_tabletop", "page_text_masks", "source_file", sf)
+        if len(mask_at) > 0:
+            mask_df = _arrow_to_df(mask_at).sort_values(["printed_page_num", "char_start"])
+            for _, r in mask_df.iterrows():
+                pp = int(r["printed_page_num"])
+                page_text_masks.setdefault(pp, []).append(
+                    (int(r["char_start"]), int(r["char_end"]))
+                )
+            print(
+                f"  page_text_masks loaded for {sf}: {len(page_text_masks)} pages, "
+                f"{sum(len(v) for v in page_text_masks.values())} ranges",
+                flush=True,
             )
-        print(
-            f"  page_text_masks loaded for {sf}: {len(page_text_masks)} pages, "
-            f"{sum(len(v) for v in page_text_masks.values())} ranges",
-            flush=True,
-        )
 
-    # Release DataFrames — all data has been extracted into Python dicts/lists.
-    # This frees the DuckDB/Arrow memory before the heavy entry builder runs.
-    del pages_df, toc_df, sl_df, ae_df, tr_df
-    if 'meta_df' in dir(): del meta_df
-    if 'mask_df' in dir(): del mask_df
-    import gc; gc.collect()
+    # Force-release all Arrow/C memory before heavy Python processing.
+    import gc
+    gc.collect()
     print(f"  {sf}: starting build_entries_from_pages", flush=True)
 
     # Build entries
@@ -267,12 +236,9 @@ def build_silver_entries() -> int:
 
     Returns the total row count written.
     """
-    print("build_silver_entries: opening reader", flush=True)
-    reader = get_reader(["bronze_tabletop"])
-    print("build_silver_entries: reader OK, querying files", flush=True)
-    files_df = reader.execute(
-        "SELECT source_file FROM bronze_tabletop.files ORDER BY source_file"
-    ).fetchdf()
+    print("build_silver_entries: reading file list from bronze", flush=True)
+    files_at = read_iceberg("bronze_tabletop", "files")
+    files_df = _arrow_to_df(files_at).sort_values("source_file")
     if files_df.empty:
         print("silver_entries: no files in bronze, nothing to write", flush=True)
         return 0
@@ -282,7 +248,7 @@ def build_silver_entries() -> int:
     total_rows = 0
     first = True
     for sf in source_files:
-        rows = _build_one_file(reader, sf)
+        rows = _build_one_file(sf)
         if not rows:
             print(f"  {sf}: 0 entries", flush=True)
             continue

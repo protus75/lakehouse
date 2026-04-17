@@ -21,3 +21,5 @@
 - [project_dbt_removal.md](project_dbt_removal.md) — Replace dbt with direct iceberg writes, one model at a time, fix/test/commit
 - [feedback_consolidate_scripts.md](feedback_consolidate_scripts.md) — One script per domain with subcommands, not one per action
 - [feedback_no_proprietary_files.md](feedback_no_proprietary_files.md) — Parquet or JSON only, no duckdb/pickle/proprietary files ever
+- [feedback_verify_running.md](feedback_verify_running.md) — `docker ps -a` at session start; never assume containers are up
+- [project_sigsegv_investigation.md](project_sigsegv_investigation.md) — UNRESOLVED: SIGSEGV in build_entries_from_pages, extensive debug, cause unknown
