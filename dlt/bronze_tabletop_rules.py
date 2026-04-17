@@ -2253,14 +2253,36 @@ def review_ocr(source_file: str) -> None:
 
 def _store_validation(source_file: str, check_name: str,
                       status: str, message: str, run_id: str,
-                      details: str = "") -> None:
-    """Upsert a validation result to Iceberg."""
+                      details: str = "",
+                      collector: list | None = None) -> None:
+    """Record a validation result.
+
+    If collector is given, append the row to it (caller writes the batch).
+    Otherwise write a single-row Iceberg upsert filtered by source_file —
+    callers that use this mode must ensure only one check per source_file
+    per call, since the filter wipes all prior rows for that file.
+    """
     now = datetime.now(timezone.utc)
+    row = {
+        "source_file": source_file, "check_name": check_name,
+        "status": status, "message": message, "details": details,
+        "run_id": run_id, "checked_at": now,
+    }
+    if collector is not None:
+        collector.append(row)
+        return
     write_iceberg(NAMESPACE, "validation_results", pa.table({
-        "source_file": [source_file], "check_name": [check_name],
-        "status": [status], "message": [message], "details": [details],
-        "run_id": [run_id], "checked_at": [now],
+        k: [v] for k, v in row.items()
     }), overwrite_filter="source_file", overwrite_filter_value=source_file)
+
+
+def _write_validation_batch(source_file: str, rows: list) -> None:
+    """Write a batch of validation result rows for one source_file in one call."""
+    if not rows:
+        return
+    cols = {k: [r[k] for r in rows] for k in rows[0].keys()}
+    write_iceberg(NAMESPACE, "validation_results", pa.table(cols),
+                  overwrite_filter="source_file", overwrite_filter_value=source_file)
 
 
 def validate_bronze(source_file: str) -> None:
@@ -2269,10 +2291,20 @@ def validate_bronze(source_file: str) -> None:
     Checks: table completeness, entry coverage, spell cross-check,
     content gaps, duplicate entries. Results stored in
     bronze_tabletop.validation_results.
+
+    Reads via PyIceberg directly (no DuckDB iceberg extension — it's unstable
+    in shared processes like the Dagster run executor).
     """
-    from dlt.lib.duckdb_reader import get_reader
-    conn = get_reader(namespaces=[NAMESPACE])
+    from dlt.lib.iceberg_catalog import read_iceberg_filtered, table_exists
     sf = source_file
+
+    def _rows(table, cols):
+        """Read filtered Arrow table → list of dicts for the given cols."""
+        at = read_iceberg_filtered(NAMESPACE, table, "source_file", sf)
+        if len(at) == 0:
+            return []
+        cols_data = {c: at.column(c).to_pylist() for c in cols}
+        return [dict(zip(cols, vals)) for vals in zip(*(cols_data[c] for c in cols))]
 
     configs_dir = DOCUMENTS_DIR.parent / "configs"
     config = load_config(Path(sf), configs_dir)
@@ -2280,29 +2312,25 @@ def validate_bronze(source_file: str) -> None:
     val_cfg = config.get("bronze_validation", {})
 
     _log(f"Validating bronze: {sf} (run {run_id})")
+    batch: list = []
     passed = 0
     warned = 0
     failed = 0
 
     # ── 1. Table completeness ──
-    toc_tables = conn.execute(
-        "SELECT title FROM bronze_tabletop.toc_raw "
-        "WHERE source_file = ? AND title LIKE 'Table %'",
-        [sf]
-    ).fetchall()
+    toc_rows = _rows("toc_raw", ["title"])
     toc_table_nums = set()
-    for (title,) in toc_tables:
-        m = re.search(r'\d+', title)
-        if m:
-            toc_table_nums.add(int(m.group()))
+    for row in toc_rows:
+        title = row["title"]
+        if title and title.startswith("Table "):
+            m = re.search(r'\d+', title)
+            if m:
+                toc_table_nums.add(int(m.group()))
 
     parsed_table_nums = set()
     if toc_table_nums:
-        rows = conn.execute(
-            "SELECT DISTINCT table_number FROM bronze_tabletop.tables_raw WHERE source_file = ?",
-            [sf]
-        ).fetchall()
-        parsed_table_nums = {r[0] for r in rows}
+        tr_rows = _rows("tables_raw", ["table_number"])
+        parsed_table_nums = {r["table_number"] for r in tr_rows if r["table_number"] is not None}
 
     if toc_table_nums:
         missing = sorted(toc_table_nums - parsed_table_nums)
@@ -2318,28 +2346,28 @@ def validate_bronze(source_file: str) -> None:
             status, msg = "fail", f"Only {pct:.0f}% tables parsed ({len(parsed_table_nums)}/{len(toc_table_nums)}), missing: T{', T'.join(str(n) for n in missing)}"
             failed += 1
         _store_validation(sf, "table_completeness", status, msg, run_id,
-                          json.dumps({"missing": missing, "pct": round(pct, 1)}))
+                          json.dumps({"missing": missing, "pct": round(pct, 1)}),
+                          collector=batch)
         _log(f"  Table completeness: {status} — {msg}")
 
     # ── 1b. Font-switch table region coverage ──
-    # Per-page lower-bound: detected_regions >= toc_is_table_count.
-    # An UNDER page (det < toc) means a known table was missed by the
-    # font-switch detector. EXTRA pages (det > toc) are fine — they're
-    # mid-section unlabeled tables (Weapons, Armor) or false positives
-    # that silver ignores anyway.
-    toc_table_pages = conn.execute(
-        "SELECT page_start, COUNT(*) FROM bronze_tabletop.toc_raw "
-        "WHERE source_file = ? AND is_table = TRUE AND is_excluded = FALSE "
-        "GROUP BY page_start", [sf]
-    ).fetchall()
+    toc_table_pages_raw = _rows("toc_raw",
+        ["page_start", "is_table", "is_excluded"])
+    toc_pg_counts: dict = {}
+    for row in toc_table_pages_raw:
+        if row.get("is_table") and not row.get("is_excluded"):
+            p = row["page_start"]
+            toc_pg_counts[p] = toc_pg_counts.get(p, 0) + 1
+    toc_table_pages = sorted(toc_pg_counts.items())
+
     region_pages = []
-    try:
-        region_pages = conn.execute(
-            "SELECT printed_page_num, COUNT(*) FROM bronze_tabletop.table_regions "
-            "WHERE source_file = ? GROUP BY printed_page_num", [sf]
-        ).fetchall()
-    except Exception:
-        pass  # table_regions doesn't exist yet — first run before Phase 3 deploy
+    if table_exists(NAMESPACE, "table_regions"):
+        rg_rows = _rows("table_regions", ["printed_page_num"])
+        reg_counts: dict = {}
+        for row in rg_rows:
+            p = row["printed_page_num"]
+            reg_counts[p] = reg_counts.get(p, 0) + 1
+        region_pages = sorted(reg_counts.items())
 
     if toc_table_pages:
         region_count_by_page = {p: c for p, c in region_pages}
@@ -2367,27 +2395,24 @@ def validate_bronze(source_file: str) -> None:
                           json.dumps({"under_pages": under_pages[:20],
                                       "total_toc_table_pages": len(toc_table_pages),
                                       "total_det_on_declared": total_det,
-                                      "total_toc_is_table": total_toc}))
+                                      "total_toc_is_table": total_toc}),
+                          collector=batch)
         _log(f"  Table region coverage: {status} — {msg}")
 
     # ── 2. Spell index vs spell list cross-check ──
     index_spells = set()
-    rows = conn.execute(
-        "SELECT entry_name, entry_class FROM bronze_tabletop.known_entries_raw "
-        "WHERE source_file = ? AND entry_class IS NOT NULL",
-        [sf]
-    ).fetchall()
-    for name, cls in rows:
-        index_spells.add((name.lower().strip(), cls.lower().strip()))
+    for row in _rows("known_entries_raw", ["entry_name", "entry_class"]):
+        if row["entry_class"] is None:
+            continue
+        index_spells.add(
+            (row["entry_name"].lower().strip(), row["entry_class"].lower().strip())
+        )
 
     list_spells = set()
-    rows = conn.execute(
-        "SELECT entry_name, entry_class FROM bronze_tabletop.spell_list_entries "
-        "WHERE source_file = ?",
-        [sf]
-    ).fetchall()
-    for name, cls in rows:
-        list_spells.add((name.lower().strip(), cls.lower().strip()))
+    for row in _rows("spell_list_entries", ["entry_name", "entry_class"]):
+        list_spells.add(
+            (row["entry_name"].lower().strip(), row["entry_class"].lower().strip())
+        )
 
     if index_spells and list_spells:
         in_index_only = sorted(index_spells - list_spells)
@@ -2410,18 +2435,16 @@ def validate_bronze(source_file: str) -> None:
             "index_count": len(index_spells),
             "list_count": len(list_spells),
         })
-        _store_validation(sf, "spell_cross_check", status, msg, run_id, details)
+        _store_validation(sf, "spell_cross_check", status, msg, run_id, details,
+                          collector=batch)
         _log(f"  Spell cross-check: {status} — {msg}")
 
     # ── 3. Content gap detection ──
-    page_rows = conn.execute(
-        "SELECT printed_page_num FROM bronze_tabletop.page_texts "
-        "WHERE source_file = ? AND printed_page_num IS NOT NULL "
-        "ORDER BY printed_page_num",
-        [sf]
-    ).fetchall()
-    if page_rows:
-        pages = [r[0] for r in page_rows]
+    pg_rows = _rows("page_texts", ["printed_page_num"])
+    pages = sorted(
+        r["printed_page_num"] for r in pg_rows if r["printed_page_num"] is not None
+    )
+    if pages:
         max_gap = val_cfg.get("max_page_gap", 5)
         gaps = []
         for j in range(1, len(pages)):
@@ -2436,16 +2459,19 @@ def validate_bronze(source_file: str) -> None:
             status, msg = "warn", f"{len(gaps)} page gaps > {max_gap}: {', '.join(f'p{a}-{b} ({c} pages)' for a, b, c in gaps)}"
             warned += 1
         _store_validation(sf, "content_gaps", status, msg, run_id,
-                          json.dumps({"gaps": gaps}))
+                          json.dumps({"gaps": gaps}),
+                          collector=batch)
         _log(f"  Content gaps: {status} — {msg}")
 
     # ── 4. Duplicate entry detection ──
-    entry_rows = conn.execute(
-        "SELECT entry_name, COUNT(*) as cnt FROM bronze_tabletop.known_entries_raw "
-        "WHERE source_file = ? GROUP BY entry_name HAVING cnt > 1",
-        [sf]
-    ).fetchall()
-    dupes = [(name, cnt) for name, cnt in entry_rows]
+    name_counts: dict = {}
+    for row in _rows("known_entries_raw", ["entry_name"]):
+        n = row["entry_name"]
+        name_counts[n] = name_counts.get(n, 0) + 1
+    dupes = sorted(
+        ((n, c) for n, c in name_counts.items() if c > 1),
+        key=lambda x: -x[1],
+    )
 
     if not dupes:
         status, msg = "pass", "No duplicate entry names in known_entries"
@@ -2454,22 +2480,18 @@ def validate_bronze(source_file: str) -> None:
         status, msg = "warn", f"{len(dupes)} duplicate entry names: {', '.join(f'{n}({c}x)' for n, c in dupes[:10])}"
         warned += 1
     _store_validation(sf, "duplicate_entries", status, msg, run_id,
-                      json.dumps({"duplicates": dupes[:50]}))
+                      json.dumps({"duplicates": dupes[:50]}),
+                      collector=batch)
     _log(f"  Duplicate entries: {status} — {msg}")
 
     # ── 5. Authority entry coverage ──
-    authority = conn.execute(
-        "SELECT entry_name, entry_type FROM bronze_tabletop.authority_table_entries "
-        "WHERE source_file = ?",
-        [sf]
-    ).fetchall()
+    authority = _rows("authority_table_entries", ["entry_name", "entry_type"])
     if authority:
-        authority_names = {(name.lower(), etype) for name, etype in authority}
-        known_names = set()
-        for (name,) in conn.execute(
-            "SELECT entry_name FROM bronze_tabletop.known_entries_raw WHERE source_file = ?", [sf]
-        ).fetchall():
-            known_names.add(name.lower())
+        authority_names = {(r["entry_name"].lower(), r["entry_type"]) for r in authority}
+        known_names = {
+            r["entry_name"].lower()
+            for r in _rows("known_entries_raw", ["entry_name"])
+        }
 
         not_in_known = [(n, t) for n, t in authority_names if n not in known_names]
         if not not_in_known:
@@ -2479,10 +2501,11 @@ def validate_bronze(source_file: str) -> None:
             status, msg = "warn", f"{len(not_in_known)}/{len(authority_names)} authority entries not in known_entries"
             warned += 1
         _store_validation(sf, "authority_coverage", status, msg, run_id,
-                          json.dumps({"missing": not_in_known[:30]}))
+                          json.dumps({"missing": not_in_known[:30]}),
+                          collector=batch)
         _log(f"  Authority coverage: {status} — {msg}")
 
-    conn.close()
+    _write_validation_batch(sf, batch)
     run_status = "success" if failed == 0 else "failed"
     finish_run(run_id, run_status,
                {"passed": passed, "warned": warned, "failed": failed})

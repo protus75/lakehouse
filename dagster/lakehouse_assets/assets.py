@@ -84,6 +84,20 @@ def bronze_ocr_check(context: AssetExecutionContext):
     context.log.info(f"OCR check complete for {len(pdfs)} books")
 
 
+@asset(group_name="bronze", compute_kind="python", deps=[toc_review])
+def bronze_validate(context: AssetExecutionContext):
+    """Bronze validation checks: table completeness, table region coverage,
+    spell cross-check, content gaps, duplicates, authority coverage.
+    Results stored in bronze_tabletop.validation_results.
+    """
+    from dlt.bronze_tabletop_rules import validate_bronze, DOCUMENTS_DIR
+    pdfs = sorted(DOCUMENTS_DIR.glob("*.pdf"))
+    for f in pdfs:
+        context.log.info(f"Validating bronze: {f.name}")
+        validate_bronze(f.name)
+    context.log.info(f"Bronze validation complete for {len(pdfs)} books")
+
+
 @asset(group_name="silver_gold", compute_kind="python", deps=[bronze_tabletop, toc_review])
 def silver_entries(context: AssetExecutionContext):
     """Build silver_tabletop.silver_entries directly in iceberg."""
@@ -389,7 +403,8 @@ tabletop_full_pipeline = define_asset_job(
     name="tabletop_full_pipeline",
     executor_def=in_process_executor,
     selection=[
-        bronze_tabletop, toc_review, bronze_ocr_check, silver_entries,
+        bronze_tabletop, toc_review, bronze_ocr_check, bronze_validate,
+        silver_entries,
         silver_toc_sections, silver_known_entries, silver_spell_crosscheck,
         silver_spell_meta, silver_entry_descriptions, silver_page_anchors,
         silver_files, silver_tables,
@@ -402,7 +417,8 @@ tabletop_full_pipeline = define_asset_job(
 tabletop_without_enrichment = define_asset_job(
     name="tabletop_without_enrichment",
     executor_def=in_process_executor,
-    selection=[bronze_tabletop, toc_review, bronze_ocr_check, silver_entries,
+    selection=[bronze_tabletop, toc_review, bronze_ocr_check, bronze_validate,
+               silver_entries,
                silver_toc_sections, silver_known_entries, silver_spell_crosscheck,
                silver_spell_meta, silver_entry_descriptions, silver_page_anchors,
                silver_files, silver_tables,
@@ -413,7 +429,7 @@ tabletop_without_enrichment = define_asset_job(
 bronze_and_review = define_asset_job(
     name="bronze_and_review",
     executor_def=in_process_executor,
-    selection=[bronze_tabletop, toc_review],
+    selection=[bronze_tabletop, toc_review, bronze_ocr_check, bronze_validate],
 )
 
 silver_and_publish = define_asset_job(
@@ -442,7 +458,7 @@ seed_models = define_asset_job(
 defs = Definitions(
     assets=[
         seed_ollama_models, seed_huggingface_models, seed_marker_cache,
-        bronze_tabletop, toc_review, bronze_ocr_check,
+        bronze_tabletop, toc_review, bronze_ocr_check, bronze_validate,
         silver_entries, silver_toc_sections, silver_known_entries,
         silver_spell_crosscheck, silver_spell_meta, silver_entry_descriptions,
         silver_page_anchors, silver_files, silver_tables,
