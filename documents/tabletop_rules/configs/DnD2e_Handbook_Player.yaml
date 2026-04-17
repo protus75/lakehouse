@@ -184,15 +184,6 @@ authority_tables:
     page: 90
     type: equipment
 
-# Extra hints for tables the ToC-driven extractor needs help finding.
-# content_marker: unique string in the pipe block to locate it
-# heading: heading text near the table for fuzzy matching
-table_hints:
-  "Weapons":
-    content_marker: "| Arquebus"
-  "Armor":
-    content_marker: "| Banded mail"
-
 # Font-switch table detection — onboarded via scripts/probe_pymupdf_fonts.py
 # Body text uses Formata-Light 9.5; table headers use Formata-Regular 9.5
 # (same family/size, regular weight not light). See .claude-memory/project_table_extraction.md

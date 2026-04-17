@@ -1036,378 +1036,6 @@ def _find_pipe_blocks_in_range(lines: list[str], start: int, end: int) -> list[t
     return blocks
 
 
-def strip_tables_from_markdown(markdown: str) -> str:
-    """Remove all pipe-delimited table blocks and their heading labels from markdown.
-    Call AFTER extract_all_tables so tables are captured before removal."""
-    lines = markdown.split("\n")
-    result = []
-    i = 0
-    while i < len(lines):
-        s = lines[i].strip()
-        if s.startswith("|") and s.count("|") >= 2:
-            # Skip entire pipe block
-            while i < len(lines):
-                s2 = lines[i].strip()
-                if s2.startswith("|") and s2.count("|") >= 2:
-                    i += 1
-                elif not s2:
-                    # Blank line — skip if next is pipe
-                    if i + 1 < len(lines) and lines[i + 1].strip().startswith("|"):
-                        i += 1
-                        continue
-                    break
-                else:
-                    break
-        else:
-            result.append(lines[i])
-            i += 1
-    return "\n".join(result)
-
-
-def _validate_table(table: dict, config: dict) -> list[str]:
-    """Check a parsed table for quality issues. Returns list of failure reasons."""
-    te_cfg = config.get("table_extraction", {})
-    min_cols = te_cfg.get("min_columns", 2)
-    min_rows = te_cfg.get("min_rows", 2)
-    max_smushed = te_cfg.get("max_smushed_cell_chars", 25)
-
-    rows = table.get("rows", [])
-    issues = []
-
-    if len(rows) < min_rows:
-        issues.append(f"too_few_rows ({len(rows)})")
-
-    for ri, cells in enumerate(rows):
-        if len(cells) < min_cols:
-            issues.append(f"few_columns row {ri} ({len(cells)} cols)")
-            break
-        for cell in cells:
-            if len(cell) > max_smushed and " " not in cell:
-                issues.append(f"smushed cell row {ri}: {cell[:40]}")
-                break
-        if issues and issues[-1].startswith("smushed"):
-            break
-
-    return issues
-
-
-def _extract_table_vlm(filepath: Path, printed_page: int,
-                       page_printed: dict[int, int],
-                       config: dict) -> list[list[str]] | None:
-    """Use a vision model to extract a table from a PDF page image.
-    Returns parsed rows or None on failure."""
-    import base64
-    import requests
-
-    te_cfg = config.get("table_extraction", {})
-    vlm_model = te_cfg.get("vlm_model", "minicpm-v:latest")
-    vlm_url = te_cfg.get("vlm_url", "http://host.docker.internal:11434")
-    vlm_timeout = te_cfg.get("vlm_timeout", 120)
-    vlm_prompt = te_cfg.get("vlm_prompt", "Extract the table from this image as a markdown pipe-delimited table.")
-
-    # Find the 0-based page index for this printed page
-    page_idx = None
-    for idx, pp in page_printed.items():
-        if pp == printed_page:
-            page_idx = idx
-            break
-    if page_idx is None:
-        return None
-
-    # Render page to PNG
-    doc = fitz.open(str(filepath))
-    if page_idx >= len(doc):
-        doc.close()
-        return None
-
-    page = doc[page_idx]
-    pix = page.get_pixmap(dpi=200)
-    img_bytes = pix.tobytes("png")
-    doc.close()
-
-    img_b64 = base64.b64encode(img_bytes).decode("utf-8")
-
-    # Call Ollama vision API
-    try:
-        resp = requests.post(
-            f"{vlm_url}/api/generate",
-            json={
-                "model": vlm_model,
-                "prompt": vlm_prompt,
-                "images": [img_b64],
-                "stream": False,
-                "options": {"temperature": 0.0, "num_predict": 2048},
-            },
-            timeout=vlm_timeout,
-        )
-        resp.raise_for_status()
-        text = resp.json().get("response", "")
-    except Exception as e:
-        _log(f"  VLM table extraction failed: {e}")
-        return None
-
-    # Parse markdown pipe table from response
-    rows = []
-    for line in text.strip().split("\n"):
-        line = line.strip()
-        if not line.startswith("|") or line.count("|") < 2:
-            continue
-        cells = [c.strip() for c in line.split("|")]
-        if cells and cells[0] == "":
-            cells = cells[1:]
-        if cells and cells[-1] == "":
-            cells = cells[:-1]
-        # Skip separator rows
-        if all(re.match(r'^[\s\-:]+$', c) or c == "" for c in cells):
-            continue
-        rows.append(cells)
-
-    return rows if len(rows) >= 2 else None
-
-
-def extract_all_tables(markdown: str, toc_entries: list[dict],
-                       page_texts: list[str],
-                       page_printed: dict[int, int],
-                       config: dict | None = None,
-                       filepath: Path | None = None) -> list[dict]:
-    """Extract tables using validated ToC as the driver.
-
-    Two-pass approach:
-    1. Parse pipe blocks from Marker markdown (fast)
-    2. Validate each table; re-extract failures via VLM (accurate)
-
-    Returns [{table_number, table_title, toc_title, format, rows: [[cell, ...], ...]}, ...]
-    """
-    from rapidfuzz import fuzz
-    from dlt.lib.tabletop_cleanup import _build_page_position_map
-
-    # Build target list: every is_table ToC entry
-    table_targets = []
-    synthetic_num = 1000
-    for entry in toc_entries:
-        if not entry.get("is_table") or entry.get("is_excluded"):
-            continue
-        title = entry.get("title", "")
-        page = entry.get("page_start", 0)
-        # Extract table number from title if present
-        num_match = re.search(r'Table\s+(\d+)', title)
-        if num_match:
-            tnum = int(num_match.group(1))
-        else:
-            tnum = synthetic_num
-            synthetic_num += 1
-        table_targets.append({
-            "table_number": tnum,
-            "toc_title": title,
-            "table_title": title.split(":", 1)[-1].strip() if ":" in title else title,
-            "page": page,
-        })
-
-    if not table_targets:
-        _log("  Tables: no is_table entries in ToC")
-        return []
-
-    # Build page anchors for markdown position lookup
-    page_anchors = _build_page_position_map(
-        markdown, page_texts, page_printed, len(page_texts), config
-    )
-
-    # Build printed_page → markdown char range lookup
-    # page_anchors is [(md_pos, printed_page), ...] sorted by md_pos
-    def _page_char_range(printed_page: int) -> tuple[int, int]:
-        """Find approximate char range in markdown for a printed page (±2 pages)."""
-        target_low = printed_page - 2
-        target_high = printed_page + 2
-        start = len(markdown)
-        end = 0
-        for md_pos, pp in page_anchors:
-            if target_low <= pp <= target_high:
-                start = min(start, md_pos)
-                end = max(end, md_pos)
-        if start >= end:
-            # Fallback: search entire document
-            return 0, len(markdown)
-        # Extend end to next anchor or end of doc
-        for md_pos, pp in page_anchors:
-            if md_pos > end:
-                end = md_pos
-                break
-        else:
-            end = len(markdown)
-        return start, end
-
-    lines = markdown.split("\n")
-    # Build line_start → line_index mapping for char pos → line conversion
-    line_starts = []
-    pos = 0
-    for line in lines:
-        line_starts.append(pos)
-        pos += len(line) + 1  # +1 for \n
-
-    def _char_to_line(char_pos: int) -> int:
-        """Convert character position to line index."""
-        lo, hi = 0, len(line_starts) - 1
-        while lo < hi:
-            mid = (lo + hi + 1) // 2
-            if line_starts[mid] <= char_pos:
-                lo = mid
-            else:
-                hi = mid - 1
-        return lo
-
-    tables = []
-    found_titles = set()
-
-    for target in table_targets:
-        toc_title = target["toc_title"]
-        if toc_title in found_titles:
-            continue
-
-        # Find char range for this table's page
-        char_start, char_end = _page_char_range(target["page"])
-        line_start = _char_to_line(char_start)
-        line_end = min(_char_to_line(char_end) + 50, len(lines))  # extend a bit
-
-        # Strategy 1: find title match near expected page
-        best_line = None
-        best_score = 0
-        clean_title = target["table_title"].lower()
-        toc_title_lower = toc_title.lower()
-
-        for li in range(line_start, line_end):
-            s = lines[li].strip()
-            clean = s.lstrip("#").lstrip().lstrip("*").strip().rstrip("*").strip()
-            if len(clean) < 3:
-                continue
-            clean_lower = clean.lower()
-            # Check for exact or fuzzy title match
-            score = max(
-                fuzz.ratio(clean_lower, clean_title),
-                fuzz.ratio(clean_lower, toc_title_lower),
-            )
-            if score > best_score and score >= 75:
-                best_score = score
-                best_line = li
-
-        # Strategy 2: if title match found, look for pipe block nearby
-        if best_line is not None:
-            # Search for pipes within 10 lines after the title
-            pipe_blocks = _find_pipe_blocks_in_range(lines, best_line, min(best_line + 15, len(lines)))
-            if pipe_blocks:
-                block_start, rows = pipe_blocks[0]
-                if len(rows) <= 100:  # reject suspiciously large blocks
-                    tables.append({
-                        "table_number": target["table_number"],
-                        "table_title": target["table_title"],
-                        "toc_title": toc_title,
-                        "format": "pipe",
-                        "rows": rows,
-                    })
-                    found_titles.add(toc_title)
-                    continue
-
-            # No pipes — capture text block instead
-            text_rows = []
-            for j in range(best_line, min(best_line + 40, len(lines))):
-                s = lines[j].strip()
-                if s.startswith("#") and j > best_line + 1:
-                    break
-                if s:
-                    text_rows.append([s])
-            if len(text_rows) >= 2:
-                tables.append({
-                    "table_number": target["table_number"],
-                    "table_title": target["table_title"],
-                    "toc_title": toc_title,
-                    "format": "text",
-                    "rows": text_rows,
-                })
-                found_titles.add(toc_title)
-                continue
-
-        # Strategy 3: scan entire page range for any unmatched pipe block
-        pipe_blocks = _find_pipe_blocks_in_range(lines, line_start, line_end)
-        for block_start, rows in pipe_blocks:
-            if 2 <= len(rows) <= 100:
-                tables.append({
-                    "table_number": target["table_number"],
-                    "table_title": target["table_title"],
-                    "toc_title": toc_title,
-                    "format": "pipe",
-                    "rows": rows,
-                })
-                found_titles.add(toc_title)
-                break
-
-    # Use config table_hints to find tables by content marker — works for
-    # unlabeled tables (Weapons, Armor) that aren't in table_targets because
-    # is_table wasn't set during initial extraction.
-    hints = (config or {}).get("table_hints", {})
-    synthetic = max((t["table_number"] for t in tables), default=999) + 1
-    for hint_title, hint in hints.items():
-        if hint_title in found_titles:
-            continue
-        marker = hint.get("content_marker", "")
-        if not marker:
-            continue
-        for li in range(len(lines)):
-            if marker in lines[li]:
-                # Walk back to find start of pipe block
-                start = li
-                while start > 0 and lines[start - 1].strip().startswith("|"):
-                    start -= 1
-                rows = _find_pipe_block(lines, start)
-                if rows and len(rows) <= 200:
-                    tables.append({
-                        "table_number": synthetic,
-                        "table_title": hint_title,
-                        "toc_title": hint_title,
-                        "format": "pipe",
-                        "rows": rows,
-                    })
-                    found_titles.add(hint_title)
-                    _log(f"  Tables: {hint_title} found via content_marker hint")
-                    synthetic += 1
-                break
-
-    missed = [t for t in table_targets if t["toc_title"] not in found_titles]
-    if missed:
-        _log(f"  Tables: missed {len(missed)} — {', '.join(t['toc_title'][:30] for t in missed)}")
-    _log(f"  Tables: matched {len(found_titles)}/{len(table_targets)} from ToC")
-
-    # Pass 2: validate extracted tables, re-extract failures via VLM
-    if config and filepath:
-        failed = []
-        for t in tables:
-            issues = _validate_table(t, config)
-            if issues:
-                failed.append((t, issues))
-
-        if failed:
-            _log(f"  Tables: {len(failed)} failed validation, attempting VLM re-extraction")
-            # Build page_printed reverse map: 0-based index → printed page
-            for t, issues in failed:
-                # Find the printed page for this table from table_targets
-                target = next((tt for tt in table_targets if tt["toc_title"] == t["toc_title"]), None)
-                if not target:
-                    continue
-                printed_page = target["page"]
-                _log(f"    VLM: {t['toc_title'][:40]} (page {printed_page}) — {issues[0]}")
-                vlm_rows = _extract_table_vlm(filepath, printed_page, page_printed, config)
-                if vlm_rows:
-                    vlm_issues = _validate_table({"rows": vlm_rows}, config)
-                    if not vlm_issues or len(vlm_issues) < len(issues):
-                        t["rows"] = vlm_rows
-                        t["format"] = "vlm"
-                        _log(f"    VLM: replaced with {len(vlm_rows)} rows")
-                    else:
-                        _log(f"    VLM: still failing ({vlm_issues[0]}), keeping original")
-                else:
-                    _log(f"    VLM: no result, keeping original")
-
-    return tables
-
-
 def extract_authority_entries(all_tables: list[dict], config: dict) -> list[dict]:
     """Extract entry names from authority tables specified in config.
 
@@ -1616,6 +1244,90 @@ def detect_all_regions(filepath: Path, page_printed: dict[int, int],
     _log(f"  Table regions: {len(regions_out)} regions on {pages_with_regions} pages, "
          f"{len(cells_out)} cells, {len(masks_out)} mask ranges")
     return regions_out, cells_out, masks_out
+
+
+def build_all_tables_from_regions(
+    table_regions: list[dict],
+    table_cells: list[dict],
+    toc_sections: list[dict],
+) -> list[dict]:
+    """Convert font-switch detector output into all_tables-compatible rows.
+
+    Pairs ToC is_table entries with detected regions on their page_start:
+    - For each page with N ToC is_table entries, take the top-N regions by
+      region_index (which the detector emits top-to-bottom)
+    - Warn on mismatch (more ToC tables than regions, or vice versa)
+    - Multi-page tables: only the region on page_start is used; continuation
+      regions on subsequent pages are ignored for now
+
+    Returns list of {table_number, table_title, toc_title, format, rows}.
+    """
+    # cells keyed by (page_index, region_index) -> {row_idx: {col_idx: text}}
+    cells_by_region: dict = {}
+    for c in table_cells:
+        key = (c["page_index"], c["region_index"])
+        cells_by_region.setdefault(key, {}).setdefault(
+            c["row_index"], {}
+        )[c["col_index"]] = c["cell_text"]
+
+    # regions keyed by printed_page_num -> list of (region_index, page_index)
+    # sorted by region_index so first region is top of page
+    regions_by_page: dict = {}
+    for r in table_regions:
+        regions_by_page.setdefault(r["printed_page_num"], []).append(
+            (r["region_index"], r["page_index"])
+        )
+    for p in regions_by_page:
+        regions_by_page[p].sort()
+
+    def _region_to_rows(page_idx: int, region_idx: int) -> list[list[str]]:
+        """Convert cells for one region into rows[row_idx][col_idx]."""
+        region_cells = cells_by_region.get((page_idx, region_idx), {})
+        if not region_cells:
+            return []
+        max_row = max(region_cells.keys())
+        rows: list[list[str]] = []
+        for r in range(max_row + 1):
+            row_cells = region_cells.get(r, {})
+            max_col = max(row_cells.keys()) if row_cells else -1
+            rows.append([row_cells.get(c, "") for c in range(max_col + 1)])
+        return rows
+
+    # Group ToC is_table entries by page_start in sort_order
+    toc_tables_by_page: dict = {}
+    for s in toc_sections:
+        if s.get("is_table") and not s.get("is_excluded"):
+            toc_tables_by_page.setdefault(s["page_start"], []).append(s)
+    for p in toc_tables_by_page:
+        toc_tables_by_page[p].sort(key=lambda s: s.get("sort_order", 0))
+
+    all_tables: list[dict] = []
+    for page, toc_entries in toc_tables_by_page.items():
+        regions = regions_by_page.get(page, [])
+        matched = min(len(toc_entries), len(regions))
+        if len(toc_entries) > len(regions):
+            _log(
+                f"  Warning: page {page} declares {len(toc_entries)} tables "
+                f"but only {len(regions)} regions detected — unmatched: "
+                f"{[t['title'] for t in toc_entries[matched:]]}"
+            )
+        for i in range(matched):
+            toc = toc_entries[i]
+            region_idx, page_idx = regions[i]
+            rows = _region_to_rows(page_idx, region_idx)
+            if not rows:
+                continue
+            title = toc["title"]
+            num_match = re.search(r"\d+", title)
+            table_number = int(num_match.group()) if num_match else 0
+            all_tables.append({
+                "table_number": table_number,
+                "table_title": title,
+                "toc_title": title,
+                "format": "pipe",
+                "rows": rows,
+            })
+    return all_tables
 
 
 # ── Store to Bronze ──────────────────────────────────────────────
@@ -1902,12 +1614,19 @@ def extract_pdf(filepath: Path, force: bool = False) -> None:
 
         step(f"Spell list: {len(spell_list)} entries")
 
-        # 6. Extract tables using ToC as driver, then strip from markdown
-        all_tables = extract_all_tables(markdown, toc_sections, page_texts, page_printed, config, filepath)
+        # 6. Font-switch table region detection
+        table_regions, table_cells, page_text_masks = detect_all_regions(
+            filepath, page_printed, toc_sections, config
+        )
+        step(f"Table regions: {len(table_regions)}")
+
+        # 6b. Build tables_raw-compatible rows from detected regions + cells
+        all_tables = build_all_tables_from_regions(
+            table_regions, table_cells, toc_sections
+        )
         table_titles = set(t["toc_title"] for t in all_tables)
-        _log(f"  Tables found: {len(table_titles)} unique, Weapons={'Weapons' in table_titles}, Armor={'Armor' in table_titles}")
-        step(f"Tables: {len(all_tables)} parsed")
-        markdown = strip_tables_from_markdown(markdown)
+        _log(f"  Tables built from regions: {len(table_titles)} unique")
+        step(f"Tables: {len(all_tables)} from regions")
 
         # 7. Authority entries from config-specified tables
         authority_entries = extract_authority_entries(all_tables, config)
@@ -1916,13 +1635,6 @@ def extract_pdf(filepath: Path, force: bool = False) -> None:
         # 8. Watermarks
         watermarks = detect_watermarks(page_texts)
         step(f"Watermarks: {len(watermarks)}")
-
-        # 8b. Font-switch table region detection (Phase 3, runs alongside the
-        # legacy extract_all_tables until Phase 6 deletes the old path)
-        table_regions, table_cells, page_text_masks = detect_all_regions(
-            filepath, page_printed, toc_sections, config
-        )
-        step(f"Table regions: {len(table_regions)}")
 
         # 9. Store everything
         store_bronze(filepath, config, run_id, page_texts, page_printed,
