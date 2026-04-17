@@ -1,5 +1,5 @@
 - [feedback_memory_location.md](feedback_memory_location.md) — Memory is in .claude-memory/ in repo root, NOT system default path
-- [user_profile.md](user_profile.md) — User prefers CLI/PowerShell, not Jupyter, experienced Windows dev with RTX 4090
+- [user_profile.md](user_profile.md) — CLI/PowerShell over Jupyter; i9-13900K, RTX 4090 24GB, 64GB DDR5, 4x1TB NVMe
 - [feedback_shell_and_tools.md](feedback_shell_and_tools.md) — VSCode only, MSYS_NO_PATHCONV, read-only perms, WSL GPU fix, Streamlit, give links
 - [feedback_data_and_parsing.md](feedback_data_and_parsing.md) — Fix at ingestion, fuzzy matching, preserve casing, page-guided search, ToC ordering
 - [feedback_operations.md](feedback_operations.md) — Kill stale processes, stop means immediately, save debug state
@@ -23,3 +23,4 @@
 - [feedback_no_proprietary_files.md](feedback_no_proprietary_files.md) — Parquet or JSON only, no duckdb/pickle/proprietary files ever
 - [feedback_verify_running.md](feedback_verify_running.md) — `docker ps -a` at session start; never assume containers are up
 - [project_sigsegv_investigation.md](project_sigsegv_investigation.md) — UNRESOLVED: SIGSEGV in build_entries_from_pages, extensive debug, cause unknown
+- [project_hardware_baseline.md](project_hardware_baseline.md) — 13900K + 4090 verified healthy 2026-04-17; stress-test methodology + baseline numbers

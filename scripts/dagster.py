@@ -481,15 +481,19 @@ print(json.dumps({{"columns": cols, "types": types, "rows": [[str(c)[:200] for c
 
 
 def cmd_unload():
-    """Unload all Ollama models from GPU memory."""
+    """Unload all currently loaded Ollama models from GPU/RAM."""
     from urllib.request import urlopen, Request
     from urllib.error import URLError
 
     try:
-        resp = urlopen("http://localhost:11434/api/tags", timeout=5)
+        resp = urlopen("http://localhost:11434/api/ps", timeout=5)
         models = [m["name"] for m in json.loads(resp.read()).get("models", [])]
     except (URLError, OSError) as e:
         print(f"Ollama not reachable: {e}")
+        return
+
+    if not models:
+        print("No models currently loaded")
         return
 
     for model in models:
@@ -504,7 +508,7 @@ def cmd_unload():
         except Exception as e:
             print(f"  Failed to unload {model}: {e}")
 
-    print("All models unloaded from GPU")
+    print(f"Unloaded {len(models)} model(s)")
 
 
 def cmd_preflight():
